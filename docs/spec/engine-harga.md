@@ -3,7 +3,7 @@
 | Atribut | Nilai |
 |---|---|
 | Task | T-003 (`task/T-003-spec-engine-harga`) |
-| Versi | 0.2 — Draf (putaran perbaikan 1: G0, PG-4, kata kunci terlarang, Franchise, selaras T-002 v0.2) |
+| Versi | 0.3 — Draf (putaran perbaikan 2: konteks tampil per status T-002, COD, tipe promo, satu aturan DITAHAN, `tentukanTier`, hash versi, skema tier/margin; selaras T-002 v0.3) |
 | Tanggal | 10 Nov 2026 |
 | Penyusun | Pricing Analyst + Backend Architect (squad Harga & bisnis, pemilik: Efan) |
 | Sumber wajib | `CLAUDE.md` (Aturan harga), `project-specs/keputusan.md` (#3, #4, #6, #7, #8, #9), `project-specs/fase-1-mvp.md`, `project-specs/backlog.md` (T-003, T-020, T-031, T-032, T-037, T-038), `docs/legal/syarat-ketentuan.md` §3–§4 |
@@ -53,7 +53,7 @@ dan dirangkum di §11 dengan **DEFAULT SEMENTARA** (asumsi kerja yang bisa digan
 | **Harga dibayar (D)** | Harga bruto per unit yang dicatat saat checkout (sebelum promo). Tidak pernah berubah (T-002 §1). |
 | **Harga final (F)** | Harga bruto per unit yang dikunci saat cut-off (§5.3). |
 | **Versi harga** | `id_versi_harga`: penanda deterministik atas input (modal, margin, tier, konfigurasi) yang menghasilkan sebuah tabel harga. |
-| **Tayang** | Produk boleh muncul di katalog & bisa dibeli. Syarat harga di §4 (P-05 di §4.1); syarat stok di T-025. |
+| **Tayang** | Produk boleh muncul di katalog & bisa dibeli. Syarat harga di §4 (PG-5 di §4.1); syarat stok di T-025. |
 
 ---
 
@@ -80,8 +80,13 @@ dan dirangkum di §11 dengan **DEFAULT SEMENTARA** (asumsi kerja yang bisa digan
 | MITRA | ✓ (drop point) [P-06] | — | — (Fase 2+) | — (Fase 2+) |
 | FRANCHISE | ○ | — | — | — |
 
-Model data (T-004) wajib menyimpan matriks sebagai baris generik `(id_satuan_jual, level, kode_tier)` sehingga
-tier Mitra/Franchise bisa ditambah tanpa migrasi skema. Label tier ("6+", "12+") dibentuk dari `moq`, tidak ditulis tetap.
+Usulan bentuk data untuk T-004 (skema final milik T-004). Definisi tier dan margin dipisah agar MOQ tidak terduplikasi per level:
+- `definisi_tier(id_satuan_jual, kode_tier, moq, aktif)`, `UNIQUE (id_satuan_jual, kode_tier)`,
+  `CHECK ((kode_tier = 'SATUAN' AND moq = 1) OR (kode_tier = 'G0' AND moq IS NULL) OR (kode_tier IN ('G1','G2') AND (moq IS NULL OR moq >= 2)))`.
+  Aturan lintas baris (`moq(G1) < moq(G2)`, tier G1/G2 aktif wajib ber-MOQ) ditegakkan di domain (§3.4 langkah 4).
+- `margin_sel(id_satuan_jual, level, kode_tier, jenis_margin, nilai_margin NULL)`, `UNIQUE (id_satuan_jual, level, kode_tier)`,
+  `CHECK (nilai_margin IS NULL OR nilai_margin >= 0)`. Baris generik ini membuat tier Mitra/Franchise bisa ditambah tanpa migrasi skema.
+- Label tier ("6+", "12+") dibentuk dari `moq`, tidak ditulis tetap.
 
 ### 2.3 Konfigurasi engine (semua bisa diubah admin; bawaan = asumsi)
 | Kunci | Tipe | Bawaan sementara | Rujukan |
@@ -104,7 +109,12 @@ tier Mitra/Franchise bisa ditambah tanpa migrasi skema. Label tier ("6+", "12+")
 | `harga_coret` | `HARGA_SATUAN_RIIL` \| `TIDAK_TAMPIL` | `HARGA_SATUAN_RIIL` | P-17 |
 | `kategori_terlarang` | daftar kode kategori | rokok, tembakau & nikotin, bir & minuman beralkohol | P-24, keputusan #7 |
 
-Setiap perubahan konfigurasi menaikkan `id_versi_harga` semua produk terdampak dan dicatat di `log_admin` (ADR §7).
+Setiap perubahan konfigurasi mengubah `id_versi_harga` semua produk terdampak dan dicatat di `log_admin` (ADR §7).
+
+**Cakupan T-020:** kunci numerik (kelipatan K, ambang, batas usia, syarat Mitra, batas atas margin) didukung penuh. Kunci pilihan
+(enum/boolean/himpunan, termasuk `levelAktif`) hanya dibangun untuk **nilai bawaan** di tabel ini; nilai lain ditolak saat konfigurasi
+disimpan atau saat start dengan `KONFIGURASI_BELUM_DIDUKUNG`, sampai keputusan §11 menuntut opsi itu. Kasus uji bertanda **[opsi]** di §9
+aktif ketika opsinya dibangun; sebelum itu harapannya `KONFIGURASI_BELUM_DIDUKUNG`.
 
 ---
 
@@ -123,7 +133,7 @@ Setiap perubahan konfigurasi menaikkan `id_versi_harga` semua produk terdampak d
 ```
 modal              = bagiAtas(modal_sumber × isi_jual, isi_sumber)                 (§3.3)
 margin_rp(sel)     = NOMINAL: nilai
-                     BP:      bagiAtas(modal × nilai_bp, 10000)
+                     BP:      bagiAtas(modal × nilai_bp, 10000)            // ke atas: asumsi, ikut P-02
 harga_mentah(sel)  = modal + margin_rp(sel)
 harga(sel)         = bulatK(harga_mentah, K, mode)
                      jika harga < modal → harga = bulatK(harga_mentah, K, ATAS) + peringatan PEMBULATAN_DINAIKKAN
@@ -140,7 +150,7 @@ pengecekan eksplisit tetap dijalankan (pagar PG-1) sebagai pertahanan berlapis.
 
 ### 3.4 Urutan perhitungan (wajib, deterministik)
 1. Validasi kategori (§8.3) → gagal: `KATEGORI_DILARANG`, berhenti.
-2. Validasi modal sumber: ada, > 0, umur ≤ `batas_usia_modal_detik` bila diisi → gagal: `MODAL_KOSONG` / `MODAL_TIDAK_VALID` / `MODAL_KEDALUWARSA`.
+2. Validasi modal sumber: ada dan > 0 → gagal: `MODAL_KOSONG` / `MODAL_TIDAK_VALID`. Umur data (`MODAL_KEDALUWARSA`) **tidak** dicek di sini, melainkan saat tabel dibaca (`cekKesegaranModal` di `tampilanHarga`, `hargaDibayar`, `hitungHargaFinal`, dan filter query katalog), sehingga hasil tabel tidak bergantung pada jam.
 3. Validasi konversi → hitung `modal` (§3.3).
 4. Validasi definisi tier: `SATUAN.moq = 1`; `G1`/`G2` yang aktif wajib punya MOQ integer ≥ 2 dan, bila keduanya aktif, `moq(G1) < moq(G2)` → gagal: `MOQ_TIDAK_VALID`. **`G0` dikecualikan** dari aturan MOQ: `moq(G0)` selalu `null`, aktif bila `g0_aktif = true` (MOQ yang diisi untuk G0 → `MOQ_TIDAK_VALID`).
 5. Untuk setiap sel aktif: validasi margin (kosong / negatif / format / di atas `batas_atas_margin_bp`) → hitung `harga(sel)` (§3.2).
@@ -162,10 +172,10 @@ Notasi: `H(L, t)` = harga sel level `L` tier `t`; `M` = modal; `T(L)` = himpunan
 ### 4.1 Pernyataan formal
 | ID | Invarian | Pernyataan formal |
 |---|---|---|
-| PG-1 | Tidak ada harga di bawah modal | `∀ sel: H(sel) ≥ M`; dan pada setiap baris pesanan: `harga_dibayar ≥ modal_snapshot`, `harga_final ≥ modal_cutoff` |
+| PG-1 | Tidak ada harga di bawah modal | `∀ sel: H(sel) ≥ M`; dan pada setiap baris pesanan: `harga_dibayar ≥ modal_snapshot`, `harga_final ≥ modal_cutoff` bila `harga_final` tidak null (dijamin oleh syarat lolos cut-off §5.4; `a = 0` → `harga_final = null`) |
 | PG-2 | Harga grup individu ≥ Mitra ≥ Franchise | Mode `KETAT` (bawaan [P-22]): `∀ L1 ≺ L2: min_{t∈T(L1)} H(L1,t) ≥ max_{t∈T(L2)} H(L2,t)`. Mode `PER_TIER`: `∀ L1 ≺ L2, ∀ t ∈ T(L1) ∩ T(L2): H(L1,t) ≥ H(L2,t)`. Hanya membandingkan level yang selnya terisi. Pelanggaran yang melibatkan level **di luar** `levelAktif` (Fase 1: FRANCHISE) = **peringatan** `PAGAR_LEVEL_NONAKTIF`, tidak menahan tayang; berubah menjadi error `PAGAR_LEVEL_DILANGGAR` begitu level itu diaktifkan *(asumsi, lihat P-22)* |
 | PG-3 | Tier lebih tinggi tidak lebih mahal | `∀ L, ∀ t1, t2 ∈ T(L): r(t1) < r(t2) ⇒ H(L,t1) ≥ H(L,t2)`. Urutan memakai peringkat `r`, bukan MOQ. Sama besar diizinkan + peringatan `TIER_TANPA_MANFAAT` |
-| PG-4 | Promo + gratis ongkir tidak membuat harga akhir < modal | Per baris pesanan (sama dengan §6.1 langkah 8): `D × q − P − S ≥ M × q`. Pelanggaran → tolak + peringatan |
+| PG-4 | Promo + gratis ongkir tidak membuat harga akhir < modal | **Checkout** (sama dengan §6.1 langkah 8): `D × q − P − S ≥ M × q`; pelanggaran → promo/gratis ongkir tidak diterapkan + peringatan. **Cut-off** (satu-satunya aturan DITAHAN karena modal, §5.4): `a = 0 ∨ D × a − P_a ≥ Mc × a + S_a`; pelanggaran → grup DITAHAN [P-09, P-26] |
 | PG-5 | Produk tanpa harga lengkap tidak tayang | `tayang ⇔` modal valid ∧ kategori diizinkan ∧ tidak menunggu tinjauan kategori ∧ sel (INDIVIDU, SATUAN) berharga ∧ setiap tier aktif berharga ∧ PG-1..PG-3 lolos untuk level di `levelAktif` ∧ (`mitra_wajib_untuk_tayang` ⇒ sel MITRA berharga) |
 | PG-6 | Harga kartu = harga detail; promo terpisah | `tampilanHarga(produk, konteks)` adalah **satu-satunya** fungsi penghasil harga untuk kartu, detail, halaman grup, dan ringkasan checkout; untuk `id_versi_harga` dan konteks yang sama hasilnya identik. Respons memuat `harga_aktif` dan `promo` sebagai field terpisah; `promo` tidak pernah menimpa `harga_aktif` |
 | PG-7 | Harga dibayar tidak naik setelah dicatat | `harga_final ≤ harga_dibayar` untuk setiap peserta (T-002, F-01/P-19) |
@@ -174,9 +184,9 @@ Notasi: `H(L, t)` = harga sel level `L` tier `t`; `M` = modal; `T(L)` = himpunan
 | ID | Domain (`packages/domain`) | DB (constraint) | Panel admin (T-037) | Import CSV (T-038) | Sinkron Gudang / runtime | Kode error |
 |---|---|---|---|---|---|---|
 | PG-1 | `hitungTabelHarga`, `hitungHargaFinal` | `CHECK (harga >= modal AND modal > 0)` pada `harga_terhitung`; `CHECK (harga_dibayar >= modal_snapshot)` & `CHECK (harga_final IS NULL OR harga_final >= modal_cutoff)` pada baris pesanan; `CHECK (nilai_margin >= 0)` | Simpan ditolak, sel merah | Baris ditolak | Modal baru → hitung ulang; sel gagal → produk tidak tayang; saat cut-off → grup DITAHAN | `HARGA_DI_BAWAH_MODAL`, `MARGIN_NEGATIF` |
-| PG-2 | `validasiPagar` | Tidak bisa sebagai `CHECK` lintas baris; trigger validasi di akhir transaksi tulis harga (opsional, T-020 memutuskan) | Simpan ditolak (level aktif) / peringatan dengan konfirmasi (level nonaktif); tampilkan sel yang bentrok | Baris ditolak (level aktif) / diimpor + peringatan (level nonaktif) | Hitung ulang → tidak tayang (level aktif saja) | `PAGAR_LEVEL_DILANGGAR`, `PAGAR_LEVEL_NONAKTIF` |
-| PG-3 | `validasiPagar` | `CHECK (moq >= 2)` untuk `G1`/`G2`; `CHECK (moq IS NULL)` untuk `G0`; `UNIQUE (id_satuan_jual, level, kode_tier)` | Simpan ditolak | Baris ditolak | Hitung ulang → tidak tayang | `PAGAR_TIER_DILANGGAR`, `MOQ_TIDAK_VALID` |
-| PG-4 | `validasiAturanPromo` (saat simpan), `hitungRingkasanCheckout` (runtime) | `CHECK` pada baris pesanan: `nilai_bersih_barang >= modal_snapshot × qty` | Simpan aturan ditolak + daftar SKU terdampak | — (aturan promo tidak lewat CSV di Fase 1) | Promo tidak diterapkan + peringatan [P-07] | `PROMO_DI_BAWAH_MODAL`, `GRATIS_ONGKIR_DI_BAWAH_MODAL` |
+| PG-2 | `validasiPagar` | Tidak bisa sebagai `CHECK` lintas baris. Pilot **tanpa trigger**: PG-2 hanya di domain; `harga_terhitung` hanya boleh ditulis use case harga (hak tulis dibatasi; skema milik T-004) | Simpan ditolak (level aktif) / peringatan dengan konfirmasi (level nonaktif); tampilkan sel yang bentrok | Baris ditolak (level aktif) / diimpor + peringatan (level nonaktif) | Hitung ulang → tidak tayang (level aktif saja) | `PAGAR_LEVEL_DILANGGAR`, `PAGAR_LEVEL_NONAKTIF` |
+| PG-3 | `validasiPagar` | `CHECK` per kode tier pada `definisi_tier` (§2.2); `UNIQUE (id_satuan_jual, kode_tier)`; `moq(G1) < moq(G2)` di domain | Simpan ditolak | Baris ditolak | Hitung ulang → tidak tayang | `PAGAR_TIER_DILANGGAR`, `MOQ_TIDAK_VALID` |
+| PG-4 | `validasiAturanPromo` (saat simpan), `hitungRingkasanCheckout` (runtime) | `CHECK (harga_dibayar*qty - potongan_baris - subsidi_ongkir_baris >= modal_snapshot*qty)` pada baris pesanan | Simpan aturan ditolak + daftar SKU terdampak | — (aturan promo tidak lewat CSV di Fase 1) | Checkout: promo tidak diterapkan + peringatan [P-07, P-27]; cut-off: DITAHAN (§5.4) | `PROMO_DI_BAWAH_MODAL`, `GRATIS_ONGKIR_DI_BAWAH_MODAL`, `DI_BAWAH_MODAL` (alasan DITAHAN) |
 | PG-5 | `statusTayang` | Kolom `tayang` hanya ditulis oleh use case harga; query katalog `WHERE tayang AND stok > 0` (T-025) | Lencana "Tidak tayang" + daftar alasan | Laporan per baris: "diimpor, tidak tayang: …" | Modal kosong/kedaluwarsa → tidak tayang otomatis | `TIDAK_TAYANG` + `AlasanTidakTayang[]` |
 | PG-6 | `tampilanHarga` | — | Pratinjau kartu & detail di panel memanggil fungsi yang sama | — | PWA tidak menghitung harga (ADR §3); E2E membandingkan kartu vs detail | — |
 | PG-7 | `hitungHargaFinal` | `CHECK (harga_final IS NULL OR harga_final <= harga_dibayar)` | — | — | Job cut-off | `HARGA_FINAL_MELEBIHI_DIBAYAR` (bug, alert) |
@@ -192,7 +202,7 @@ Notasi: `H(L, t)` = harga sel level `L` tier `t`; `M` = modal; `T(L)` = himpunan
 | `MOQ_TIDAK_VALID` | error | MOQ G1/G2 aktif kosong, < 2, atau tidak naik tegas; atau MOQ diisi untuk G0 |
 | `MARGIN_KOSONG` | status | Sel wajib belum diisi (bukan error simpan; produk tidak tayang) |
 | `MARGIN_TIDAK_VALID` | status (alasan tidak tayang) | Ringkasan untuk margin tersimpan yang kini tidak lolos validasi (mis. jenis tidak lagi diizinkan, margin nol setelah `margin_nol = TOLAK`); rincian di `MARGIN_FORMAT` / `MARGIN_NEGATIF` / `MARGIN_NOL` |
-| `MITRA_WAJIB_KOSONG` | status (alasan tidak tayang) | `mitra_wajib_untuk_tayang = true` tetapi sel (MITRA, SATUAN) kosong [P-06] |
+| `MITRA_WAJIB_KOSONG` | status (alasan tidak tayang) | `mitra_wajib_untuk_tayang = true` tetapi sel (MITRA, SATUAN) kosong [P-06]; tidak terjangkau di T-020 (opsi non-bawaan) |
 | `MARGIN_NEGATIF` | error | Margin < 0 |
 | `MARGIN_FORMAT` | error | Format tidak dikenali / presisi < 0,01 % / jenis tidak diizinkan |
 | `MARGIN_NOL` | peringatan / error | Margin = 0; perilaku sesuai `margin_nol` [P-16] |
@@ -213,21 +223,32 @@ Notasi: `H(L, t)` = harga sel level `L` tier `t`; `M` = modal; `T(L)` = himpunan
 | `MITRA_TIDAK_TERSEDIA` | info | Drop point tetapi harga Mitra kosong / syarat tidak terpenuhi |
 | `HARGA_TIDAK_TERSEDIA` | error runtime | Tabel harga tidak bisa dihitung (dipakai T-002 M-08) |
 | `ANGKA_OVERFLOW` | error | Hasil melewati batas integer aman |
+| `KONFIGURASI_BELUM_DIDUKUNG` | error konfigurasi | Nilai kunci pilihan selain bawaan belum dibangun (§2.3) |
 
 ---
 
 ## 5. Harga grup sepanjang siklus
 
-Istilah status mengikuti T-002 v0.2 (DIBUKA, BELUM_AKTIF, AKTIF, CUT_OFF, HARGA_TERKUNCI, GAGAL_LANJUT_SATUAN, DITAHAN, GAGAL).
+Status grup mengikuti T-002 v0.3 apa adanya: DIBUKA, BELUM_AKTIF, AKTIF (dengan atribut `tier_tercapai`), CUT_OFF, DITAHAN,
+HARGA_TERKUNCI, GAGAL_LANJUT_SATUAN, GAGAL, DIPROSES, SELESAI, DIBATALKAN.
 Semua harga diambil dari tabel harga **live** (modal terkini) kecuali ditulis lain [F-08/P-08].
 
 ### 5.1 Harga tampil (kartu, detail, halaman grup)
-| Status grup untuk kunci (produk × zona × slot) | `harga_aktif` | Info tier berikut |
-|---|---|---|
-| Belum ada grup / DIBUKA / BELUM_AKTIF | `H(INDIVIDU, SATUAN)` | "harga bila grup aktif": tier grup terendah yang aktif |
-| AKTIF, qty terhitung < MOQ tier ber-MOQ terendah (atau G1/G2 tidak aktif) | `H(INDIVIDU, G0)` bila `g0_aktif`, selain itu `H(INDIVIDU, SATUAN)` [F-04] | "Z lagi → Rp{H(tier berikut)}" |
-| AKTIF, tier `t` ∈ {G1, G2} tercapai | `H(INDIVIDU, t)` | tier berikut bila ada |
-| ≥ CUT_OFF | HARGA_TERKUNCI: harga final grup; GAGAL_LANJUT_SATUAN: harga satuan terkunci; lainnya: teks status T-002 §9.1 | — |
+| `statusGrup` (T-002) untuk kunci produk × zona × slot | `hargaAktif` | `teksStatus` | Info tier berikut |
+|---|---|---|---|
+| `null` (belum ada grup) / DIBUKA / BELUM_AKTIF | `H(INDIVIDU, SATUAN)` | `null` | "harga bila grup aktif": tier grup terendah yang aktif |
+| AKTIF | `H(INDIVIDU, tentukanTier(qtyTerhitung, snapshotMoq, g0Aktif))` [F-04] | `null` | "Z lagi → Rp{H(tier berikut)}" bila ada |
+| CUT_OFF / DITAHAN | `null` | `GRUP_DITUTUP_DIHITUNG` | — |
+| HARGA_TERKUNCI | `hargaTerkunci` (wajib di konteks; tidak ada → `HARGA_TIDAK_TERSEDIA`) | `HARGA_FINAL_TERKUNCI` | — |
+| GAGAL_LANJUT_SATUAN | `hargaTerkunci` (harga satuan terkunci) | `GRUP_TIDAK_TERCAPAI_LANJUT_SATUAN` | — |
+| DIPROSES / SELESAI | `hargaTerkunci` | `GRUP_DIPROSES` | — |
+| GAGAL | `null` | `GRUP_TIDAK_TERCAPAI` | — |
+| DIBATALKAN | `null` | `GRUP_DIBATALKAN` | — |
+
+- `tentukanTier` (§7) adalah **satu-satunya** penentu tier, dipakai `tampilanHarga` dan `hitungHargaFinal`: `G2` bila G2 ada di snapshot dan
+  `qty ≥ moq(G2)`; selain itu `G1` bila G1 ada di snapshot dan `qty ≥ moq(G1)`; selain itu `G0` bila `g0Aktif`; selain itu `SATUAN`.
+  `snapshotMoq` dan `g0Aktif` diambil dari snapshot grup saat dibuka (T-002 B-14).
+- Untuk status tanpa `hargaAktif`, kartu & detail menampilkan teks status (teks UI di T-002 §9.1), bukan harga; keduanya tetap identik (PG-6).
 
 - `harga_coret` = `H(INDIVIDU, SATUAN)` hanya bila `> harga_aktif`; tidak pernah harga referensi buatan [P-17].
 - Harga Mitra **tidak** ditampilkan di kartu (bergantung pilihan drop point di checkout); detail produk boleh menampilkan "Ambil di drop point: Rp{H(MITRA,SATUAN)} bila syarat terpenuhi" melalui `tampilanHarga` yang sama.
@@ -249,30 +270,38 @@ Dihitung per peserta dengan tabel harga yang dihitung ulang dari **modal saat cu
 ```
 kandidat = { D }
 akun < 3, peserta LANJUT_SATUAN (calon GAGAL_LANJUT_SATUAN) → kandidat += H_c(INDIVIDU, SATUAN)   // harga grup tidak berlaku
-akun ≥ 3 (calon HARGA_TERKUNCI) → kandidat += H_c(INDIVIDU, tier_tercapai)   (G0 bila g0_aktif, selain itu SATUAN, bila belum ada G1/G2)
-jenis_harga = MITRA ∧ syarat Mitra masih terpenuhi saat cut-off → kandidat += H_c(MITRA, SATUAN)
+akun ≥ 3 (calon HARGA_TERKUNCI) → kandidat += H_c(INDIVIDU, tentukanTier(qty_terhitung, snapshot_moq, g0_aktif))
+jenis_harga_dibayar = MITRA ∧ syarat Mitra masih terpenuhi saat cut-off → kandidat += H_c(MITRA, SATUAN)
 F = min(kandidat)
 ```
 - PG-7: `F ≤ D` otomatis. Bila semua harga live > D (modal naik), `F = D` dan peserta **tidak** ditagih tambahan [P-19].
-- PG-1 saat cut-off berlaku sama untuk HARGA_TERKUNCI **dan** GAGAL_LANJUT_SATUAN (peserta lanjut harga satuan tetap lewat engine harga + pagar ≥ modal): `D ≥ Mc` wajib untuk setiap peserta yang akan dikirim; bila gagal → grup **DITAHAN** (T-002 G10) [P-09]. Tidak ada kredit, refund, atau picking sebelum admin menyelesaikan (G11 → HARGA_TERKUNCI, G11b → GAGAL_LANJUT_SATUAN).
-- Sel live yang gagal pagar saat cut-off (mis. margin kosong setelah diedit) tidak masuk `kandidat`; bila tier tercapai tak punya harga valid → DITAHAN dengan `HARGA_TIDAK_TERSEDIA`.
+- `jenisHargaAkhir` = jenis kandidat terpilih: `MITRA`, `GRUP` (tier G0/G1/G2), atau `SATUAN` (termasuk bila `F = D` dari harga satuan). Bila beberapa kandidat sama dengan `F`, aturan seri: `MITRA > GRUP > SATUAN`.
+- **Aturan DITAHAN karena modal hanya satu**: syarat lolos §5.4 (`a = 0 ∨ D × a − P_a ≥ Mc × a + S_a`), berlaku sama untuk calon HARGA_TERKUNCI **dan** GAGAL_LANJUT_SATUAN. Tanpa promo & subsidi ongkir syarat ini setara `D ≥ Mc` (T-002 G10) [P-09]; perluasannya ke promo/subsidi adalah [P-26]. Gagal → grup **DITAHAN**; tidak ada kredit, refund, atau picking sebelum admin menyelesaikan (G11 → HARGA_TERKUNCI, G11b → GAGAL_LANJUT_SATUAN).
+- Sel live yang tidak valid saat cut-off (mis. margin dikosongkan) **dibuang dari `kandidat`** + peringatan admin; `F ≤ D` tetap berlaku. Hanya bila tabel cut-off tidak bisa dihitung sama sekali (modal kosong/kedaluwarsa) hasilnya DITAHAN dengan `HARGA_TIDAK_TERSEDIA` (= "PE/INV tidak tersedia" di T-002 G10).
 - Pembatalan baris yang membuat pesanan drop point turun di bawah syarat Mitra → kandidat Mitra hilang, tetapi `F ≤ D` tetap berlaku (tidak ditagih tambahan) [F-12].
 
 ### 5.4 Selisih → saldo (rumus integer)
 Per baris peserta. `q` = qty_pesan, `a` = qty_teralokasi, `P` = potongan_baris (diskon, §6), `S` = subsidi_ongkir_baris, `Mc` = modal cut-off.
 ```
-B   = D × q − P                                   // nilai barang bersih yang sudah dibayar
+B   = D × q − P                                   // nilai barang bersih yang dibayar (PRABAYAR) / disepakati (COD)
 P_a = bagiBawah(P × a, q)                          // bagian potongan untuk unit teralokasi
 S_a = (a > 0) ? S : 0                              // ongkir tidak dihitung ulang [F-20]
+SYARAT LOLOS (satu-satunya aturan DITAHAN karena modal):
+      a = 0  ∨  D × a − P_a ≥ Mc × a + S_a         // gagal → DITAHAN (DI_BAWAH_MODAL) [P-09, P-26]
 T   = F × a − P_a                                  // kewajiban barang bersih setelah harga final
-T'  = max(T, Mc × a + S_a)                         // pagar PG-4 saat cut-off [P-23]
-jika T' > D × a − P_a  → grup DITAHAN (DI_BAWAH_MODAL)  [P-09]
-Kredit saldo K = B − T'                            // ≥ 0; satu entri ledger kunci `selisih:{grup_id}:{peserta_id}`
+T'  = max(T, Mc × a + S_a)                         // [P-23]; T' ≤ D × a − P_a dijamin SYARAT LOLOS dan F ≤ D
+PRABAYAR: K = B − T' (≥ 0), tagihanBarangCod = null
+COD:      K = 0, tulisKreditKeLedger = false, tagihanBarangCod = T'
 jika T' > T → info SELISIH_DIBATASI_PAGAR
+KASUS a = 0 (stok habis saat cut-off): hargaFinal = null, jenisHargaAkhir = null, T' = 0,
+      PRABAYAR: K = B;  COD: K = 0, tagihanBarangCod = 0;  tidak pernah DITAHAN, tidak memengaruhi status grup
 ```
 - Tanpa promo (`P = S = 0`): `K = (D − F) × a + D × (q − a)` — identik dengan rumus T-002 §1 (selisih + refund unit tak teralokasi).
-- Peserta COD: tidak ada dana di muka → tidak ada kredit; tagih saat antar = `T' + ongkir_ditagih`.
-- Peserta dengan `dana_ditahan = true` (akun dibekukan, T-002 F-10): engine tetap menghitung `K`, tetapi job cut-off **tidak** menulis kredit ke ledger; nilai `K` disimpan pada peserta untuk diselesaikan admin.
+- Peserta COD: tidak ada dana di muka → tidak ada kredit; tagih saat antar = `tagihanBarangCod + ongkir_ditagih`.
+- Peserta dengan `dana_ditahan = true` (akun dibekukan, T-002 F-10): engine tetap menghitung `K`, tetapi `tulisKreditKeLedger = false`; nilai `K` disimpan pada peserta untuk diselesaikan admin.
+- Ledger (selaras T-002 v0.3): kredit cut-off `K > 0` ditulis **langsung di transaksi cut-off** (bukan lewat outbox) dengan kunci `selisih:{grup_id}:{peserta_id}`. Kredit ini mencakup unit tak teralokasi pada alokasi parsial **dan** seluruh nilai bersih pada alokasi 0 (`a = 0` → `K = B`).
+- `harga_final` baris peserta `a = 0` disimpan `NULL`, sehingga `CHECK (harga_final IS NULL OR harga_final >= modal_cutoff)` tidak menggagalkan transaksi cut-off walau `D < Mc`.
+- Refund penuh peserta di luar cut-off (batal sebelum cut-off, grup GAGAL + REFUND, grup DIBATALKAN): `hitungRefund(D, q, P) = D × q − P`, satu entri per peserta dengan kunci `refund:{peserta_id}`. Ongkir **tidak** termasuk: ongkir yang benar-benar dibayar (`ongkir − S_total`) dikembalikan terpisah dengan kunci `refund_ongkir:{pesanan_id}`, hanya bila semua baris pesanan direfund [F-20]. Debit saldo saat checkout (`debit:{pesanan_id}`) di luar engine harga (T-021).
 - `P_a` dibulatkan ke bawah: kewajiban `T` bisa lebih besar ≤ Rp1 dan kredit lebih kecil ≤ Rp1 per baris (melindungi pagar modal). Dicatat sebagai asumsi di P-15.
 - Contoh ilustrasi (bukan harga): lihat TC-HE-35 s.d. TC-HE-39.
 
@@ -281,21 +310,21 @@ jika T' > T → info SELISIH_DIBATASI_PAGAR
 2. Peserta baru membayar harga live terbaru; `harga_dibayar` peserta lama tidak berubah.
 3. Bila tabel baru gagal pagar → produk tidak tayang untuk peserta **baru**; grup yang berjalan tetap sampai cut-off dan dievaluasi di §5.3.
 4. `MARGIN_MENIPIS` dikirim ke admin bila `(D_min_grup − modal_baru) × 10000 < ambang_margin_menipis_bp × D_min_grup` (kosong = tidak ada alert).
-5. Simulasi untuk admin: `simulasiPerubahanModal` (§7) menampilkan dampak modal −20 %, −10 %, +10 %, +20 % terhadap jumlah produk tidak tayang & grup berisiko DITAHAN, tanpa mengubah data.
+5. Simulasi dampak perubahan modal (±10 %, ±20 %) untuk admin **ditunda ke Fase 2**; tidak dibangun di T-020.
 
 ---
 
 ## 6. Diskon & gratis ongkir
 
-### 6.1 Urutan penerapan per pesanan (checkout dan cut-off memakai urutan sama)
+### 6.1 Urutan penerapan per pesanan (saat checkout; cut-off tidak menghitung ulang promo, memakai `P` dan `S` tersimpan, §5.4)
 1. Harga dibayar per baris dari §5.2 → `nilai_bruto_baris = D × q`.
 2. Pilih diskon yang **berlaku** per baris (produk / kategori / level / periode / zona / kuota). Tidak menumpuk: pilih satu dengan potongan terbesar yang lolos PG-4 [P-15].
-3. Hitung `P` (potongan baris): persen → `bulat(D × bp / 10000) × q` dengan pembulatan `pembulatan_diskon` (bawaan ke bawah); nominal per unit → `nilai × q`; nominal per baris → `nilai`. `P ≤ nilai_bruto_baris`.
+3. Hitung `P` (potongan baris) dari `AturanDiskon` (§7), hanya bila `q ≥ qtyMin`: `PERSEN` → `bagiBawah(D × nilaiBp, 10000) × q` (pembulatan `pembulatan_diskon`, bawaan ke bawah); `NOMINAL_UNIT` → `nilai × q`; `NOMINAL_BARIS` → `nilai`. `P ≤ nilai_bruto_baris`.
 4. Cek PG-4 tanpa ongkir: `D × q − P ≥ M × q`. Gagal → diskon baris itu tidak diterapkan (runtime) [P-07]; peringatan ke admin.
 5. Ongkir pesanan dari T-031 (`ongkir`). Drop point → 0.
 6. Evaluasi gratis ongkir: syarat minimal belanja memakai `Σ(D × q − P)` (bawaan `SESUDAH_DISKON` [P-13]), zona, periode, level.
-7. Subsidi `S_total` = ongkir yang digratiskan (penuh atau sebagian sesuai aturan). Alokasikan ke baris (§6.2).
-8. Cek PG-4 lengkap per baris: `D × q − P − S ≥ M × q`. Ada baris gagal → **gratis ongkir tidak diterapkan** untuk pesanan ini, pengguna melihat "Gratis ongkir tidak berlaku untuk pesanan ini", ongkir normal ditagih; peringatan `GRATIS_ONGKIR_DI_BAWAH_MODAL` ke admin.
+7. Subsidi `S_total` dari `AturanGratisOngkir.subsidi`: `PENUH` → `ongkir`; `MAKS` → `min(ongkir, nilai)`. Alokasikan ke baris (§6.2).
+8. Cek PG-4 lengkap per baris: `D × q − P − S ≥ M × q`. Ada baris gagal → **gratis ongkir tidak diterapkan** untuk seluruh pesanan ini [P-27], pengguna melihat "Gratis ongkir tidak berlaku untuk pesanan ini", ongkir normal ditagih; peringatan `GRATIS_ONGKIR_DI_BAWAH_MODAL` ke admin.
 9. Total tagihan = `Σ(D × q − P) + ongkir − S_total`; pemakaian saldo setelahnya (T-005). Batas COD dibandingkan sesuai P-18.
 
 ### 6.2 Alokasi subsidi ongkir ke baris (bawaan `PROPORSIONAL_NILAI`) [P-20]
@@ -327,6 +356,7 @@ interface InputHargaSatuanJual {
   idSatuanJual: string;
   kodeKategori: string;
   namaProduk: string;
+  tinjauanKategori: 'TIDAK_PERLU' | 'MENUNGGU' | 'DISETUJUI';   // §8.3
   modalSumber: { nilai: Rupiah | null; waktuData: Date | null };
   konversi: { isiJual: number; isiSumber: number };
   tier: DefinisiTier[];
@@ -348,33 +378,63 @@ interface SelHarga {
   masalah: Masalah[];
 }
 interface TabelHarga {
-  idSatuanJual: string; modal: Rupiah | null; idVersiHarga: string;
+  idSatuanJual: string; modal: Rupiah | null; waktuDataModal: Date | null; idVersiHarga: string;
   sel: SelHarga[]; tayang: boolean; alasanTidakTayang: AlasanTidakTayang[];
   peringatan: Masalah[];
 }
 
 function modalPerSatuanJual(modalSumber: Rupiah, isiJual: number, isiSumber: number): Hasil<Rupiah>;
 function hitungHargaSel(modal: Rupiah, margin: MarginSpec, p: Pembulatan): Hasil<Rupiah>;
-function hitungTabelHarga(input: InputHargaSatuanJual, k: KonfigurasiHarga, sekarang: Date): TabelHarga;
+function hitungTabelHarga(input: InputHargaSatuanJual, k: KonfigurasiHarga): TabelHarga;   // tanpa `sekarang`
 function validasiPagar(t: TabelHarga, k: KonfigurasiHarga): Masalah[];           // PG-1..PG-3
 function statusTayang(t: TabelHarga, k: KonfigurasiHarga): { tayang: boolean; alasan: AlasanTidakTayang[] };
+function cekKesegaranModal(t: TabelHarga, k: KonfigurasiHarga, sekarang: Date): Masalah[];   // MODAL_KEDALUWARSA
 
+interface SnapshotTier { moqG1: number | null; moqG2: number | null }  // dari snapshot grup; null = tier tidak aktif
+function tentukanTier(qtyTerhitung: number, snapshotMoq: SnapshotTier, g0Aktif: boolean): KodeTier;
+
+type StatusGrup = 'DIBUKA' | 'BELUM_AKTIF' | 'AKTIF' | 'CUT_OFF' | 'DITAHAN' | 'HARGA_TERKUNCI'
+  | 'GAGAL_LANJUT_SATUAN' | 'GAGAL' | 'DIPROSES' | 'SELESAI' | 'DIBATALKAN';   // = T-002 §3, apa adanya
+type KodeTeksStatus = 'GRUP_DITUTUP_DIHITUNG' | 'HARGA_FINAL_TERKUNCI' | 'GRUP_TIDAK_TERCAPAI_LANJUT_SATUAN'
+  | 'GRUP_DIPROSES' | 'GRUP_TIDAK_TERCAPAI' | 'GRUP_DIBATALKAN';
 interface KonteksTampil {
-  statusGrup: 'TIDAK_ADA' | 'DIBUKA' | 'BELUM_AKTIF' | 'AKTIF' | 'TERKUNCI';
-  qtyTerhitung: number; snapshotMoq?: Partial<Record<KodeTier, number>>; hargaFinalGrup?: Rupiah;
+  statusGrup: StatusGrup | null;               // null = belum ada grup untuk kunci ini
+  qtyTerhitung: number; snapshotMoq?: SnapshotTier; g0Aktif?: boolean;
+  hargaTerkunci?: Rupiah;                       // wajib untuk HARGA_TERKUNCI / GAGAL_LANJUT_SATUAN / DIPROSES / SELESAI
   promoBerlaku?: AturanPromo[];
 }
 interface TampilanHarga {
-  idVersiHarga: string; hargaAktif: Rupiah; hargaCoret: Rupiah | null; tierAktif: KodeTier;
+  idVersiHarga: string; hargaAktif: Rupiah | null; teksStatus: KodeTeksStatus | null;
+  hargaCoret: Rupiah | null; tierAktif: KodeTier | null;
   tierBerikut: { tier: KodeTier; harga: Rupiah; kurangQty: number } | null;
   hargaMitraDropPoint: Rupiah | null;
   promo: { label: string; hargaSetelahPromo: Rupiah; berlakuSampai: Date | null } | null; // terpisah
 }
-function tampilanHarga(t: TabelHarga, ktx: KonteksTampil, k: KonfigurasiHarga): Hasil<TampilanHarga>;
+function tampilanHarga(t: TabelHarga, ktx: KonteksTampil, k: KonfigurasiHarga, sekarang: Date): Hasil<TampilanHarga>;
 
-function hargaDibayar(t: TabelHarga, caraKirim: 'ANTAR' | 'DROP_POINT', syaratMitraTerpenuhi: boolean)
-  : Hasil<{ harga: Rupiah; jenis: 'SATUAN' | 'MITRA'; info: Masalah[] }>;
+function hargaDibayar(t: TabelHarga, caraKirim: 'ANTAR' | 'DROP_POINT', syaratMitraTerpenuhi: boolean,
+  k: KonfigurasiHarga, sekarang: Date): Hasil<{ harga: Rupiah; jenis: 'SATUAN' | 'MITRA'; info: Masalah[] }>;
 function syaratMitraTerpenuhi(baris: { hargaSatuan: Rupiah; qty: number }[], k: KonfigurasiHarga): boolean;
+
+interface CakupanPromo {
+  idSatuanJual?: string[]; kodeKategori?: string[]; level?: Level[]; idZona?: string[];   // kosong = semua
+  berlakuMulai: Date | null; berlakuSampai: Date | null; kuota: number | null;
+}
+interface AturanDiskon {
+  id: string; label: string;
+  jenis: 'PERSEN' | 'NOMINAL_UNIT' | 'NOMINAL_BARIS';
+  nilaiBp?: BasisPoin;   // wajib bila PERSEN
+  nilai?: Rupiah;        // wajib bila NOMINAL_UNIT / NOMINAL_BARIS
+  qtyMin: number;        // ≥ 1
+  cakupan: CakupanPromo;
+}
+interface AturanGratisOngkir {
+  id: string; label: string;
+  minimalBelanja: Rupiah | null;                                   // dasar sesuai P-13
+  subsidi: { jenis: 'PENUH' } | { jenis: 'MAKS'; nilai: Rupiah };
+  cakupan: CakupanPromo;
+}
+type AturanPromo = ({ tipe: 'DISKON' } & AturanDiskon) | ({ tipe: 'GRATIS_ONGKIR' } & AturanGratisOngkir);
 
 interface BarisCheckout { idBaris: string; d: Rupiah; qty: number; modal: Rupiah; beratGram: number; kandidatDiskon: AturanDiskon[] }
 interface HasilCheckoutHarga {
@@ -389,24 +449,37 @@ function validasiAturanPromo(aturan: AturanDiskon, terdampak: TabelHarga[], k: K
 
 interface InputFinal {
   d: Rupiah; q: number; a: number; potongan: Rupiah; subsidi: Rupiah; modalCutoff: Rupiah;
-  hasilGrup: 'HARGA_TERKUNCI' | 'GAGAL_LANJUT_SATUAN'; tierTercapai: KodeTier | null;
-  jenisHarga: 'SATUAN' | 'MITRA' | 'GRUP'; syaratMitraMasihTerpenuhi: boolean; tabelCutoff: TabelHarga;
-  danaDitahan: boolean;
+  hasil: 'HARGA_TERKUNCI' | 'GAGAL_LANJUT_SATUAN';
+  qtyTerhitung: number; snapshotMoq: SnapshotTier; g0Aktif: boolean;   // tier lewat tentukanTier
+  jenisHargaDibayar: 'SATUAN' | 'MITRA'; syaratMitraMasihTerpenuhi: boolean;
+  tabelCutoff: TabelHarga; metodeBayar: 'PRABAYAR' | 'COD'; danaDitahan: boolean;
 }
 type HasilFinal =
-  | { status: 'TERKUNCI'; hargaFinal: Rupiah; kewajibanBersih: Rupiah; kreditSaldo: Rupiah;
-      tulisKreditKeLedger: boolean /* false bila danaDitahan */; info: Masalah[] }
+  | { status: 'TERKUNCI';
+      hargaFinal: Rupiah | null;               // null bila a = 0 (§5.4)
+      jenisHargaAkhir: 'SATUAN' | 'GRUP' | 'MITRA' | null;   // null bila a = 0; seri: MITRA > GRUP > SATUAN
+      kewajibanBersih: Rupiah;                 // T'
+      kreditSaldo: Rupiah;                     // K; 0 bila COD
+      tulisKreditKeLedger: boolean;            // false bila COD, danaDitahan, atau K = 0
+      tagihanBarangCod: Rupiah | null;         // = T' bila COD, selain itu null
+      info: Masalah[] }
   | { status: 'DITAHAN'; alasan: 'DI_BAWAH_MODAL' | 'HARGA_TIDAK_TERSEDIA' };
-function hitungHargaFinal(x: InputFinal): HasilFinal;
-
-function simulasiPerubahanModal(tabel: InputHargaSatuanJual[], deltaBp: number[], k: KonfigurasiHarga, sekarang: Date)
-  : { deltaBp: number; tidakTayang: number; peringatan: number }[];
+function hitungHargaFinal(x: InputFinal, k: KonfigurasiHarga, sekarang: Date): HasilFinal;
+function hitungRefund(d: Rupiah, q: number, potongan: Rupiah): Rupiah;   // = d × q − potongan; tanpa ongkir
 
 type Hasil<T> = { ok: true; nilai: T; peringatan: Masalah[] } | { ok: false; masalah: Masalah[] };
 ```
 
 Aturan implementasi:
-- `idVersiHarga` = hash stabil (mis. SHA-256 terpotong) atas input + konfigurasi yang relevan; input sama → id sama (dites).
+- `hitungTabelHarga` menjalankan §3.4 lengkap: menghitung sel, lalu **memanggil** `validasiPagar` dan `statusTayang` dan memasukkan hasilnya ke `TabelHarga`. Keduanya diekspor terpisah hanya untuk pratinjau panel & tes.
+- `idVersiHarga` = 16 karakter hex pertama SHA-256 atas serialisasi kanonik **hanya** dari kunci berikut:
+  `idSatuanJual`, `modalSumber.nilai`, `konversi.isiJual`, `konversi.isiSumber`, `kodeKategori`, `tinjauanKategori`, `tier[]` (kode, aktif, moq),
+  `margin` (level, kode_tier, jenis, nilai), dan konfigurasi `pembulatan.mode`, `pembulatan.kelipatan`, `jenis_margin_diizinkan`, `margin_nol`,
+  `batas_atas_margin_bp`, `mode_pagar_level`, `mitra_wajib_untuk_tayang`, `levelAktif`, `kategori_terlarang`.
+  **Dikecualikan:** `sekarang`, `modalSumber.waktuData`, nama produk, konfigurasi promo/ongkir/syarat Mitra.
+  Serialisasi kanonik: JSON UTF-8 tanpa spasi; kunci objek diurutkan leksikografis; integer ditulis desimal tanpa eksponen; `null` ditulis eksplisit;
+  larik `tier` diurutkan menurut `r(kode)`, larik `margin` menurut (urutan level, `r(kode_tier)`); himpunan diurutkan leksikografis.
+- Kedaluwarsa modal dicek **saat dibaca** (`cekKesegaranModal` dengan `sekarang`); query katalog juga menyaring `waktu_data_modal` terhadap batas usia.
 - Adapter menyimpan hasil `hitungTabelHarga` ke tabel `harga_terhitung` (cache materialisasi) dalam transaksi yang sama dengan perubahan modal/margin; katalog membaca cache, bukan menghitung per request.
 - API kartu (`T-025`) dan detail (`T-028`) **wajib** memanggil `tampilanHarga` dengan `TabelHarga` dari cache yang sama; tidak ada endpoint lain yang membentuk harga.
 - `HasilFinal` dipakai job cut-off T-023; seluruh penulisan hasil dalam satu transaksi (T-002 §6 langkah 9).
@@ -459,8 +532,8 @@ Proses:
 ### 8.3 Kategori terlarang (keputusan #7)
 - Kode kategori dalam `kategori_terlarang` → `KATEGORI_DILARANG`; baris ditolak, tidak tersimpan sama sekali. Panel menolak pembuatan kategori/produk tersebut.
 - Pemeriksaan nama produk di kategori lain memakai dua daftar konfigurasi:
-  - `kata_kunci_terlarang` (mis. rokok, kretek, cerutu, tembakau, vape, bir, beer, alkohol, filter);
-  - `frasa_pengecualian` (mis. "bir pletok", "kopi filter", "filter air", "root beer").
+  - `kata_kunci_terlarang` (mis. rokok, "rokok filter", kretek, cerutu, tembakau, vape, bir, beer, alkohol);
+  - `frasa_pengecualian` (mis. "bir pletok", "root beer").
 - Pencocokan: nama dinormalisasi (huruf kecil, tanda baca → spasi, spasi ganda dirapatkan), frasa pengecualian dihapus lebih dulu, lalu kata kunci dicocokkan sebagai **kata utuh** (batas kata, bukan potongan: "Birthday" tidak cocok dengan "bir").
 - Ada kecocokan → **tahan untuk ditinjau, bukan tolak otomatis**: baris tetap disimpan (laporan `DIIMPOR_TIDAK_TAYANG`), alasan `PERLU_TINJAUAN_KATEGORI`, produk tidak tayang sampai admin `owner`/`admin_harga` memindahkan kategori atau menandai "bukan produk terlarang" (dicatat di `log_admin` dengan alasan). Tanda tinjauan hilang bila nama diubah.
 - Cakupan persis daftar (minuman beralkohol lain, rokok elektrik) [P-24].
@@ -479,27 +552,27 @@ Konvensi: **semua angka adalah ilustrasi, bukan harga**. `M` = modal per satuan 
 | TC-HE-03 | `isi_sumber = 0` | `KONVERSI_TIDAK_VALID`; tidak tayang |
 | TC-HE-04 | `M = 1.000`, margin BP 1.234 | `margin_rp = 124` (123,4 → atas); harga 1.124 |
 | TC-HE-05 | Sama dengan TC-HE-04, `K = 100`, `ATAS` | Harga 1.200 |
-| TC-HE-06 | `M = 1.010`, margin nominal 40, `K = 100`, `BAWAH` | Mentah 1.050 → 1.000 < M → 1.100 + `PEMBULATAN_DINAIKKAN` |
-| TC-HE-07 | `K = 100`, `TERDEKAT`, mentah 1.150 / 1.149 | 1.200 / 1.100 (keduanya ≥ M bila M ≤ 1.100) |
+| TC-HE-06 [opsi] | `M = 1.010`, margin nominal 40, `K = 100`, `BAWAH` | Mentah 1.050 → 1.000 < M → 1.100 + `PEMBULATAN_DINAIKKAN` |
+| TC-HE-07 [opsi] | `K = 100`, `TERDEKAT`, mentah 1.150 / 1.149 | 1.200 / 1.100 (keduanya ≥ M bila M ≤ 1.100) |
 | TC-HE-08 | Modal kosong | Tidak tayang `MODAL_KOSONG`; tidak ada harga 0 |
 | TC-HE-09 | Modal 0 dari Gudang | Tidak tayang `MODAL_TIDAK_VALID` |
-| TC-HE-10 | `waktuData` lebih tua dari `batas_usia_modal_detik` | Tidak tayang `MODAL_KEDALUWARSA` |
+| TC-HE-10 | `waktuData` lebih tua dari `batas_usia_modal_detik` terhadap `sekarang` yang diberikan ke `tampilanHarga` | `MODAL_KEDALUWARSA`, tidak tayang; `idVersiHarga` tidak berubah |
 | TC-HE-11 | Sel (INDIVIDU, SATUAN) kosong, sel lain terisi | Tidak tayang `MARGIN_KOSONG` |
 | TC-HE-12 | G1 aktif dengan MOQ terisi tetapi margin G1 kosong | Tidak tayang `MARGIN_KOSONG` (tier=G1) |
 | TC-HE-13 | Margin −1 di panel | Simpan ditolak `MARGIN_NEGATIF` |
-| TC-HE-14 | Margin 0 | Harga = M; peringatan `MARGIN_NOL`; dengan `margin_nol = TOLAK` → ditolak |
+| TC-HE-14 | Margin 0 | Harga = M; peringatan `MARGIN_NOL`; [opsi] dengan `margin_nol = TOLAK` → ditolak |
 | TC-HE-15 | Harga SATUAN 1.150, G1 1.200 (`M = 1.000`) | `PAGAR_TIER_DILANGGAR`; tidak tayang |
 | TC-HE-16 | SATUAN 1.200, G1 1.200, G2 1.100 | Lolos + `TIER_TANPA_MANFAAT` (SATUAN–G1) |
 | TC-HE-17 | MOQ G1 = 6, G2 = 6 / G1 = 1 | `MOQ_TIDAK_VALID` |
 | TC-HE-18 | INDIVIDU: SATUAN 1.300, G2 1.100; MITRA 1.150; `KETAT` | `PAGAR_LEVEL_DILANGGAR` (1.150 > min individu 1.100) |
-| TC-HE-19 | Data TC-HE-18 dengan `PER_TIER` | Lolos (MITRA SATUAN 1.150 ≤ INDIVIDU SATUAN 1.300) |
-| TC-HE-20 | Franchise 1.200 > Mitra 1.100; `levelAktif = {INDIVIDU, MITRA}` | Peringatan `PAGAR_LEVEL_NONAKTIF`; produk **tetap tayang**. Dengan FRANCHISE ditambahkan ke `levelAktif` → `PAGAR_LEVEL_DILANGGAR`, tidak tayang |
+| TC-HE-19 [opsi] | Data TC-HE-18 dengan `PER_TIER` | Lolos (MITRA SATUAN 1.150 ≤ INDIVIDU SATUAN 1.300) |
+| TC-HE-20 | Franchise 1.200 > Mitra 1.100; `levelAktif = {INDIVIDU, MITRA}` | Peringatan `PAGAR_LEVEL_NONAKTIF`; produk **tetap tayang**. [opsi] Dengan FRANCHISE ditambahkan ke `levelAktif` → `PAGAR_LEVEL_DILANGGAR`, tidak tayang |
 | TC-HE-21 | Mitra kosong, `mitra_wajib_untuk_tayang = false` | Tayang; drop point → harga satuan + `MITRA_TIDAK_TERSEDIA` |
-| TC-HE-22 | Margin 15% (BP) & nominal pada sel berbeda produk sama | Keduanya dihitung benar; `jenis_margin_diizinkan = {BP}` → sel nominal `MARGIN_FORMAT` |
+| TC-HE-22 | Margin 15% (BP) & nominal pada sel berbeda produk sama | Keduanya dihitung benar; [opsi] `jenis_margin_diizinkan = {BP}` → sel nominal `MARGIN_FORMAT` |
 | TC-HE-23 | Kartu & detail untuk konteks grup sama | `idVersiHarga`, `hargaAktif`, `hargaCoret` identik |
 | TC-HE-24 | Promo aktif pada produk | `hargaAktif` tidak berubah; `promo.hargaSetelahPromo` di field terpisah |
 | TC-HE-25 | Grup BELUM_AKTIF | `hargaAktif = H(INDIVIDU,SATUAN)`, `hargaCoret = null` |
-| TC-HE-26 | Grup AKTIF, tier G1 tercapai, `snapshotMoq.G2 = 12`, qty 8 | `hargaAktif = H(G1)`, `hargaCoret = H(SATUAN)`, `tierBerikut = G2, kurangQty 4` |
+| TC-HE-26 | Grup AKTIF, `snapshotMoq = {moqG1: 6, moqG2: 12}`, `g0Aktif = false`, qty 8 | `hargaAktif = H(G1)`, `hargaCoret = H(SATUAN)`, `tierBerikut = G2, kurangQty 4` |
 | TC-HE-27 | Diskon 10% (1.000 BP) pada `D = 1.199`, q = 1 | `P = 119` (119,9 → bawah) |
 | TC-HE-28 | Simpan aturan diskon nominal 300/unit; satu SKU dalam cakupan punya H 1.200, M 1.000 | Ditolak `PROMO_DI_BAWAH_MODAL` + daftar SKU |
 | TC-HE-29 | Aturan lolos saat simpan, modal naik sebelum checkout | Diskon tidak diterapkan di baris itu; peringatan admin |
@@ -511,14 +584,14 @@ Konvensi: **semua angka adalah ilustrasi, bukan harga**. `M` = modal per satuan 
 | TC-HE-35 | Cut-off: D 1.200, F 1.100, q = a = 6, P = S = 0, Mc 1.000 | K = 600; WA-07 menampilkan 600 |
 | TC-HE-36 | D 1.200, F 1.100, q 4, a 3, P = S = 0, Mc 1.000 | T' = 3.300; K = 4.800 − 3.300 = 1.500 (= 100×3 + 1.200×1) |
 | TC-HE-37 | D 1.200, q = a = 6, P 600, S 0, F 1.050, Mc 1.000 | T = 5.700 → T' = 6.000; K = 600 (bukan 900) + `SELISIH_DIBATASI_PAGAR` |
-| TC-HE-38 | Mc 1.250 > D 1.200 saat cut-off | `DITAHAN` (`DI_BAWAH_MODAL`); tidak ada kredit |
+| TC-HE-38 | D 1.200, q = a = 1, P = S = 0, Mc 1.250 | `DITAHAN` (`DI_BAWAH_MODAL`); tidak ada kredit |
 | TC-HE-39 | Modal naik, H_c(tier) 1.250 > D 1.200, Mc 1.100 | F = D = 1.200; K = 0; tidak ditagih tambahan |
 | TC-HE-40 | Akun 2 < 3, peserta LANJUT_SATUAN: D 1.200, H_c(SATUAN) 1.150, q = a = 2, P = S = 0, Mc 1.000 | Grup GAGAL_LANJUT_SATUAN; F = 1.150; K = 100. Varian Mc 1.250 → DITAHAN |
 | TC-HE-41 | Grup AKTIF, qty terhitung 4 < MOQ G1 6, `g0_aktif = tidak`; D 1.200, H_c(SATUAN) 1.200, q = a = 2, P = S = 0, Mc 1.000 | F = 1.200; K = 0; `tierTercapai = SATUAN` |
 | TC-HE-41b | Sama dengan TC-HE-41 tetapi `g0_aktif = ya`, H_c(G0) 1.150 | F = 1.150; K = 100 |
 | TC-HE-42 | Drop point, syarat Mitra terpenuhi, D = H(MITRA) 1.050, tier grup 1.100 | F = 1.050; pagar KETAT terjaga |
 | TC-HE-43 | Drop point, baris lain batal → syarat Mitra gagal di cut-off | Kandidat Mitra hilang; F = min(D, tier) ≤ D; tidak ditagih tambahan |
-| TC-HE-44 | Peserta COD: D 1.200, F 1.100, q = a = 3, P = S = 0, Mc 1.000, ongkir 500 | Tidak ada kredit; T' = 3.300; tagih saat antar = 3.300 + 500 = 3.800 |
+| TC-HE-44 | `metodeBayar = COD`: D 1.200, F 1.100, q = a = 3, P = S = 0, Mc 1.000, ongkir ditagih 500 | `kreditSaldo = 0`, `tulisKreditKeLedger = false`, `tagihanBarangCod = 3.300`; tagih saat antar = 3.300 + 500 = 3.800 |
 | TC-HE-45 | `syarat_mitra_min_nilai` kosong | Harga Mitra tidak pernah berlaku; semua drop point bayar harga satuan |
 | TC-HE-46 | CSV baris kategori rokok / bir | `DITOLAK` `KATEGORI_DILARANG`; tidak tersimpan |
 | TC-HE-47 | CSV nama "Kretek Mild" di kategori Makanan | `DIIMPOR_TIDAK_TAYANG`, alasan `PERLU_TINJAUAN_KATEGORI`; tayang hanya setelah admin menandai |
@@ -527,14 +600,20 @@ Konvensi: **semua angka adalah ilustrasi, bukan harga**. `M` = modal per satuan 
 | TC-HE-49 | CSV produk lama, sel margin kosong / `HAPUS` | Nilai lama tetap / sel dikosongkan → tidak tayang |
 | TC-HE-50 | CSV `modal_sumber` terisi saat `INVENTORY_SOURCE=gudang` | `MODAL_DIKELOLA_GUDANG` untuk baris itu |
 | TC-HE-51 | CSV `pratinjau` lalu `terapkan` dengan 1 baris rusak dari 10 | Pratinjau tanpa tulis; terapkan menulis 9 baris dalam satu transaksi |
-| TC-HE-52 | Modal sumber mendekati batas integer aman, BP besar | `ANGKA_OVERFLOW`, bukan hasil salah |
+| TC-HE-52 | Modal sumber 9.007.199.254.740.991 (`Number.MAX_SAFE_INTEGER`), `isi_jual = isi_sumber = 1`, margin BP 1 | `margin_rp` = 900.719.925.475 → harga melewati batas aman → `ANGKA_OVERFLOW`, bukan hasil salah |
 | TC-HE-53 | Properti (acak ribuan input valid) | Selalu: PG-1, PG-3, PG-7, `ΣS_i = S_total`, `K ≥ 0`, `T' ≥ Mc × a` |
-| TC-HE-54 | `hitungTabelHarga` dipanggil dua kali dengan input sama | Hasil & `idVersiHarga` identik (fungsi murni) |
-| TC-HE-55 | `simulasiPerubahanModal` ±10 %, ±20 % | Mengembalikan 4 baris ringkasan; data tidak berubah |
+| TC-HE-54 | `hitungTabelHarga` dua kali dengan input sama; lalu hanya `waktuData` atau nama produk diubah; lalu satu margin diubah | Dua yang pertama: hasil & `idVersiHarga` identik; perubahan margin → `idVersiHarga` berbeda |
+| TC-HE-55 | Simpan konfigurasi `pembulatan.mode = TERDEKAT` di build T-020 | Ditolak `KONFIGURASI_BELUM_DIDUKUNG`; konfigurasi lama tetap |
 | TC-HE-56 | CSV `g0_aktif = ya`, `margin_individu_g0` kosong | `DIIMPOR_TIDAK_TAYANG`, `MARGIN_KOSONG` (tier=G0) |
 | TC-HE-57 | G0 aktif: SATUAN 1.200, G0 1.250, G1 1.100 | `PAGAR_TIER_DILANGGAR` (r(SATUAN) < r(G0) tetapi lebih murah) |
 | TC-HE-58 | MOQ diisi untuk G0 lewat panel/API | `MOQ_TIDAK_VALID` |
 | TC-HE-59 | Peserta `dana_ditahan`, kasus TC-HE-35 | `kreditSaldo = 600`, `tulisKreditKeLedger = false`; tidak ada entri ledger |
+| TC-HE-60 | `tampilanHarga` dengan `statusGrup` CUT_OFF / DITAHAN / GAGAL / DIBATALKAN | `hargaAktif = null`; `teksStatus` = `GRUP_DITUTUP_DIHITUNG` / `GRUP_DITUTUP_DIHITUNG` / `GRUP_TIDAK_TERCAPAI` / `GRUP_DIBATALKAN` |
+| TC-HE-61 | `statusGrup = HARGA_TERKUNCI` dengan `hargaTerkunci` 1.100 / tanpa `hargaTerkunci` | `hargaAktif = 1.100`, `HARGA_FINAL_TERKUNCI` / `HARGA_TIDAK_TERSEDIA` |
+| TC-HE-62 | Cut-off: D 1.200, q = a = 6, P 1.200, S 0, Mc 1.050, F 1.100 | `D ≥ Mc` tetapi `7.200 − 1.200 = 6.000 < 6.300` → DITAHAN (`DI_BAWAH_MODAL`) [P-26] |
+| TC-HE-63 | `tentukanTier`, snapshot `{moqG1: 6, moqG2: 12}`: qty 5 (g0 mati / hidup), 6, 11, 12; snapshot `{moqG1: null, moqG2: 12}` qty 12 | SATUAN / G0, G1, G1, G2; G2 |
+| TC-HE-64 | `hitungRefund(1.200, 4, 300)` | 4.500; ongkir tidak termasuk (lewat `refund_ongkir:{pesanan_id}`) |
+| TC-HE-65 | Cut-off PRABAYAR: D 1.200, Mc 1.250, q = 6, a = 0, P = S = 0 | `status = TERKUNCI` (tidak DITAHAN), `hargaFinal = null`, `jenisHargaAkhir = null`, K = 7.200 dengan kunci `selisih:{grup_id}:{peserta_id}`; transaksi cut-off lolos CHECK DB |
 
 ---
 
@@ -545,12 +624,18 @@ Konvensi: **semua angka adalah ilustrasi, bukan harga**. `M` = modal per satuan 
 | S-01 | T-002 §1 "Selisih" memakai `harga dibayar × qty tidak teralokasi`; dengan promo, refund harus dari nilai **bersih** yang benar-benar dibayar | T-002 | §5.4 memakai `B = D×q − P`; tanpa promo hasil sama persis. Usul T-002 merujuk §5.4 |
 | S-02 | T-002 B-15 & F-12 menyebut `min(dibayar, tier, Mitra)`; pagar level KETAT membuat Mitra selalu ≤ tier grup individu | T-002 | Konsisten; mode `PER_TIER` [P-22] membuat `min` tetap benar |
 | S-03 | ADR §3.3 menulis status grup `TERBUKA → DITUTUP`; T-002 memakai `DIBUKA … CUT_OFF` | ADR / T-002 | Dokumen ini memakai istilah T-002 |
-| S-04 | Kunci ledger selisih | ADR §5.2 / T-002 v0.2 | Selaras: ketiga dokumen memakai `selisih:{grup_id}:{peserta_id}` |
-| S-07 | T-002 v0.2 menambah status GAGAL_LANJUT_SATUAN dan flag `dana_ditahan` | T-002 | §5.3, §5.4, §7 (`InputFinal.hasilGrup`, `danaDitahan`) disesuaikan |
-| S-05 | S&K §4.5 "dikirim dengan harga yang sudah Anda bayar" belum menyebut grup ditahan bila modal melewati harga dibayar | S&K | Terkait P-09; teks S&K disesuaikan setelah keputusan (#5) |
+| S-04 | Kunci ledger selisih | ADR §5.2 / T-002 v0.3 | Selaras: ketiga dokumen memakai `selisih:{grup_id}:{peserta_id}` |
+| S-05 | S&K §4.5 "dikirim dengan harga yang sudah Anda bayar" belum menyebut grup ditahan bila modal melewati harga dibayar | S&K | Terkait P-09/P-26; teks S&K disesuaikan setelah keputusan (#5) |
 | S-06 | `keputusan.md` #4 "tingkat Mitra bila total memenuhi syarat" tanpa definisi syarat | keputusan | P-05; bawaan aman: syarat kosong = Mitra tidak berlaku |
+| S-07 | T-002 menambah status GAGAL_LANJUT_SATUAN dan flag `dana_ditahan` | T-002 v0.2 | §5.3, §5.4, §7 (`InputFinal.hasil`, `danaDitahan`) disesuaikan |
+| S-08 | T-002 v0.3: ledger ditulis langsung (bukan outbox), `refund:{peserta_id}`, `debit:{pesanan_id}`, `refund_ongkir:{pesanan_id}`, AKTIF dengan atribut `tier_tercapai` | T-002 v0.3 | §5.1 (`statusGrup` = enum T-002, `tentukanTier`), §5.4 (`hitungRefund`, kunci ledger) disesuaikan |
 
-Catatan T-020: tes properti wajib (ADR §5.3); tes integrasi DB memastikan setiap `CHECK` §4.2 benar-benar menolak; tidak ada angka modal/margin nyata di fixture (pakai angka ilustrasi seperti §9).
+Catatan T-020:
+- Aturan seri `jenisHargaAkhir`: `MITRA > GRUP > SATUAN` (§5.3).
+- `snapshotMoq` dan `g0Aktif` **wajib** ada di `KonteksTampil` saat `statusGrup = AKTIF`; bila tidak ada → `ok: false`, `HARGA_TIDAK_TERSEDIA`.
+- `tampilanHarga` dengan modal kedaluwarsa (`cekKesegaranModal` gagal terhadap `sekarang`) → `ok: false`, `MODAL_KEDALUWARSA`.
+- Peserta `a = 0` saat cut-off → `hargaFinal = null`, `K = B`, tidak DITAHAN (§5.4, TC-HE-65).
+- Tes properti wajib (ADR §5.3); tes integrasi DB memastikan setiap `CHECK` §4.2 benar-benar menolak; tidak ada angka modal/margin nyata di fixture (pakai angka ilustrasi seperti §9).
 
 ---
 
@@ -563,7 +648,7 @@ Semua dibuat sebagai konfigurasi (§2.3) atau cabang kode yang bisa diganti tanp
 | ID | Topik | Opsi | Rekomendasi agen | DEFAULT SEMENTARA (asumsi) | Pemilik |
 |---|---|---|---|---|---|
 | P-01 | Margin persen atau nominal; per produk atau per level; presisi | A) persen saja; B) nominal saja; C) keduanya per sel. Presisi 0,01 % / 0,1 % / 1 % | C dengan presisi 0,01 %. **Penting:** "persen" di sini = markup atas modal (`harga = modal × (1 + p)`), bukan margin kotor atas harga jual; markup 25 % ≈ margin kotor 20 %. Efan perlu memastikan angka yang diisi memakai definisi ini | C; BP integer (0,01 %); margin diisi per sel (satuan jual × level × tier) | Efan |
-| P-02 | Mode pembulatan & kelipatan K (= H6) | ATAS / TERDEKAT / BAWAH; K = 1, 50, 100, 500 … | ATAS ke kelipatan yang dipilih Efan (tidak pernah di bawah modal, tidak menggerus margin) | `ATAS`, `K = 1`; modal per satuan dibulatkan ke atas | Efan |
+| P-02 | Mode pembulatan & kelipatan K (= H6) | ATAS / TERDEKAT / BAWAH; K = 1, 50, 100, 500 … | ATAS ke kelipatan yang dipilih Efan (tidak pernah di bawah modal, tidak menggerus margin) | `ATAS`, `K = 1`; modal per satuan dibulatkan ke atas; margin BP dihitung `bagiAtas` (asumsi, ikut keputusan ini) | Efan |
 | P-03 | Tier dihitung per unit atau per akun; pembeli 1 pcs dihitung (= F-04) | A) total pcs semua peserta terhitung; B) pcs per akun | A (sesuai konsep beli bersama) | A; pembeli 1 pcs ikut dihitung; G0 opsional lewat `g0_aktif` | Efan + Randy |
 | P-04 | Harga dibayar saat ikut grup (= F-01) | A) harga satuan, selisih ke saldo; B) harga tier saat ini, NEKAT menanggung; C) tier saat ini, tagih kekurangan | A untuk pilot (tidak pernah menagih tambahan); uji konversi bersama UX Researcher | A (§5.2) | Efan + Joseph |
 | P-05 | Syarat "total memenuhi syarat" untuk harga Mitra di drop point — **WAJIB DIISI SEBELUM PILOT** (tanpa nilai ini drop point tidak pernah mendapat harga Mitra, sehingga keputusan #4 tidak berjalan) | A) minimal nilai pesanan; B) minimal qty per produk; C) minimal total drop point per slot | A: mudah dijelaskan & dihitung per pesanan | A dengan `syarat_mitra_min_nilai` **kosong = Mitra tidak berlaku** (aman, tetapi bukan perilaku akhir) | Efan + Operations |
@@ -591,5 +676,7 @@ Semua dibuat sebagai konfigurasi (§2.3) atau cabang kode yang bisa diganti tanp
 | P-23 | Promo/gratis ongkir saat checkout lalu harga turun di cut-off | A) kredit selisih dibatasi agar bersih ≥ modal; B) promo dicabut proporsional; C) selisih penuh (bisa di bawah modal — melanggar aturan) | A (§5.4) | A + info `SELISIH_DIBATASI_PAGAR` | Efan + Randy |
 | P-24 | Cakupan kategori terlarang Fase 1 (keputusan #7 menyebut rokok & bir) | A) hanya rokok & bir; B) semua produk tembakau/nikotin (termasuk rokok elektrik) & semua minuman beralkohol | B (risiko izin & usia sama) | B; nama dengan kata kunci (kata utuh, di luar frasa pengecualian) ditahan untuk tinjauan admin, bukan ditolak otomatis | Randy |
 | P-25 | Sumber modal saat `INVENTORY_SOURCE=gudang`: boleh ditimpa dari panel/CSV? | A) Gudang selalu menang, isian lokal ditolak; B) boleh override lokal dengan alasan | A (satu sumber kebenaran modal) | A (`MODAL_DIKELOLA_GUDANG`) | Joseph + Efan |
+| P-26 | Grup DITAHAN bila nilai bersih setelah promo & subsidi ongkir < modal saat cut-off (perluasan P-09 ke promo) | A) ya: syarat lolos `D × a − P_a ≥ Mc × a + S_a` (§5.4); B) tidak: hanya `D ≥ Mc`, kekurangan akibat promo ditanggung NEKAT; C) tidak: kekurangan dipotong dari kredit lalu sisanya ditanggung NEKAT | A (tidak pernah jual bersih di bawah modal tanpa keputusan manusia) | A | Efan + Randy |
+| P-27 | Satu baris gagal pagar modal saat gratis ongkir | A) gratis ongkir batal untuk seluruh pesanan; B) subsidi baris itu dialokasikan ulang ke baris lain; C) subsidi dibatasi sampai pagar terpenuhi (gratis ongkir sebagian) | A untuk pilot (sederhana, mudah dijelaskan); nilai ulang B/C setelah ada data pilot | A + pesan "Gratis ongkir tidak berlaku untuk pesanan ini" | Efan |
 
 Butir terkait yang dipakai tetapi tidak diberi ID baru: F-01 (= P-04), F-04 (= P-03), F-08 (= P-08), F-09 (tier dari qty sebelum alokasi), F-12 (drop point satu grup), F-20 (ongkir tidak dihitung ulang), H6 (= P-02), keputusan-terbuka #1 (angka margin & harga) dan #4 (tarif ongkir).
