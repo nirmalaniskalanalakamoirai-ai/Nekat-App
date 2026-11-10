@@ -9,7 +9,7 @@
 | 5 | Nama badan usaha, kontak, dan bagian [kurung siku] di docs/legal | Randy | belum |
 | 6 | Domain aplikasi (contoh nekat.id) | Joseph | belum |
 
-Catatan: bagian di bawah ditambahkan oleh sesi Build otomatis 10 Nov 2026. Detail opsi & rekomendasi ada di dokumen sumber (PR masing-masing). Isi kolom Status dengan jawaban, atau tulis keputusan di `keputusan.md`.
+Catatan: bagian di bawah ditambahkan oleh sesi Build otomatis 10–11 Nov 2026. Detail opsi, rekomendasi, dan DEFAULT SEMENTARA ada di dokumen sumber: PR #1 (T-001), PR #2 (T-002), PR #3 (T-003). Isi kolom Status dengan jawaban, atau tulis keputusan di `keputusan.md`.
 
 ## Dari ADR-0001 (T-001) — `docs/adr/0001-tech-stack.md` bagian 9
 
@@ -26,6 +26,9 @@ Catatan: bagian di bawah ditambahkan oleh sesi Build otomatis 10 Nov 2026. Detai
 | H9 | Login admin: wajib TOTP atau cukup OTP WA | Joseph | belum |
 | H10 | Terima ADR-0001 (merge PR T-001) — membuka semua task kode | Joseph | belum |
 | H11 | (Fase 5) Deferred deep link iOS: layanan pihak ketiga vs fallback kode manual (selisih dengan keputusan #3) | Randy + Joseph | belum |
+| H12 | Lokasi penyimpanan data (region Indonesia atau luar negeri) + isian "[lokasi]" di kebijakan privasi | Randy + Joseph (+ hukum) | belum |
+| H13 | Cara kurir lokal & drop point menerima data antar (Fase 1: daftar antar dari admin, tanpa akun kurir?) | Randy (+ Operations) | belum |
+| H14 | Stok saat API Gudang tidak bisa dihubungi: tetap jual dengan snapshot di bawah batas umur (P-10) atau tahan checkout | Joseph + Efan | belum |
 
 ## Dari peta flow group order (T-002) — `docs/flow/group-order.md` §12
 
@@ -49,6 +52,15 @@ Catatan: bagian di bawah ditambahkan oleh sesi Build otomatis 10 Nov 2026. Detai
 | F-16 | Boleh ikut produk yang sama di slot berbeda | Randy | belum |
 | F-17 | Penerima pengingat (termasuk yang belum bayar?) & batas frekuensi WhatsApp | Randy | belum |
 | F-18 | Daftar tunggu untuk pengguna di luar semua zona | Randy + Efan | belum |
+| F-19 | Pengguna zona lain membuka link grup | Randy | belum |
+| F-20 | Ongkir saat sebagian baris pesanan batal / grup gagal / alokasi parsial | Efan + Operations | belum |
+| F-21 | Slot kirim dibatalkan karena operasional setelah harga dikunci | Randy + Operations | belum |
+| F-22 | Atribusi pengundang (parameter ref) pada link grup | Randy + Growth | belum |
+| F-23 | Versi S&K / Kebijakan Privasi berubah: wajib persetujuan ulang? | Randy | belum |
+| F-24 | Keluhan barang rusak/kurang setelah diterima | Randy | belum |
+| F-25 | Ganti alamat/zona setelah ikut grup | Randy + Operations | belum |
+| F-26 | Lama batas bayar (TTL invoice Xendit) per metode | Randy + Joseph | belum |
+| F-27 | Ada/tidaknya jalur "beli biasa" di luar grup | Randy | belum |
 
 ## Dari spesifikasi engine harga (T-003) — `docs/spec/engine-harga.md` §11
 
@@ -58,11 +70,11 @@ Catatan: bagian di bawah ditambahkan oleh sesi Build otomatis 10 Nov 2026. Detai
 | P-02 | Mode pembulatan & kelipatan K (= H6) | Efan | belum |
 | P-03 | Tier 6+/12+ dihitung per unit atau per akun; pembeli 1 pcs dihitung? (= F-04) | Efan + Randy | belum |
 | P-04 | Harga yang dibayar saat ikut grup (= F-01) | Efan + Joseph | belum |
-| P-05 | Syarat "total memenuhi syarat" untuk harga Mitra di drop point | Efan + Operations | belum |
+| P-05 | Syarat "total memenuhi syarat" untuk harga Mitra di drop point — **WAJIB diisi sebelum pilot** (tanpa ini drop point tidak pernah dapat harga Mitra) | Efan + Operations | belum |
 | P-06 | Margin Mitra wajib diisi agar produk tayang? | Efan | belum |
 | P-07 | Promo yang melanggar modal: tidak diterapkan atau dibatasi sampai modal | Efan | belum |
 | P-08 | Harga grup LIVE (ikut modal terkini) atau DIBEKUKAN sejak grup dibuka; ambang margin menipis (= F-08) | Efan | belum |
-| P-09 | Tindakan bila modal melewati semua harga saat cut-off | Efan + Randy | belum |
+| P-09 | Tindakan bila modal saat cut-off melewati harga dibayar peserta | Efan + Randy | belum |
 | P-10 | Batas usia data modal dari Gudang | Joseph + Efan | belum |
 | P-11 | Sel CSV kosong pada produk lama: biarkan atau hapus | Efan + Joseph | belum |
 | P-12 | Pembulatan berat/jarak ongkir; tarif per kg global atau per armada | Efan + Operations | belum |
@@ -73,5 +85,11 @@ Catatan: bagian di bawah ditambahkan oleh sesi Build otomatis 10 Nov 2026. Detai
 | P-17 | Harga coret = harga 1 pcs riil? | Randy + Efan | belum |
 | P-18 | Batas COD dibandingkan dengan total sebelum atau sesudah saldo | Randy + Joseph | belum |
 | P-19 | Siapa menanggung bila harga final > harga dibayar tapi masih ≥ modal | Efan + Randy | belum |
-| P-20 | Cara alokasi subsidi ongkir ke tiap grup untuk pagar modal | Efan + Joseph | belum |
+| P-20 | Cara alokasi subsidi gratis ongkir ke baris pesanan untuk pagar modal | Efan + Joseph | belum |
 | P-21 | Tier grup (mis. 12+) boleh opsional per produk? | Efan | belum |
+| P-22 | Cakupan pagar "individu ≥ Mitra ≥ Franchise" (ketat vs per tier) | Efan | belum |
+| P-23 | Promo saat checkout lalu harga turun di cut-off: batasi kredit selisih agar bersih ≥ modal? | Efan + Randy | belum |
+| P-24 | Cakupan kategori terlarang Fase 1 (hanya rokok & bir, atau semua tembakau/nikotin & alkohol) | Randy | belum |
+| P-25 | Modal saat mode Gudang: boleh ditimpa dari panel/CSV? | Joseph + Efan | belum |
+| P-26 | Grup DITAHAN bila nilai bersih setelah promo & subsidi ongkir < modal saat cut-off (perluasan P-09) | Efan + Randy | belum |
+| P-27 | Satu baris gagal pagar modal saat gratis ongkir: batalkan gratis ongkir seluruh pesanan? | Efan | belum |
