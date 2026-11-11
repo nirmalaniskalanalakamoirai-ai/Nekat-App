@@ -1,6 +1,6 @@
 # Progress
 
-Terakhir diperbarui: sesi QA & perbaikan otomatis, Rabu 11 Nov 2026 (09.13–09.35 WIB).
+Terakhir diperbarui: sesi Laporan, Rabu 11 Nov 2026 (12.31 WIB). Sebelumnya: sesi QA & perbaikan otomatis (09.13–09.35 WIB).
 
 ## Selesai
 - Backlog Fase 1 dipecah menjadi 46 task (Senior PM, 10 Nov).
@@ -35,5 +35,6 @@ Daftar lengkap di `keputusan-terbuka.md`. Paling mendesak:
 8. Butir baru sesi QA: **F-28** (barang tidak diambil di drop point), **P-28**; teks **P-22** diperbarui.
 
 ## Berikutnya
-- 12.31 sesi Laporan (`laporan/2026-11-11.md`).
+- Laporan 11 Nov sudah dibuat: `laporan/2026-11-11.md` (3 PR menunggu persetujuan, 8 keputusan mendesak). Status PR tidak berubah sejak sesi QA; belum ada review manusia.
+- 14.17 Tindak lanjut: merge PR yang disetujui (#1 → #3 → #2) dan catat keputusan.
 - Setelah merge PR #1–#3: T-004, T-005, T-006, T-007, T-009 (gelombang 1).
