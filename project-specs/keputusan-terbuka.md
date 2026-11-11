@@ -61,6 +61,7 @@ Catatan: bagian di bawah ditambahkan oleh sesi Build otomatis 10–11 Nov 2026. 
 | F-25 | Ganti alamat/zona setelah ikut grup | Randy + Operations | belum |
 | F-26 | Lama batas bayar (TTL invoice Xendit) per metode | Randy + Joseph | belum |
 | F-27 | Ada/tidaknya jalur "beli biasa" di luar grup | Randy | belum |
+| F-28 | Barang di drop point tidak diambil: status akhir peserta/grup dan perlakuan dana (refund ke saldo, biaya simpan, batas hari) — terkait T-006 (sesi QA 11 Nov) | Randy + Operations | belum |
 
 ## Dari spesifikasi engine harga (T-003) — `docs/spec/engine-harga.md` §11
 
@@ -87,9 +88,10 @@ Catatan: bagian di bawah ditambahkan oleh sesi Build otomatis 10–11 Nov 2026. 
 | P-19 | Siapa menanggung bila harga final > harga dibayar tapi masih ≥ modal | Efan + Randy | belum |
 | P-20 | Cara alokasi subsidi gratis ongkir ke baris pesanan untuk pagar modal | Efan + Joseph | belum |
 | P-21 | Tier grup (mis. 12+) boleh opsional per produk? | Efan | belum |
-| P-22 | Cakupan pagar "individu ≥ Mitra ≥ Franchise" (ketat vs per tier) | Efan | belum |
+| P-22 | Cakupan pagar "individu ≥ Mitra ≥ Franchise": pagar KETAT wajib (CLAUDE.md); yang diputuskan hanya apakah ditambah pemeriksaan per tier (`KETAT_PLUS_PER_TIER`). Opsi "per tier saja" dihapus di sesi QA 11 Nov karena melanggar CLAUDE.md | Efan | belum |
 | P-23 | Promo saat checkout lalu harga turun di cut-off: batasi kredit selisih agar bersih ≥ modal? | Efan + Randy | belum |
 | P-24 | Cakupan kategori terlarang Fase 1 (hanya rokok & bir, atau semua tembakau/nikotin & alkohol) | Randy | belum |
 | P-25 | Modal saat mode Gudang: boleh ditimpa dari panel/CSV? | Joseph + Efan | belum |
 | P-26 | Grup DITAHAN bila nilai bersih setelah promo & subsidi ongkir < modal saat cut-off (perluasan P-09) | Efan + Randy | belum |
 | P-27 | Satu baris gagal pagar modal saat gratis ongkir: batalkan gratis ongkir seluruh pesanan? | Efan | belum |
+| P-28 | Halaman detail menampilkan info "Ambil di drop point: Rp{harga Mitra}" yang tidak ada di kartu? A) boleh sebagai info terpisah; B) hanya di checkout (DEFAULT SEMENTARA, patuh "harga kartu = detail"); C) di kartu & detail (sesi QA 11 Nov) | Randy + Efan | belum |
