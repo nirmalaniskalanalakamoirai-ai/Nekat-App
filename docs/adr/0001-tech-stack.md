@@ -7,7 +7,8 @@ Menjadi **Diterima** setelah PR T-001 di-merge oleh pemilik squad Build & QA (li
 Semua task berjenis kode di `project-specs/backlog.md` menunggu ADR ini di-merge.
 
 Revisi: **v0.4** (11 Nov 2026, sesi QA) — penyelarasan nama kolom `akun_id`, label default sementara H14 & F-11,
-aturan webhook/OTP/IDOR/sesi, baris ongkir & diskon di §5.3. v0.3 = revisi setelah Evidence Collector & Code Reviewer.
+aturan webhook/OTP/IDOR/sesi, baris ongkir & diskon di §5.3. **v0.5** (putaran 2): peta kunci batal seluruh pesanan /
+batalkan grup, izin aksi `harga.ubah` di §7, istilah `waktu_bayar` (= `paid_at` dari gateway). v0.3 = revisi setelah Evidence Collector & Code Reviewer.
 
 **Rujukan silang:** ID flow (A-xx, B-xx, M-xx, P-xx, R-xx, §6) merujuk `docs/flow/group-order.md` di **PR #2 (T-002,
 belum di-merge)**; aturan harga merujuk `docs/spec/engine-harga.md` di **PR #3 (T-003, belum di-merge)**.
@@ -170,7 +171,7 @@ tidak memperlambat API dan worker bisa di-restart sendiri.
 |---|---|---|
 | Ikut grup (checkout) | grup → stok SKU (snapshot) → akun_saldo bila pakai saldo | status grup ∈ {DIBUKA, BELUM_AKTIF, AKTIF}, `sekarang < cut-off`, stok − reservasi ≥ qty; buat peserta + reservasi |
 | Webhook PAID / bayar penuh dengan saldo / konfirmasi COD | grup → peserta → akun_saldo (bila debit) | grup ∈ {DIBUKA, BELUM_AKTIF, AKTIF}, atau grup = CUT_OFF dengan `evaluasi_dimulai_pada IS NULL` dan `waktu_bayar ≤ cut-off` (masa tenggang, flow B-11.5; basis `waktu_bayar` menunggu F-11, lihat §4.2); selain itu → jalur bayar terlambat ke saldo (flow P17); hitung ulang akun terhitung dari data peserta |
-| Batal oleh pengguna / akun dibekukan admin | grup → stok SKU → peserta → akun_saldo (refund) | sebelum cut-off; lepas reservasi; hitung ulang akun terhitung |
+| Batal oleh pengguna / akun dibekukan admin | grup → stok SKU → peserta → akun_saldo (refund). Pesanan MENUNGGU_BAYAR (flow P6) dan admin batalkan grup (flow G15): **semua grup pesanan urut `grup_id`** → stok SKU → peserta → `pesanan` → akun_saldo | sebelum cut-off; lepas reservasi; hitung ulang akun terhitung |
 | Cut-off per grup (§3.3) | grup → stok SKU → peserta → akun_saldo (kredit selisih) | status grup = CUT_OFF; tulis harga final, alokasi, ledger, outbox dalam satu transaksi |
 | Debit/kredit saldo lain (koreksi admin) | akun_saldo | `saldo + jumlah ≥ 0` |
 
@@ -299,7 +300,7 @@ interface ReservasiStok {
   5. Rate limit di endpoint webhook tidak boleh menolak retry sah Xendit: batas dihitung terpisah dan longgar,
      request bertoken valid tidak di-throttle oleh batas umum.
   6. Halaman "kembali dari pembayaran" di PWA **tidak** dianggap bukti bayar.
-- **Basis waktu bayar terlambat**: ikuti jawaban F-11; secara teknis kedua nilai (`paid_at` dari gateway dan waktu
+- **Basis waktu bayar terlambat**: ikuti jawaban F-11; secara teknis kedua nilai (`waktu_bayar` = `paid_at` dari gateway, dan waktu
   webhook diterima) disimpan.
 - **Refund & selisih → saldo**: sesuai keputusan #9, selisih harga dan refund dikreditkan ke ledger saldo.
   Refund ke metode bayar asal dan pencairan saldo **tidak dibangun di Fase 1** (H5/F-03); bila manusia memutuskan
@@ -423,7 +424,9 @@ sehingga perubahan harga di kemudian hari tidak mengubah riwayat.
 
 Fase 1 hanya dua peran: `owner` (semua, termasuk kelola admin & laporan keuangan) dan `admin` (produk, harga,
 stok, grup, pesanan, ongkir, COD; tidak bisa kelola admin). Skema memakai tabel izin per aksi sehingga nanti bisa
-dipecah (mis. `admin_harga`, `admin_operasional`, `cs`) tanpa migrasi besar.
+dipecah (mis. `admin_harga`, `admin_operasional`, `cs`) tanpa migrasi besar. Nama izin aksi memakai pola
+`<domain>.<aksi>`; contoh yang sudah dirujuk dokumen lain: `harga.ubah` (ubah modal/margin/tier & aturan promo,
+`docs/spec/engine-harga.md` §8). Fase 1: `owner` dan `admin` sama-sama punya `harga.ubah`; daftar lengkap di T-004.
 
 - Setiap aksi admin yang mengubah data (harga, stok, COD, koreksi saldo, status pesanan) ditulis ke `log_admin`
   (append-only: siapa, kapan, sebelum/sesudah, alasan).
