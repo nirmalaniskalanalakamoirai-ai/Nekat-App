@@ -15,7 +15,7 @@ Catatan: bagian di bawah ditambahkan oleh sesi Build otomatis 10–11 Nov 2026. 
 
 | # | Keputusan | Pemilik | Status |
 |---|---|---|---|
-| H1 | Setujui stack inti TypeScript/Node + Fastify + PostgreSQL + React PWA (vs Laravel) | Joseph | belum |
+| H1 | Setujui stack inti TypeScript/Node + Fastify + PostgreSQL + React PWA (vs Laravel) | Joseph | **DIPUTUSKAN 11 Nov: setuju Opsi A (TypeScript), sesuai rekomendasi** → `keputusan.md` #10 |
 | H2 | Gateway WhatsApp untuk OTP & notifikasi (Meta Cloud API / BSP resmi / tidak resmi), SMS sebagai cadangan? Verifikasi Meta tergantung #5 | Joseph + Randy | belum |
 | H3 | Penyedia hosting & PostgreSQL self-managed vs managed (kelas biaya) | Joseph (+ Finance) | belum |
 | H4 | Peran n8n: laporan/tepi saja, atau juga boleh memicu job; lokasi hosting n8n | Joseph | belum |
@@ -24,7 +24,7 @@ Catatan: bagian di bawah ditambahkan oleh sesi Build otomatis 10–11 Nov 2026. 
 | H7 | Kepemilikan akun (GitHub org + paket GitHub untuk gerbang production, Xendit, hosting, domain, Meta Business, secret store), min. 2 admin | Joseph + Randy | belum |
 | H8 | Error tracking & log: SaaS vs self-host (masking PII) | Joseph | belum |
 | H9 | Login admin: wajib TOTP atau cukup OTP WA | Joseph | belum |
-| H10 | Terima ADR-0001 (merge PR T-001) — membuka semua task kode | Joseph | belum |
+| H10 | Terima ADR-0001 (merge PR T-001) — membuka semua task kode | Joseph | **DIPUTUSKAN 11 Nov: diterima, PR #1 di-merge** → `keputusan.md` #10 |
 | H11 | (Fase 5) Deferred deep link iOS: layanan pihak ketiga vs fallback kode manual (selisih dengan keputusan #3) | Randy + Joseph | belum |
 | H12 | Lokasi penyimpanan data (region Indonesia atau luar negeri) + isian "[lokasi]" di kebijakan privasi | Randy + Joseph (+ hukum) | belum |
 | H13 | Cara kurir lokal & drop point menerima data antar (Fase 1: daftar antar dari admin, tanpa akun kurir?) | Randy (+ Operations) | belum |

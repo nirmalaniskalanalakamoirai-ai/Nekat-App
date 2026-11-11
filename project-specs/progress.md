@@ -1,8 +1,9 @@
 # Progress
 
-Terakhir diperbarui: sesi Laporan, Rabu 11 Nov 2026 (12.31 WIB). Sebelumnya: sesi QA & perbaikan otomatis (09.13–09.35 WIB).
+Terakhir diperbarui: Rabu 11 Nov 2026 14.08 WIB (merge PR #1 atas persetujuan manusia). Sebelumnya: sesi Laporan 12.31 WIB. Sebelumnya: sesi QA & perbaikan otomatis (09.13–09.35 WIB).
 
 ## Selesai
+- **T-001 done:** H1 (stack TypeScript, sesuai rekomendasi) & H10 disetujui; PR #1 di-merge 11 Nov 14.08 WIB (`keputusan.md` #10). Fase 1: 1/46 task selesai.
 - Backlog Fase 1 dipecah menjadi 46 task (Senior PM, 10 Nov).
 - T-001, T-002, T-003 dikerjakan agen (sesi Build A 11 Nov).
 - **Sesi QA 11 Nov 09.13:** ketiga PR direview ulang secara independen oleh Code Reviewer dan AI-Generated Code Security Auditor, diperbaiki langsung di branch PR (maks. 3 putaran), dan **lulus review agen**. Ringkasan sudah ditulis sebagai komentar di tiap PR.
@@ -12,7 +13,7 @@ Terakhir diperbarui: sesi Laporan, Rabu 11 Nov 2026 (12.31 WIB). Sebelumnya: ses
 ## Sedang jalan (PR terbuka, menunggu persetujuan & merge oleh manusia)
 | Task | PR | Versi | Hasil QA 11 Nov | Temuan utama yang diperbaiki |
 |---|---|---|---|---|
-| T-001 ADR tech stack | #1 `task/T-001-adr-tech-stack` @ `e716192` | v0.5 | LULUS (2 putaran) | Webhook Xendit GET pakai ID invoice dari DB; aturan OTP lengkap; IDOR `akun_id` dari sesi; rotasi sesi; label default sementara H14/F-11/H6; peta kunci batal multi-grup; izin `harga.ubah` |
+| ~~T-001 ADR tech stack~~ (di-merge 11 Nov) | #1 `task/T-001-adr-tech-stack` @ `e716192` | v0.5 | LULUS (2 putaran) | Webhook Xendit GET pakai ID invoice dari DB; aturan OTP lengkap; IDOR `akun_id` dari sesi; rotasi sesi; label default sementara H14/F-11/H6; peta kunci batal multi-grup; izin `harga.ubah` |
 | T-002 Peta flow group order | #2 `task/T-002-flow-group-order` @ `a5ec5fa` | v0.5 | LULUS (3 putaran) | BLOCKER keamanan IDOR di `POST ikut`; grup bisa macet di CUT_OFF (G9 vs G10); COD diperlakukan seolah sudah bayar; batal saat MENUNGGU_BAYAR = seluruh pesanan (P6/G15); TC-GO-68–76 |
 | T-003 Spesifikasi engine harga | #3 `task/T-003-spec-engine-harga` @ `63cc72d` | v0.5 | LULUS (3 putaran), butuh keputusan P-22/P-28 | BLOCKER pagar harga: mode `PER_TIER` melanggar CLAUDE.md → pagar KETAT wajib; default P-28 = harga Mitra hanya di checkout; izin `harga.ubah`; reservasi kuota diskon; netralisasi CSV |
 
@@ -21,11 +22,11 @@ Catatan repo: GitHub melaporkan repo pindah ke `nirmalaniskalanalakamoirai-ai/Ne
 
 ## Blocked
 - Tidak ada task blocked.
-- Semua task kode (T-012 dst.) menunggu ADR T-001 di-merge (keputusan H10).
+- Tidak lagi: ADR T-001 sudah di-merge, task kode yang hanya tergantung T-001 (mis. T-012) kini bisa jalan.
 
 ## Butuh keputusan manusia
 Daftar lengkap di `keputusan-terbuka.md`. Paling mendesak:
-1. **H10 / H1 (Joseph)** — setujui ADR-0001 (merge PR #1) → membuka semua task kode.
+1. ~~H10 / H1~~ — DIPUTUSKAN 11 Nov, PR #1 di-merge.
 2. **F-01 / P-04** — harga apa yang dibayar di muka saat ikut grup.
 3. **F-02** — grup gagal (<3 akun): lanjut harga satuan atau refund.
 4. **P-22 (Efan)** — pagar KETAT kini wajib; tinggal pilih apakah ditambah pemeriksaan per tier.
@@ -37,4 +38,4 @@ Daftar lengkap di `keputusan-terbuka.md`. Paling mendesak:
 ## Berikutnya
 - Laporan 11 Nov sudah dibuat: `laporan/2026-11-11.md` (3 PR menunggu persetujuan, 8 keputusan mendesak). Status PR tidak berubah sejak sesi QA; belum ada review manusia.
 - 14.17 Tindak lanjut: merge PR yang disetujui (#1 → #3 → #2) dan catat keputusan.
-- Setelah merge PR #1–#3: T-004, T-005, T-006, T-007, T-009 (gelombang 1).
+- Kini bisa jalan (tergantung T-001 saja): T-009, T-012. Setelah merge PR #2–#3: T-004, T-005, T-006, T-007.

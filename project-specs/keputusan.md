@@ -51,3 +51,8 @@ NEKAT berdiri sendiri (repo & database sendiri) dan menyediakan **modul integras
 
 ## 9. Payment gateway — DIPUTUSKAN
 **Xendit**: QRIS, Virtual Account, e-wallet. Webhook untuk status bayar, refund/selisih harga masuk saldo pengguna.
+
+## 10. Tech stack (ADR-0001) — DIPUTUSKAN 11 Nov 2026
+- **H1:** stack inti **TypeScript/Node.js + Fastify + PostgreSQL + React PWA** (Opsi A di `docs/adr/0001-tech-stack.md`), sesuai rekomendasi agen. Laravel tidak dipakai.
+- **H10:** ADR-0001 **diterima**; PR #1 di-merge 11 Nov 2026. Task kode yang tergantung T-001 boleh dikerjakan.
+- Butir H2–H9, H11–H14 tetap terbuka (default sementara di ADR §9 berlaku sampai diputuskan).
