@@ -3,7 +3,7 @@
 | Atribut | Nilai |
 |---|---|
 | Task | T-002 (`task/T-002-flow-group-order`) |
-| Versi | 0.4 — Draf (v0.3: pagar modal & picking grup gagal lanjut satuan, ledger langsung di transaksi, balapan webhook vs cut-off, checkout dua fase, kunci idempotensi selaras ADR-0001; v0.4: hasil sesi QA 11 Nov — lihat §13) |
+| Versi | 0.5 — Draf (v0.5: G15 batal seluruh pesanan MENUNGGU_BAYAR + TC-GO-76, istilah `waktu_bayar`; v0.3: pagar modal & picking grup gagal lanjut satuan, ledger langsung di transaksi, balapan webhook vs cut-off, checkout dua fase, kunci idempotensi selaras ADR-0001; v0.4: hasil sesi QA 11 Nov — lihat §13) |
 | Tanggal | 10 Nov 2026 (rev. 11 Nov 2026) |
 | Penyusun | Workflow Architect (squad Produk & flow, pemilik: Randy) |
 | Status | Draf, menunggu Reality Checker setelah T-022/T-023 dibangun |
@@ -139,7 +139,7 @@ Atribut tambahan (bukan status): `pendaftaran_ditutup` (true bila stok habis seb
 | G12 | DITAHAN | Admin "Batalkan" atau batas waktu tahan habis [F-13] | — | Semua peserta → BATAL + refund saldo penuh (kecuali `dana_ditahan`; COD: BATAL tanpa dana, tanpa ledger) | GAGAL | ADM / JOB |
 | G13 | HARGA_TERKUNCI / GAGAL_LANJUT_SATUAN | `PickingDiterima` | INV mengonfirmasi permintaan picking `picking:{grup_id}`. Bila total `qty_teralokasi` grup = 0 (semua peserta P11), **tidak** ada permintaan picking; grup langsung SELESAI setelah semua peserta di status akhir | Peserta TERKUNCI → DIPROSES | DIPROSES | INV |
 | G14 | DIPROSES (atau HARGA_TERKUNCI / GAGAL_LANJUT_SATUAN dengan total alokasi 0) | Peserta terakhir mencapai status akhir | Semua peserta ∈ {DITERIMA, DITOLAK, KEDALUWARSA, DIREFUND, BATAL tanpa dana, DANA_DITAHAN} | Tutup grup; masuk laporan harian. Peserta DANA_DITAHAN (dan flag `dana_ditahan` yang menahan kredit cut-off) tetap di antrean admin | SELESAI | GE |
-| G15 | DIBUKA / BELUM_AKTIF / AKTIF | Admin "Batalkan grup" | Alasan wajib diisi | Semua peserta → BATAL; refund saldo penuh untuk peserta yang sudah membayar (kecuali `dana_ditahan`); COD & MENUNGGU_BAYAR: tanpa ledger refund (MENUNGGU_BAYAR: invoice dibatalkan + `saldo-balik`, seperti P6); notif WA-10 | DIBATALKAN | ADM |
+| G15 | DIBUKA / BELUM_AKTIF / AKTIF | Admin "Batalkan grup" | Alasan wajib diisi | Semua peserta → BATAL; refund saldo penuh untuk peserta yang sudah membayar (kecuali `dana_ditahan`); COD & MENUNGGU_BAYAR: tanpa ledger refund. MENUNGGU_BAYAR: **seluruh pesanan** peserta itu dibatalkan seperti P6 (termasuk barisnya di grup lain, karena satu invoice & satu debit saldo per pesanan): kunci semua grup pesanan urut `grup_id` (ADR §3.2), semua baris BATAL, lepas reservasi, `saldo-balik:{pesanan_id}`, pembayaran `dibatalkan`, invoice dibatalkan di luar transaksi; PAID sesudahnya → P17; notif WA-10 menyebut semua produk yang ikut batal | DIBATALKAN | ADM |
 
 Aturan umum: status hanya maju lewat **update bersyarat** (`WHERE status = <asal>`) di dalam transaksi yang mengunci baris sesuai peta kunci ADR-0001 §3.2 (A-08); transisi yang kalah balapan tidak menimbulkan efek samping. Refund pada G12/G15 juga ditulis langsung ke ledger dalam transaksi yang sama (`refund:{peserta_id}`).
 
@@ -189,7 +189,7 @@ Atribut peserta: `qty_pesan`, `qty_teralokasi`, `harga_dibayar`, `harga_final`, 
 | P1 | — | Checkout dengan Xendit | `akun_id` **hanya dari sesi** (§8.1), zona diturunkan server, Login OTP, S&K versi terkini disetujui, dalam zona, grup ∈ {DIBUKA, BELUM_AKTIF, AKTIF}, `pendaftaran_ditutup = false`, belum jadi peserta aktif di grup ini, snapshot stok lebih muda dari batas usia [P-10], reservasi RSV sukses (satu transaksi DB dengan pembuatan peserta) | **Dua fase.** Fase 1 (satu transaksi, kunci grup → stok SKU → akun_saldo): buat pesanan, peserta MENUNGGU_BAYAR, baris pembayaran (`pembayaran_id` = calon `external_id`), reservasi RSV, simpan `harga_dibayar` (= harga satuan [F-01]), debit saldo sementara bila dipakai (`debit:{pesanan_id}`). Fase 2 (di luar transaksi): panggil Xendit dengan `external_id` = `pembayaran_id`, kedaluwarsa = min(TTL [F-26], cut-off). Timeout → ulang/cek status dengan `external_id` yang sama; peserta dikedaluwarsakan (P5) **hanya bila invoice terbukti tidak ada** di Xendit (M-06) | MENUNGGU_BAYAR | USR |
 | P2 | — | Checkout dibayar penuh saldo | Guard P1 + saldo ≥ total | Satu transaksi (grup → stok SKU → peserta → akun_saldo): debit saldo `debit:{pesanan_id}` + peserta LUNAS | LUNAS | USR |
 | P3 | — | Checkout COD | Guard P1 + status COD aktif + total ≤ Rp500.000 [P-18] | Tanpa invoice | COD_TERKONFIRMASI | USR |
-| P4 | MENUNGGU_BAYAR | Webhook PAID (dikonfirmasi GET ke Xendit sebelum transaksi) | Satu transaksi insert `webhook_event` + proses, kunci grup → peserta (ADR §3.2). Di dalam kunci: status peserta MENUNGGU_BAYAR, pembayaran tidak berstatus `dibatalkan`, debit saldo sementara pesanan (`debit:{pesanan_id}`, bila ada) masih aktif (tidak ada `saldo-balik:{pesanan_id}`), nominal cocok, dan **(a)** grup ∈ {DIBUKA, BELUM_AKTIF, AKTIF}, atau **(b)** grup = CUT_OFF, `evaluasi_dimulai_pada IS NULL`, `paid_at` ≤ cut-off (masa tenggang) [F-11]. Selain itu → P17 | Catat pembayaran; hitung ulang akun terhitung dari data peserta; outbox WA-02 | LUNAS | PAY |
+| P4 | MENUNGGU_BAYAR | Webhook PAID (dikonfirmasi GET ke Xendit sebelum transaksi) | Satu transaksi insert `webhook_event` + proses, kunci grup → peserta (ADR §3.2). Di dalam kunci: status peserta MENUNGGU_BAYAR, pembayaran tidak berstatus `dibatalkan`, debit saldo sementara pesanan (`debit:{pesanan_id}`, bila ada) masih aktif (tidak ada `saldo-balik:{pesanan_id}`), nominal cocok, dan **(a)** grup ∈ {DIBUKA, BELUM_AKTIF, AKTIF}, atau **(b)** grup = CUT_OFF, `evaluasi_dimulai_pada IS NULL`, `waktu_bayar` (= `waktu_bayar` dari GET Xendit) ≤ cut-off (masa tenggang) [F-11]. Selain itu → P17 | Catat pembayaran; hitung ulang akun terhitung dari data peserta; outbox WA-02 | LUNAS | PAY |
 | P5 | MENUNGGU_BAYAR | Invoice kedaluwarsa **sebelum cut-off** / **§6 langkah 4** cut-off (setelah masa tenggang) / invoice terbukti tidak ada (M-06) | Bukan oleh §6 langkah 2 (langkah 2 hanya mengedaluwarsakan invoice di Xendit) | Satu transaksi: lepas reservasi stok; kembalikan debit saldo sementara (`saldo-balik:{pesanan_id}`); outbox WA-03 | KEDALUWARSA | PAY / JOB |
 | P6 | MENUNGGU_BAYAR | Pengguna batal | Sebelum cut-off | Pembatalan pada pesanan yang masih MENUNGGU_BAYAR berlaku untuk **seluruh pesanan** (semua barisnya), karena satu invoice menanggung semua baris dan debit saldo sementara (`debit:{pesanan_id}`) milik pesanan, bukan baris. Satu transaksi (grup-grup urut `grup_id` → stok SKU → peserta → pesanan → akun_saldo): semua peserta pesanan BATAL, lepas reservasi, `saldo-balik:{pesanan_id}`, pembayaran ditandai `dibatalkan`. Setelah commit, batalkan invoice di Xendit **di luar transaksi**; PAID yang tetap masuk sesudahnya → P17 (seluruh nominal ke saldo), tidak pernah menghidupkan baris. Batal per baris hanya untuk baris LUNAS/COD (P7) | BATAL | USR |
 | P7 | LUNAS / COD_TERKONFIRMASI | Pengguna batal | Sebelum cut-off [F-07]; satu transaksi grup → stok SKU → peserta → akun_saldo | Lepas reservasi; hitung ulang akun terhitung; ledger `refund:{peserta_id}` langsung (LUNAS) | BATAL → DIREFUND (LUNAS) / BATAL (COD) | USR |
@@ -295,7 +295,7 @@ Format: langkah bernomor; `→` berarti lanjut; `⟂` berarti cabang gagal.
 ### B-09 Stok habis/kurang sesudah cut-off (alokasi parsial)
 1. §6 langkah 5: INV mengonfirmasi stok riil untuk total `qty_pesan` peserta terkunci.
 2. Stok ≥ total → semua `qty_teralokasi = qty_pesan`.
-3. Stok < total → alokasi per urutan `paid_at` paling awal (COD: waktu konfirmasi), unit utuh [F-09].
+3. Stok < total → alokasi per urutan `waktu_bayar` paling awal (COD: waktu konfirmasi), unit utuh [F-09].
 4. Tier & harga final dihitung dari qty terhitung **sebelum** alokasi; harga tidak dinaikkan karena alokasi [F-09].
 5. Bagian tidak teralokasi = **refund stok** (§1), digabung dengan selisih harga dalam satu kredit cut-off `selisih:{grup_id}:{peserta_id}` (nilai bersih engine-harga §5.4); WA-11 "Maaf, X dari Y pcs tidak tersedia".
 6. `qty_teralokasi = 0` → P11 BATAL → DIREFUND.
@@ -317,7 +317,7 @@ Format: langkah bernomor; `→` berarti lanjut; `⟂` berarti cabang gagal.
 3. Kedaluwarsa sebelum cut-off → P5 KEDALUWARSA; stok & debit saldo sementara dikembalikan. Invoice yang masih terbuka saat cut-off hanya dikedaluwarsakan di Xendit (§6 langkah 2); peserta baru menjadi KEDALUWARSA di transaksi §6 langkah 4, setelah masa tenggang.
 4. Webhook PAID tiba saat peserta KEDALUWARSA/BATAL, atau grup sudah melewati masa tenggang → P17: seluruh nominal pembayaran ke saldo (`bayar_terlambat:{pembayaran_id}`), WA-15, tidak menghitung ulang grup [F-11].
 5. Masa tenggang (balapan webhook vs evaluasi cut-off): webhook mengunci grup FOR UPDATE (ADR §3.2) lalu memeriksa di dalam kunci:
-   - grup CUT_OFF, `evaluasi_dimulai_pada IS NULL`, `paid_at` ≤ cut-off → P4 LUNAS (masih terhitung);
+   - grup CUT_OFF, `evaluasi_dimulai_pada IS NULL`, `waktu_bayar` ≤ cut-off → P4 LUNAS (masih terhitung);
    - `evaluasi_dimulai_pada` terisi (langkah 4 sudah mulai) atau status grup > CUT_OFF → P17.
    Karena langkah 4 mengisi `evaluasi_dimulai_pada` di bawah kunci yang sama, setiap webhook jatuh tepat di satu sisi. Langkah 9 memverifikasi ulang himpunan terhitung (§6) sebagai pagar kedua [F-11].
 
@@ -376,7 +376,7 @@ Langkah 5–9 dijalankan untuk **dua** jenis grup: grup dengan akun ≥ 3 (targe
 |---|---|---|
 | 1 | Update bersyarat semua grup slot (kunci grup urut `grup_id`): status ∈ {DIBUKA, BELUM_AKTIF, AKTIF} → CUT_OFF. Sejak ini API ikut/batal menolak (guard waktu juga berlaku tanpa job). | DB gagal → retry; job tidak lanjut ke langkah 2 sebelum sukses |
 | 2 | Minta PAY mengedaluwarsakan invoice terbuka grup slot ini **di Xendit saja** (di luar transaksi). Status peserta **tidak** diubah: peserta tetap MENUNGGU_BAYAR agar PAID tepat waktu yang webhooknya tiba di masa tenggang masih lolos P4(b). | Xendit tidak tersedia → lanjut ke langkah 3; peserta tetap dipindah ke KEDALUWARSA di langkah 4; webhook PAID setelah langkah 4 → P17 |
-| 3 | Tunggu masa tenggang webhook (konfigurasi teknis) agar PAID dengan `paid_at` ≤ cut-off sempat diproses lewat P4(b) [F-11]. | — |
+| 3 | Tunggu masa tenggang webhook (konfigurasi teknis) agar PAID dengan `waktu_bayar` ≤ cut-off sempat diproses lewat P4(b) [F-11]. | — |
 | 4 | Per grup, **satu transaksi** dengan grup FOR UPDATE → stok SKU → peserta → akun_saldo (setelah masa tenggang): isi `evaluasi_dimulai_pada` (bila null); peserta yang **masih** MENUNGGU_BAYAR → P5 KEDALUWARSA (lepas reservasi, `saldo-balik:{pesanan_id}`, outbox WA-03); catat `himpunan_terhitung` (peserta_id + akun_id terhitung). Sejak commit, webhook PAID untuk grup ini → P17. Lalu: ≥ 3 akun → langkah 5 (semua peserta). < 3 dan tidak ada peserta LANJUT_SATUAN → **G8 di transaksi yang sama** (status grup GAGAL + peserta LUNAS DIREFUND + ledger `refund:{peserta_id}` langsung; peserta COD BATAL tanpa ledger + outbox WA-08), grup berikutnya. < 3 dan ada peserta LANJUT_SATUAN → langkah 5 hanya untuk peserta lanjut; peserta REFUND diproses di langkah 9. | Rollback; ulang langkah 4 |
 | 5 | INV: konfirmasi stok riil untuk total qty peserta yang akan dikirim. | Retry dengan backoff; habis → G10 DITAHAN |
 | 6 | Alokasi FIFO (B-09). | — |
@@ -429,7 +429,7 @@ Semua event membawa: `id_event` (UUID), `waktu` (ISO-8601 **dengan offset**, mis
 | GE → INV | `kirimPermintaanPicking` (per grup, hanya setelah HARGA_TERKUNCI / GAGAL_LANJUT_SATUAN & alokasi) | grup_id, slot_id, sku, daftar (peserta_id, qty_teralokasi, cara_kirim) | id_picking | retryable, kunci `picking:{grup_id}` |
 | INV → GE/PE | `ModalBerubah`, `StokBerubah` (snapshot diperbarui) | sku, nilai baru, `disinkron_pada` | — | — |
 | GE → PAY | `buatPembayaran` (invoice Xendit; fase 2 P1, di luar transaksi) | pembayaran_id (= `external_id` Xendit, sudah tersimpan di fase 1), pesanan_id, nominal, metode, kedaluwarsa | id_invoice, instruksi bayar | `GATEWAY_TIDAK_TERSEDIA` / timeout → cek ulang dengan `external_id` sama (M-06) |
-| PAY → GE | `PembayaranLunas` | pembayaran_id (`external_id`), pesanan_id, id_invoice, nominal, paid_at, id_event_gateway | — | — |
+| PAY → GE | `PembayaranLunas` | pembayaran_id (`external_id`), pesanan_id, id_invoice, nominal, waktu_bayar, id_event_gateway | — | — |
 | PAY → GE | `PembayaranKedaluwarsa` | pembayaran_id, pesanan_id, id_invoice | — | — |
 | GE → SAL (dalam transaksi) | `kredit` | akun_id, nominal (nilai bersih engine-harga §5.4), jenis (SELISIH_HARGA = kredit cut-off / REFUND / BAYAR_TERLAMBAT / REFUND_ONGKIR), rincian (selisih_harga, refund_stok), referensi (peserta_id / pembayaran_id / pesanan_id), alasan, kunci_idempotensi (`selisih:{grup_id}:{peserta_id}` / `refund:{peserta_id}` / `bayar_terlambat:{pembayaran_id}` / `refund_ongkir:{pesanan_id}`) | id_entri, saldo_baru | `DUPLIKAT` (anggap sukses); error lain → rollback transaksi pemanggil. Tidak dipanggil bila `dana_ditahan = true` |
 | GE → SAL (dalam transaksi) | `debit` / `batalkanDebit` | akun_id, nominal, pesanan_id, kunci (`debit:{pesanan_id}` / `saldo-balik:{pesanan_id}`) | id_entri | `SALDO_KURANG` → rollback |
@@ -569,8 +569,8 @@ Data uji tanpa harga asli: gunakan harga fiktif dari fixture T-011. `t0` = waktu
 | TC-GO-57 | Event & kolom waktu | Disimpan UTC; event ISO-8601 dengan offset; tampilan WIB |
 | TC-GO-58 | Webhook PAID untuk pembayaran satu pesanan berisi 3 baris (3 grup) | Satu `external_id` = pembayaran_id; ketiga grup dikunci urut `grup_id`; ketiga peserta LUNAS; masing-masing grup dihitung ulang |
 | TC-GO-59 | Dua webhook PAID paralel untuk akun ke-2 dan ke-3 grup yang sama | Diserialkan oleh kunci grup; grup → AKTIF **tepat sekali**; satu `GrupAktif`; WA-04 sekali per peserta |
-| TC-GO-60 | PAID dengan `paid_at` ≤ cut-off tiba saat job di langkah 5–8 (setelah `evaluasi_dimulai_pada` terisi) | Webhook → P17 (`bayar_terlambat:{pembayaran_id}` ke saldo, WA-15); langkah 9 lolos verifikasi himpunan; harga & alokasi tidak memuat peserta itu |
-| TC-GO-61 | PAID dengan `paid_at` ≤ cut-off tiba saat masa tenggang (setelah langkah 2 mengedaluwarsakan invoice di Xendit, `evaluasi_dimulai_pada` null) | Peserta masih MENUNGGU_BAYAR → P4 LUNAS; peserta masuk `himpunan_terhitung` langkah 4 |
+| TC-GO-60 | PAID dengan `waktu_bayar` ≤ cut-off tiba saat job di langkah 5–8 (setelah `evaluasi_dimulai_pada` terisi) | Webhook → P17 (`bayar_terlambat:{pembayaran_id}` ke saldo, WA-15); langkah 9 lolos verifikasi himpunan; harga & alokasi tidak memuat peserta itu |
+| TC-GO-61 | PAID dengan `waktu_bayar` ≤ cut-off tiba saat masa tenggang (setelah langkah 2 mengedaluwarsakan invoice di Xendit, `evaluasi_dimulai_pada` null) | Peserta masih MENUNGGU_BAYAR → P4 LUNAS; peserta masuk `himpunan_terhitung` langkah 4 |
 | TC-GO-61b | Peserta masih MENUNGGU_BAYAR setelah masa tenggang | Langkah 2 tidak mengubah statusnya; transaksi langkah 4 memindahkannya ke KEDALUWARSA (reservasi dilepas, `saldo-balik:{pesanan_id}`); PAID sesudahnya → P17 |
 | TC-GO-62 | Akun peserta terhitung dibekukan saat grup CUT_OFF antara langkah 4 dan 9 | Langkah 9 mendeteksi himpunan berubah → rollback → ulang dari langkah 4; hasil akhir konsisten, tanpa kredit ganda |
 | TC-GO-63 | Xendit timeout di fase 2 checkout, invoice ternyata sudah dibuat | Cek ulang dengan `external_id` sama menemukan invoice; tidak ada invoice ganda; peserta tetap MENUNGGU_BAYAR |
@@ -586,6 +586,7 @@ Data uji tanpa harga asli: gunakan harga fiktif dari fixture T-011. `t0` = waktu
 | TC-GO-73 | Grup aktif, peserta X alokasi 0 dengan harga dibayar < modal baru; peserta lain lolos pagar | Grup HARGA_TERKUNCI (X tidak diuji pagar, X → P11); tidak macet di CUT_OFF |
 | TC-GO-74 | Pesanan MENUNGGU_BAYAR 2 baris dengan debit saldo sementara; pengguna batal; pembatalan invoice Xendit gagal lalu pengguna tetap membayar | Kedua baris BATAL + `saldo-balik`; PAID → P17 seluruh nominal ke saldo; tidak ada baris LUNAS |
 | TC-GO-75 | Produk kategori rokok/bir dicoba dibuat grup | Ditolak; tidak ada grup |
+| TC-GO-76 | Pesanan MENUNGGU_BAYAR berisi baris di grup X dan grup Y; admin membatalkan grup X (G15) | Baris X dan Y sama-sama BATAL, reservasi keduanya lepas, satu `saldo-balik:{pesanan_id}`, pembayaran `dibatalkan`; PAID yang masuk sesudahnya → P17 (seluruh nominal ke saldo); tidak ada baris Y yang tertinggal MENUNGGU_BAYAR |
 
 ---
 
@@ -619,9 +620,9 @@ Semua **DEFAULT SEMENTARA** di bawah adalah **asumsi kerja dokumen ini, bukan ke
 | F-06 | Batas kuantitas per akun per grup | Tanpa batas / batas per produk | Batas per produk (field admin) | Field `maks_qty_per_akun` **kosong = tanpa batas** (dibatasi stok). **Catatan risiko keamanan (QA 11 Nov):** gabungan F-06 kosong + F-26 kosong memungkinkan satu akun mereservasi seluruh stok tanpa membayar sampai cut-off, sehingga `pendaftaran_ditutup` berlaku untuk semua orang (penimbunan, CWE-770). Rekomendasi agen (bukan keputusan): isi batas per produk, **dan** tambahkan batas teknis jumlah/qty reservasi belum dibayar per akun |
 | F-07 | Batas pembatalan, kurangi qty, admin memajukan cut-off | Batal sampai cut-off / sampai X sebelum cut-off; kurangi qty ya/tidak; cut-off boleh dimajukan ya/tidak | Sampai cut-off (S&K §7) | Batal sampai cut-off; kurangi qty **tidak**; admin **tidak** boleh memajukan cut-off slot yang sudah punya peserta |
 | F-08 | Modal berubah saat grup berjalan; snapshot MOQ (= P-08) | A) harga live, harga dibayar jadi batas atas; B) harga dibekukan sejak grup dibuka; C) grup ditahan | A + ambang margin menipis (P-08) | **A**; MOQ di-snapshot saat grup dibuka; harga dibayar < modal saat cut-off → DITAHAN |
-| F-09 | Stok parsial: urutan alokasi, harga, bila tersisa <3 akun | Urutan bayar / proporsional; harga dihitung sebelum/sesudah alokasi | Urutan bayar (adil & mudah dijelaskan) | FIFO `paid_at`, unit utuh; tier dari qty sebelum alokasi; grup tetap terkunci walau penerima < 3 |
+| F-09 | Stok parsial: urutan alokasi, harga, bila tersisa <3 akun | Urutan bayar / proporsional; harga dihitung sebelum/sesudah alokasi | Urutan bayar (adil & mudah dijelaskan) | FIFO `waktu_bayar`, unit utuh; tier dari qty sebelum alokasi; grup tetap terkunci walau penerima < 3 |
 | F-10 | Dana akun ganda/curang & evaluasi ulang grup | Ditahan / dikembalikan ke saldo / disita sesuai S&K | Ditahan sampai review admin | Sebelum harga dikunci: dikeluarkan dari hitungan; dana **ditahan** (status DANA_DITAHAN dari BATAL/KEDALUWARSA), **tidak** otomatis ke saldo; admin melepas/menetapkan dengan alasan tercatat. Setelah harga dikunci: hanya flag `dana_ditahan` yang menahan kredit cut-off; status pengiriman tidak berubah; tanpa evaluasi ulang grup. **Pertanyaan tambahan:** apakah barang untuk akun yang dibekukan setelah harga dikunci tetap dikirim? Default sementara: **tetap dikirim** |
-| F-11 | Basis waktu pembayaran terlambat | `paid_at` gateway / waktu webhook diterima | `paid_at` + masa tenggang job | Lunas jika `paid_at` ≤ cut-off dan diproses dalam masa tenggang; selain itu → saldo |
+| F-11 | Basis waktu pembayaran terlambat | `waktu_bayar` gateway / waktu webhook diterima | `waktu_bayar` + masa tenggang job | Lunas jika `waktu_bayar` ≤ cut-off dan diproses dalam masa tenggang; selain itu → saldo |
 | F-12 | Drop point & antar rumah satu grup atau terpisah | Satu grup / grup terpisah per cara kirim | Satu grup (lebih cepat mencapai 3 akun) | Satu grup; harga per peserta = min(dibayar, tier, Mitra bila syarat); turun syarat Mitra karena batal → tidak ditagih tambahan |
 | F-13 | Grup yang masih DITAHAN saat cut-off | Batas waktu tahan lalu gagal / pindah slot / tunggu admin | Batas waktu konfigurasi | Tidak diselesaikan sebelum batas (konfigurasi, kosong = sebelum picking slot) → **GAGAL + refund ke saldo** |
 | F-14 | Satu atau beberapa grup per kunci | Satu / pecah bila penuh | Satu | **Satu** grup per produk × zona × slot |
@@ -648,7 +649,7 @@ Butir terkait di dokumen lain yang dipakai di sini: P-05 (syarat Mitra), P-09 (m
 
 ---
 
-## 13. Catatan revisi v0.4 (sesi QA & perbaikan otomatis, 11 Nov 2026)
+## 13. Catatan revisi v0.4–v0.5 (sesi QA & perbaikan otomatis, 11 Nov 2026)
 
 | Sumber | Temuan | Perbaikan |
 |---|---|---|
@@ -665,4 +666,6 @@ Butir terkait di dokumen lain yang dipakai di sini: P-05 (syarat Mitra), P-09 (m
 | Security Auditor 2 | Batal per baris saat MENUNGGU_BAYAR + `saldo-balik` seluruh pesanan → barang dibayar kurang bila invoice tetap dibayar (CWE-841) | P6: batal saat MENUNGGU_BAYAR = seluruh pesanan; P4 memeriksa pembayaran tidak dibatalkan & debit saldo masih aktif; TC-GO-74 |
 | Security Auditor 3 | Penimbunan reservasi (F-06 + F-26 kosong, CWE-770) | Catatan risiko & rekomendasi di §12 (tidak diputuskan agen) |
 | Security Auditor 4, saran | Aturan OTP; multi-SIM; `ref` opaque | B-03.2 merujuk ADR-0001 §4.3; B-17.5 sinyal deteksi; B-02.7 `ref` opaque |
+| Code Reviewer putaran 2 | G15 untuk peserta MENUNGGU_BAYAR membatalkan invoice seluruh pesanan tetapi baris di grup lain tertinggal MENUNGGU_BAYAR | G15 membatalkan seluruh pesanan seperti P6 (kunci multi-grup); TC-GO-76 |
+| Code Reviewer putaran 2 | Istilah `paid_at` vs `waktu_bayar` (ADR §3.2) | Diseragamkan `waktu_bayar` (= `paid_at` dari gateway) |
 
