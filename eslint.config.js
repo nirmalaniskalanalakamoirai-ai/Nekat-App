@@ -36,7 +36,7 @@ export default tseslint.config(
 
   // ---- Batas modul (ADR-0001 §3.1) ----
   {
-    files: ["apps/*/src/**/*.{ts,tsx}", "packages/*/src/**/*.ts"],
+    files: ["apps/*/src/**/*.{ts,tsx}", "packages/*/src/**/*.{ts,tsx}"],
     plugins: { boundaries },
     settings: {
       "boundaries/elements": [

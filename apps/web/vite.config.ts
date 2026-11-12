@@ -9,6 +9,7 @@ export default defineConfig({
     conditions: ["@nekat/source", ...defaultClientConditions],
   },
   build: {
-    sourcemap: true,
+    // "hidden": sourcemap dibuat (untuk error tracker) tapi tidak dirujuk dari bundle publik.
+    sourcemap: "hidden",
   },
 });

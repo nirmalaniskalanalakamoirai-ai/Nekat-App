@@ -4,7 +4,11 @@ import { buatApp } from "./app.js";
 
 const skemaEnv = z.object({
   HOST: z.string().min(1).default("0.0.0.0"),
-  PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+  // String kosong diperlakukan sebagai "tidak diisi" → default.
+  PORT: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.coerce.number().int().min(1).max(65535).default(3000),
+  ),
 });
 
 const env = skemaEnv.safeParse(process.env);
@@ -16,7 +20,13 @@ if (!env.success) {
 }
 
 const app = buatApp();
-await app.listen({ host: env.data.HOST, port: env.data.PORT });
+try {
+  await app.listen({ host: env.data.HOST, port: env.data.PORT });
+} catch (err) {
+  // Mis. EADDRINUSE / ENOTFOUND: catat terstruktur lalu keluar, jangan stack mentah.
+  app.log.fatal({ err }, "API gagal listen");
+  process.exit(1);
+}
 
 const berhenti = async (): Promise<void> => {
   await app.close();
