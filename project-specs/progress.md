@@ -1,5 +1,11 @@
 # Progress
 
+**Update 13 Nov 02.20 WIB (sesi Build terjadwal, mode hemat):**
+- Langkah 0: **G-01** (grup per keranjang, campur produk) & **G-03** (selisih/refund → loyalty point senilai Rupiah, bisa dikombinasikan di checkout) DIPUTUSKAN dari issue #5 → keputusan-terbuka.md, PR #9 (`a6b5062`), tabel issue diperbarui, "Dicatat" dibalas.
+- Keputusan baru: **G-06** (rincian loyalty point: sama dengan saldo ledger? akun penerima saat host bayar? masa berlaku? pencairan?). K-01–K-11 yang terbuka kini juga ada di tabel issue #5/#6/#7 dengan rekomendasi.
+- Tidak ada task dikerjakan, tidak ada PR baru: semua task todo tergantung PR #2/#3/#4 (belum di-merge) atau T-047 (menunggu #9 + K-01, K-07–K-11, G-06). Tidak ada yang blocked teknis.
+- Butuh manusia: merge **#9** → jawab K-01, K-07–K-11, G-06, F-30 → T-047 di #2/#3 → merge #3, #2, #4. Tanpa itu sesi Build berikutnya juga kosong.
+
 **Update 12 Nov malam (sesi chat, lanjutan QA):** pemilik menjawab 3 butir — (1) tim memakai satu akun GitHub bersama, jawaban di issue sah; (2) **K-07/F-29**: belum lunas → **seluruh grup** dibatalkan; (3) **K-04/H9**: admin tidak hanya OTP WA → **TOTP wajib**. Dicatat di PR #9 (`18212af`, termasuk baris "H-terbuka" yang usang) dan keputusan-terbuka.md. Dampak: T-047 ikut menyelaraskan ADR §4.1/§9 (H9 TOTP) dan flow T-002 (pembatalan seluruh grup). Masih terbuka: K-01–K-03, K-05, K-06, K-07 (titik mulai 60 menit), K-08–K-11.
 
 **Update 12 Nov 18.15 WIB (sesi QA & perbaikan otomatis — jadwal 09.13, berjalan terlambat mulai 17.49 WIB):**

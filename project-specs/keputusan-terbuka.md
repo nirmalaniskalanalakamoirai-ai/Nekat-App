@@ -118,13 +118,16 @@ Catatan: bagian di bawah ditambahkan oleh sesi Build otomatis 10–11 Nov 2026. 
 | K-02 | Ambang penurunan modal dari Gudang yang ditahan untuk tinjauan admin (cegah modal salah membuat harga jatuh) | Efan | belum — default: hanya dicatat di log admin |
 | K-03 | Timpaan modal (P-25) berlaku sampai dicabut admin, atau kedaluwarsa bila nilai Gudang berubah? | Joseph + Efan | belum — default: sampai dicabut |
 | K-04 | Tinjau ulang H9 (admin cukup OTP WA): satu faktor, rawan ambil-alih WA/SIM swap, padahal admin bisa menimpa modal & memproses refund (temuan Security Auditor) | Joseph | **DIPUTUSKAN 12 Nov malam: pemilik setuju admin tidak hanya OTP WA → TOTP wajib (H9 diperbarui di PR #9)** |
-| K-05 | #4 "tarif ongkir diintegrasikan aplikasi eksternal": rumus ongkir di `keputusan.md` #4 diganti, atau tetap berlaku dengan tarif dari aplikasi eksternal? | Efan | belum |
-| K-06 | G-05 biaya admin flat: per pesanan, per akun per grup, atau per grup? (kata "per pesanan" tambahan agen) | Efan | belum |
-| K-07 | F-29 "belum lunas → group order dibatalkan": seluruh grup atau hanya pesanan akun yang belum lunas? 60 menit dihitung sejak akun ikut/membuat grup atau sejak invoice dibuat? | Randy + Efan | **Sebagian DIPUTUSKAN 12 Nov malam: seluruh grup dibatalkan (bukan hanya akun yang belum lunas).** Masih terbuka: 60 menit dihitung sejak akun ikut/membuat grup atau sejak invoice dibuat |
-| K-08 | P-05 "tingkatan paling bawah = grosir": apakah ini level **Mitra Grosir** di pagar CLAUDE.md (individu ≥ Mitra Grosir ≥ Franchise)? | Efan | belum |
-| K-09 | P-03/F-04: tingkat harga dihitung dari kuantitas gabungan grup atau per akun? P-01 margin "per produk": tetap per level (individu/Mitra/Franchise) sesuai pagar? | Efan + Randy | belum |
-| K-10 | F-20 "ongkir berlaku setelah terkunci" vs bayar di muka 60 menit: ongkir ditagih di invoice awal, atau tagihan kedua setelah cut-off? | Randy + Efan | belum |
-| K-11 | F-02 grup gagal: "harga satuan" atau "pesanan tidak diproses/terkunci"? Bila pengguna tidak memilih, apa default-nya? | Randy | belum |
+| K-05 | #4 "tarif ongkir diintegrasikan aplikasi eksternal": rumus ongkir di `keputusan.md` #4 diganti, atau tetap berlaku dengan tarif dari aplikasi eksternal? | Efan | belum — rekomendasi: rumus tetap, angka tarif dari adapter aplikasi eksternal |
+| K-06 | G-05 biaya admin flat: per pesanan, per akun per grup, atau per grup? (kata "per pesanan" tambahan agen) | Efan | belum — rekomendasi: per akun per grup |
+| K-07 | F-29 "belum lunas → group order dibatalkan": seluruh grup atau hanya pesanan akun yang belum lunas? 60 menit dihitung sejak akun ikut/membuat grup atau sejak invoice dibuat? | Randy + Efan | **Sebagian DIPUTUSKAN 12 Nov malam: seluruh grup dibatalkan (bukan hanya akun yang belum lunas).** Masih terbuka: 60 menit dihitung sejak akun ikut/membuat grup atau sejak invoice dibuat (rekomendasi: sejak invoice dibuat) |
+| K-08 | P-05 "tingkatan paling bawah = grosir": apakah ini level **Mitra Grosir** di pagar CLAUDE.md (individu ≥ Mitra Grosir ≥ Franchise)? | Efan | belum — rekomendasi: ya, sama dengan Mitra Grosir |
+| K-09 | P-03/F-04: tingkat harga dihitung dari kuantitas gabungan grup atau per akun? P-01 margin "per produk": tetap per level (individu/Mitra/Franchise) sesuai pagar? | Efan + Randy | belum — rekomendasi: kuantitas gabungan grup per produk; margin per produk per level |
+| K-10 | F-20 "ongkir berlaku setelah terkunci" vs bayar di muka 60 menit: ongkir ditagih di invoice awal, atau tagihan kedua setelah cut-off? | Randy + Efan | belum — rekomendasi: estimasi ongkir di invoice awal, selisih ke loyalty point setelah cut-off |
+| K-11 | F-02 grup gagal: "harga satuan" atau "pesanan tidak diproses/terkunci"? Bila pengguna tidak memilih, apa default-nya? | Randy | belum — rekomendasi: pengguna memilih; default = pesanan dibatalkan, dana ke loyalty point |
 
 Catatan: tim memakai satu akun GitHub bersama (dikonfirmasi pemilik 12 Nov malam); jawaban dari akun itu sah sebagai jawaban pemilik.
 
+
+
+Catatan 13 Nov 02.20 WIB: K-01–K-11 yang masih terbuka kini juga dicantumkan di tabel issue #5/#6/#7 (sebelumnya hanya di file ini).

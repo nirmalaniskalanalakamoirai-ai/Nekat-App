@@ -73,7 +73,7 @@ Disusun oleh Project Manager Senior, 10 Nov 2026. Satu task = satu branch = satu
 | T-044 | Tes API & skenario harga: pagar harga, tier, diskon/gratis ongkir di bawah modal ditolak, ongkir & armada, webhook idempoten | Build & QA | API Tester | kode | T-001, T-011, T-020, T-023, T-030, T-032 | todo |
 | T-045 | CI/CD lengkap + lingkungan staging (deploy otomatis dari `main`), backup database harian, rahasia via env/secret store | Build & QA | DevOps Automator | kode | T-001, T-012, #6 | todo |
 | T-046 | Gerbang rilis pilot: audit keamanan (rahasia bocor, akses data, celah) lalu Reality Checker di staging; production hanya setelah disetujui pemilik squad | Build & QA | AI-Generated Code Auditor + Reality Checker | non-kode | T-043, T-044, T-045 | todo |
-| T-047 | Sinkronkan spesifikasi PR #2 (flow) & PR #3 (engine harga) dengan keputusan 12 Nov: H6 tanpa pembulatan, P-03 satuan 1 pcs/3 pcs/lusin/dus/koli, P-05 level "grosir", F-02, F-06, F-08, F-12, F-20, F-26, H14, P-10, P-22, P-28, F-29 (lunas 60 menit, belum lunas → grup batal), G-05 (field biaya admin flat kosong); ADR: H9 (OTP WA admin). Dikerjakan di branch PR yang ada, tanpa angka harga | Produk & flow + Harga & bisnis | Workflow Architect + Pricing Analyst | non-kode | PR #9 di-merge; G-01, G-03 (bagian keranjang/cara bayar ditunda); klarifikasi K-01, K-07–K-11 | todo (dibuat 12 Nov; F-29 & G-05 diputuskan 12 Nov sore); QA 12 Nov: juga ADR §4.1 default H14 & ADR §5.1 pembulatan → H6) |
+| T-047 | Sinkronkan spesifikasi PR #2 (flow) & PR #3 (engine harga) dengan keputusan 12 Nov: H6 tanpa pembulatan, P-03 satuan 1 pcs/3 pcs/lusin/dus/koli, P-05 level "grosir", F-02, F-06, F-08, F-12, F-20, F-26, H14, P-10, P-22, P-28, F-29 (lunas 60 menit, belum lunas → grup batal), G-05 (field biaya admin flat kosong); ADR: H9 (OTP WA admin). Dikerjakan di branch PR yang ada, tanpa angka harga | Produk & flow + Harga & bisnis | Workflow Architect + Pricing Analyst | non-kode | PR #9 di-merge; klarifikasi K-01, K-07–K-11, G-06 | todo (dibuat 12 Nov; F-29 & G-05 diputuskan 12 Nov sore; **G-01 per keranjang campur produk & G-03 loyalty point diputuskan 12 Nov malam → cakupan bertambah: model grup per keranjang di T-002/T-003, selisih/refund → loyalty point**); QA 12 Nov: juga ADR §4.1 default H14 & ADR §5.1 pembulatan → H6) |
 
 Jumlah: 47 task (13 non-kode, 34 kode).
 
@@ -91,6 +91,8 @@ Mengikuti `jadwal-otomatis.md`: maks. 3 task per sesi Build (01.13, 05.13, 17.13
 8. **Gelombang 7 — tes & rilis:** T-043, T-044, T-045 → T-046.
 
 Jalur kritis: T-001 → T-004 → T-013 → T-020 → T-022 → T-023 → T-033 → T-043 → T-046.
+
+Update 13 Nov: G-01 (grup per keranjang, campur produk) berdampak ke T-002, T-003, T-004, T-022–T-024, T-027/T-028 (grup bukan lagi produk × zona × slot); G-03 (loyalty point) berdampak ke T-021, T-023, T-030, T-033 — judul task diselaraskan lewat T-047 setelah G-06 dijawab.
 
 Update 12 Nov: #1 (CSV produk dari Efan), #3 & #6 (diisi setelah aplikasi jadi, tetap via konfigurasi), #4 (tarif lewat integrasi aplikasi eksternal → T-006/T-031 perlu adapter tarif) DIPUTUSKAN — lihat `keputusan-terbuka.md`.
 
