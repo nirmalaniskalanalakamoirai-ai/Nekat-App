@@ -1,0 +1,18 @@
+{
+  "$komentar": "Contoh STRUKTUR saja. Koordinat asli diisi Joseph di config/lokasi.json (keputusan #3, T-015). Nilai null/kosong = belum diisi. Bentuk final ditetapkan di T-015.",
+  "versi": 1,
+  "gudang": {
+    "nama": "",
+    "lat": null,
+    "lng": null
+  },
+  "dropPoint": [
+    {
+      "id": "",
+      "nama": "",
+      "lat": null,
+      "lng": null,
+      "radiusMeter": null
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+# Dependensi & hasil build
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.vite/
+
+# Rahasia: semua .env* diabaikan KECUALI .env.example (ADR-0001 §6)
+.env
+.env.*
+!.env.example
+
+# Log & sistem
+*.log
+npm-debug.log*
+pnpm-debug.log*
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/*
+!.vscode/extensions.json

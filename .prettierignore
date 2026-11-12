@@ -1,0 +1,11 @@
+# Hasil build & lockfile
+**/dist/
+**/coverage/
+pnpm-lock.yaml
+
+# Dokumen yang ditulis tangan/agen lain — tidak diformat ulang di T-012
+*.md
+docs/
+project-specs/
+laporan/
+.claude/

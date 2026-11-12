@@ -1,0 +1,12 @@
+# Konfigurasi gitleaks NEKAT: aturan bawaan + pengecualian sempit.
+# Dibaca otomatis oleh `gitleaks git /repo` (CI, job "rahasia").
+# Tambah pengecualian HANYA lewat PR, selalu dibatasi path + nilai persis. Jangan allowlist folder.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Contoh kunci PALSU di dokumentasi agen auditor (bukan rahasia), sudah ada di riwayat git"
+condition = "AND"
+paths = ['''^\.claude/agents/security-ai-generated-code-auditor\.md$''']
+regexes = ['''^sk-proj-REALKEYVALUE$''']

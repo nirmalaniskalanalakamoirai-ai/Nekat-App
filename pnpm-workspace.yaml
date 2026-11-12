@@ -1,0 +1,14 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# Pengaman rantai pasok: versi paket yang baru terbit < 7 hari tidak dipasang
+# (memberi waktu komunitas mendeteksi rilis berbahaya). Satuan: menit.
+minimumReleaseAge: 10080
+
+# Hanya paket di daftar ini yang boleh menjalankan skrip install (postinstall dll.).
+# Tambah lewat PR bila memang perlu.
+onlyBuiltDependencies: []
+
+# Versi pnpm & engines dicek ketat agar dev, CI, staging, production sama.
+engineStrict: true

@@ -1,0 +1,79 @@
+# CI dasar NEKAT (T-012, ADR-0001 §3.4).
+# Urutan: install (lockfile beku) → lint → format → typecheck → unit test → build → gitleaks.
+# Belum ada di sini (menyusul):
+#   - Tes integrasi PostgreSQL (service container)  → T-013
+#   - E2E Playwright                                → T-043/T-044
+#   - Audit dependensi, pin action per commit SHA,
+#     deploy staging, branch protection             → T-045
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: UTC
+
+jobs:
+  verifikasi:
+    name: Lint, typecheck, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      # Versi pnpm diambil dari field "packageManager" di package.json.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install (lockfile beku)
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint (termasuk aturan batas modul)
+        run: pnpm lint
+
+      - name: Cek format
+        run: pnpm format:check
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unit test
+        run: pnpm test
+        # Tes integrasi PostgreSQL (service container postgres:17) ditambahkan di T-013.
+
+      - name: Build semua app & paket
+        run: pnpm build
+
+  rahasia:
+    name: Pindai rahasia (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # seluruh riwayat, agar rahasia di commit lama juga terdeteksi
+          persist-credentials: false
+
+      # CLI gitleaks lewat image resmi (tanpa gitleaks-action yang butuh lisensi untuk akun organisasi).
+      - name: gitleaks
+        run: |
+          # safe.directory: repo di-mount dengan pemilik berbeda dari user di dalam container.
+          docker run --rm -v "$GITHUB_WORKSPACE:/repo" \
+            -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/repo \
+            ghcr.io/gitleaks/gitleaks:v8.28.0 \
+            git /repo --redact --verbose --no-banner
