@@ -108,3 +108,22 @@ Catatan: bagian di bawah ditambahkan oleh sesi Build otomatis 10–11 Nov 2026. 
 | G-03 | Cara bayar grup (jawaban 12 Nov issue #5): opsi 1 host pembuka grup bayar untuk semua, opsi 2 tiap akun bayar pesanannya. Perlu diputuskan: bila host bayar semua, selisih harga/refund masuk saldo siapa, dan apakah 3 akun tetap dihitung dari akun yang menambah pesanan? | Randy + Efan | belum — rekomendasi: selisih/refund ke saldo pembayar (host); 3 akun = akun OTP berbeda yang menambah pesanan; batas 60 menit (F-29) berlaku untuk host |
 | G-04 | PPN (jawaban 12 Nov: "sesuaikan kebijakan nasional"). Tarif 2026: 12% × DPP 11/12 (efektif 11%) untuk barang non-mewah; sebagian bahan pokok dibebaskan PPN. Perlu: status PKP badan usaha, harga tampil sudah termasuk PPN atau ditambahkan di checkout, tanda bebas PPN per produk | Efan (+ konsultan pajak) | belum — rekomendasi: tarif & DPP dari konfigurasi (tidak di-hardcode), flag "bebas PPN" per produk, harga tampil sudah termasuk PPN, rincian PPN di checkout/nota |
 | G-05 | Biaya admin flat (Rupiah) per pesanan: field kosong, diisi admin nanti (jawaban 12 Nov issue #5) | Efan | **DIPUTUSKAN 12 Nov: biaya admin flat Rupiah, nilai dikosongkan dan diinput admin nanti (issue #5)** |
+
+## Klarifikasi dari sesi QA 12 Nov (review PR #4 & PR #9)
+
+| # | Keputusan | Pemilik | Status |
+|---|---|---|---|
+| K-01 | Modal per satuan pecahan (hasil bagi karton/dus) vs H6 "tanpa pembulatan", padahal nominal Xendit integer: simpan modal dengan presisi lebih tinggi, atau modal wajib diinput per satuan jual? | Efan + Joseph | belum — default sementara (spec T-009 v0.2): SKU tidak tayang + antrean "perlu ditinjau", tidak dibulatkan |
+| K-02 | Ambang penurunan modal dari Gudang yang ditahan untuk tinjauan admin (cegah modal salah membuat harga jatuh) | Efan | belum — default: hanya dicatat di log admin |
+| K-03 | Timpaan modal (P-25) berlaku sampai dicabut admin, atau kedaluwarsa bila nilai Gudang berubah? | Joseph + Efan | belum — default: sampai dicabut |
+| K-04 | Tinjau ulang H9 (admin cukup OTP WA): satu faktor, rawan ambil-alih WA/SIM swap, padahal admin bisa menimpa modal & memproses refund (temuan Security Auditor) | Joseph | belum — H9 tetap berlaku sampai diubah manusia |
+| K-05 | #4 "tarif ongkir diintegrasikan aplikasi eksternal": rumus ongkir di `keputusan.md` #4 diganti, atau tetap berlaku dengan tarif dari aplikasi eksternal? | Efan | belum |
+| K-06 | G-05 biaya admin flat: per pesanan, per akun per grup, atau per grup? (kata "per pesanan" tambahan agen) | Efan | belum |
+| K-07 | F-29 "belum lunas → group order dibatalkan": seluruh grup atau hanya pesanan akun yang belum lunas? 60 menit dihitung sejak akun ikut/membuat grup atau sejak invoice dibuat? | Randy + Efan | belum |
+| K-08 | P-05 "tingkatan paling bawah = grosir": apakah ini level **Mitra Grosir** di pagar CLAUDE.md (individu ≥ Mitra Grosir ≥ Franchise)? | Efan | belum |
+| K-09 | P-03/F-04: tingkat harga dihitung dari kuantitas gabungan grup atau per akun? P-01 margin "per produk": tetap per level (individu/Mitra/Franchise) sesuai pagar? | Efan + Randy | belum |
+| K-10 | F-20 "ongkir berlaku setelah terkunci" vs bayar di muka 60 menit: ongkir ditagih di invoice awal, atau tagihan kedua setelah cut-off? | Randy + Efan | belum |
+| K-11 | F-02 grup gagal: "harga satuan" atau "pesanan tidak diproses/terkunci"? Bila pengguna tidak memilih, apa default-nya? | Randy | belum |
+
+Catatan QA: semua jawaban di issue #5–#7 dikirim dari satu akun GitHub; mohon tiap pemilik mengonfirmasi butirnya lewat review PR #9.
+

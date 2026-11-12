@@ -1,5 +1,16 @@
 # Progress
 
+**Update 12 Nov 18.15 WIB (sesi QA & perbaikan otomatis — jadwal 09.13, berjalan terlambat mulai 17.49 WIB):**
+- Catatan jadwal: sesi ini seharusnya selesai sebelum 12.30 WIB tetapi baru terpicu 17.49 (bersamaan dengan sesi Tindak Lanjut & QA ringan). Tidak jatuh di jam cek manusia 13–14; dikerjakan penuh, tanpa merge.
+- Reviewer: Code Reviewer, AI-Generated Code Security Auditor (semua PR), API Tester (PR #8, server dijalankan sungguhan).
+- **PR #8 (T-012): LULUS** setelah 1 putaran perbaikan (`180dcbe`): redaksi log kini teruji (sebelumnya hanya kebetulan bersih), listen gagal → log fatal + exit 1, `PORT=` kosong → default, eslint batas modul mencakup `.tsx`, sourcemap `hidden`; tes 12/12, CI hijau termasuk gitleaks. **Di-merge manusia 17.59 WIB → T-012 done.** Sisa minor: pin action per SHA (T-045), helmet/trustProxy sebelum rute publik, branch protection (H7).
+- **PR #4 (T-009): LULUS** setelah 2 putaran (`a53ae72`, `0b74ce5`, spec v0.2): sinkron H14/P-10/F-08/F-20/P-03/P-25, keamanan koneksi Gudang (https, token di header, tanpa redirect, batas ukuran), modal tidak valid → tidak tayang, modal pecahan tidak dibulatkan (K-01). Merge setelah PR #9. Klaim QA ringan "branch menimpa project-specs" dikoreksi: diff PR hanya 1 file.
+- **PR #10 (referensi UI): LULUS review agen, butuh keputusan G-01/G-03** (`8132724`): nama akun, nama kontak & link undangan Grab ditutup di 3 screenshot (pakai squash merge — blob lama masih di commit `930d8f8`); butir yang belum diputuskan ditandai menunggu G-03/P-17/P-28 atau "tafsiran agen". PR tanpa ID task.
+- **PR #9 (keputusan.md): BUTUH KEPUTUSAN MANUSIA** — tidak diubah agen. 12 catatan di komentar PR (baris 58 usang, #4 ongkir vs rumus, G-05 "per pesanan", F-29, P-05, P-03/P-01, H6, F-20, F-02, H9, verifikasi pemilik). Dicatat sebagai **K-01–K-11** di keputusan-terbuka.md.
+- **PR #2, #3:** isi tidak berubah sejak lulus QA 11 Nov; perlu sinkron keputusan 12 Nov lewat **T-047** setelah #9 di-merge (komentar ditulis).
+- Blocked: tidak ada. Pindai rahasia: bersih (regex di semua PR; gitleaks CI di PR #8).
+- Butuh manusia: review/approve **#9** (tiap pemilik konfirmasi butirnya) → #4 → T-047 di #3/#2; jawab K-01, K-07–K-11, G-01, G-03, F-30; tinjau K-04 (H9); #10 squash merge setelah G-01/G-03.
+
 **Update 12 Nov (malam, sesi chat):** PR #8 (T-012 scaffold + CI) **di-merge** atas persetujuan Joseph, commit `f30d5f5`. Fase 1: 2/47 task selesai. T-013 & T-014 kini hanya menunggu T-004 / T-007.
 
 **Update 12 Nov 17.50 WIB (sesi QA ringan + laporan):**
