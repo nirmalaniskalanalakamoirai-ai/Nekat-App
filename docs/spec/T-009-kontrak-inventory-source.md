@@ -128,7 +128,7 @@ Semua adapter melempar `InventoryError` dengan kode tetap:
 | Panggilan | Timeout | Retry |
 |---|---|---|
 | `listSku`, `getStok`, `getHargaModal` (job sinkron) | 10 dtk | 3× backoff 2–8 dtk + jitter |
-| `getStok` on-demand saat checkout | 2 dtk | tanpa retry; langsung pakai snapshot |
+| `getStok` on-demand saat checkout | 2 dtk | tanpa retry; gagal → tahan checkout (H14, §6) |
 | `konfirmasiStok` (cut-off) | 10 dtk | 5× backoff hingga 60 dtk; gagal semua → grup `DITAHAN` |
 | `kirimPermintaanPicking` (worker outbox) | 10 dtk | retry pg-boss dengan backoff eksponensial sampai 6 jam, lalu status `GAGAL` di panel admin |
 
@@ -158,10 +158,11 @@ Semua adapter melempar `InventoryError` dengan kode tetap:
 - Modal bukan integer → **tidak dibulatkan** (H6); SKU masuk antrean "perlu ditinjau: modal pecahan" di panel admin dan tidak tayang sampai **K-01** diputuskan (bukan disembunyikan diam-diam).
 - Penurunan modal yang besar dibanding snapshot sebelumnya → ambang & tindakan menunggu **K-02**; sementara hanya dicatat di log admin.
 - Stok negatif dari sumber → dianggap 0, dicatat.
-- `isiPerSatuan` < 1 atau berat negatif → baris ditolak (`DATA_TIDAK_VALID`).
+- `konversiSatuan[].isi` < 1, satuan ganda, atau berat negatif → baris ditolak (`DATA_TIDAK_VALID`).
 - Kategori rokok/bir dari sumber (field `kategori`) → SKU tidak diimpor di Fase 1 (`keputusan.md` #7).
 - **Snapshot modal per grup (F-08):** saat grup dibuka, modal tiap SKU disalin ke `modal_snapshot_grup` (grup_id, sku_id, modal, sumber, dataPada). Harga grup dan pagar ≥ modal memakai nilai ini sampai cut-off; perubahan modal sesudahnya tidak mengubah grup yang sudah dibuka. Pesanan menyimpan salinan modal dari snapshot grup.
 - **Timpaan modal saat mode Gudang (P-25):** admin dengan izin `harga.ubah` boleh menimpa modal lewat panel/CSV. Disimpan terpisah (`modal_timpaan`: nilai, alasan wajib, siapa, kapan); nilai Gudang tetap disinkron untuk perbandingan. Selama timpaan aktif, timpaan dipakai dan panel menampilkan selisih terhadap nilai Gudang; timpaan berlaku sampai dicabut admin (default sementara, **K-03**). Timpaan wajib integer > 0 dan memicu pemeriksaan ulang pagar harga; setiap perubahan tercatat di log admin.
+- Grup yang sudah dibuka **tetap** memakai `modal_snapshot_grup`; timpaan baru, modal tidak valid, atau sinkron baru hanya berlaku untuk grup yang dibuka sesudahnya. Penanganan bila modal naik di atas harga grup sebelum cut-off mengikuti P-09/P-26 (masih terbuka).
 - Pemetaan `skuSumberId` → `skuId` disimpan di tabel `pemetaan_sku_sumber`; SKU sumber baru tanpa pemetaan masuk antrean "perlu dipetakan" di panel admin dan tidak tayang.
 
 ## 8. Konfigurasi (environment variable, tanpa nilai rahasia di repo)
@@ -208,6 +209,6 @@ Satu set tes yang sama dijalankan terhadap `LocalInventory` dan `GudangApiInvent
 | K-01 | Modal per satuan pecahan (hasil bagi karton) vs H6 "tanpa pembulatan" & nominal Xendit integer: simpan presisi lebih tinggi, atau modal wajib diinput per satuan jual? | Efan + Joseph | tidak tayang + antrean tinjau (§7) |
 | K-02 | Ambang penurunan modal yang ditahan untuk tinjauan admin | Efan | hanya dicatat |
 | K-03 | Timpaan modal (P-25) berlaku sampai dicabut, atau kedaluwarsa bila nilai Gudang berubah? | Joseph + Efan | sampai dicabut |
-
-Sudah diputuskan 12 Nov (PR #9, menunggu merge): P-10 = 15 menit, H14 = tahan checkout, F-08 = snapshot modal saat grup dibuka, F-20 = cek stok di cabang, P-03 = satuan 1 pcs/3 pcs/lusin/dus/koli, P-25 = modal boleh ditimpa.
 | I-02 | Apakah Gudang mendukung kunci idempotensi untuk picking? Bila tidak, NEKAT menyimpan `referensiSumber` dan mengecek dulu sebelum mengirim ulang | Joseph | NEKAT cek dulu sebelum kirim ulang |
+
+K-01–K-03 juga dicatat di `project-specs/keputusan-terbuka.md`. Sudah diputuskan 12 Nov (PR #9, menunggu merge — merge PR ini setelah #9): P-10 = 15 menit, H14 = tahan checkout, F-08 = snapshot modal saat grup dibuka, F-20 = cek stok di cabang, P-03 = satuan 1 pcs/3 pcs/lusin/dus/koli, P-25 = modal boleh ditimpa. ADR-0001 §4.1 masih menyebut default "jual snapshot" → diselaraskan di T-047.
