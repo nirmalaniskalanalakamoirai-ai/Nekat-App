@@ -1,5 +1,11 @@
 # Progress
 
+**Update 12 Nov 17.50 WIB (sesi QA ringan + laporan):**
+- Langkah 0: F-29 & G-05 (sudah di file) kini dibalas "Dicatat" di issue #5; tabel #5/#6 diperbarui (F-29 dihapus; G-01, G-02, G-03 ditambah ke #5; G-03, G-04 ditambah ke #6).
+- QA ringan: #8 LULUS (tes 10/10, lint, typecheck), #9 LULUS (minor), #4 PERLU PERBAIKAN (default H14, modal integer vs H6, file project-specs lama di branch), #10 BUTUH KEPUTUSAN (G-01, G-03).
+- Laporan: `laporan/2026-11-12.md`.
+- Butuh manusia: setujui #8, #9; jawab G-01, G-03, F-30.
+
 **Update 12 Nov 17.50 WIB (sesi Tindak Lanjut, mode hemat):**
 - Langkah 0: F-29 & G-05 sudah dicatat sesi paralel (commit `b9db3cb`, PR #9 diperbarui `5c5d274`, balasan "Dicatat" di issue #5). Tidak ada jawaban baru lain.
 - Tidak ada PR yang di-approve manusia (#2, #3, #4, #8, #9, #10: 0 review) dan tidak ada komentar perubahan di PR → tidak ada merge/perbaikan.
