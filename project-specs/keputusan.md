@@ -72,6 +72,8 @@ Sumber: komentar di issue #5 (Randy), #6 (Efan), #7 (Joseph). Tim memakai satu a
 - **F-26:** batas bayar (TTL invoice) 60 menit.
 - **F-29:** ikut/buat grup tanpa bayar; batas pelunasan 60 menit; bila belum lunas, **seluruh grup** dibatalkan (bukan hanya akun yang belum lunas) dan tercatat di riwayat sebagai "batal" (dikonfirmasi pemilik 12 Nov malam).
 - **G-05:** biaya admin flat (Rupiah) per pesanan; nilai dikosongkan, diinput admin nanti.
+- **G-01:** grup **per keranjang**, bisa campur produk (bukan satu grup per produk).
+- **G-03:** selisih harga/refund masuk ke **loyalty point senilai Rupiah**; loyalty point menjadi salah satu opsi pembayaran di checkout dan bisa dikombinasikan dengan metode lain (nominal dipotong poin, sisanya dilunasi metode lain). Rincian (sama dengan saldo ledger? akun penerima saat host bayar semua? masa berlaku? pencairan?) dibuka sebagai G-06.
 
 **Harga** (agen tetap tidak mengisi angka harga/margin)
 - **#1:** data produk diserahkan Efan sebagai 3 file CSV (issue #6) untuk import (T-038).
