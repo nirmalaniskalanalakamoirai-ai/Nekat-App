@@ -1,0 +1,20 @@
+{
+  "name": "@nekat/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@nekat/adapters": "workspace:*",
+    "@nekat/db": "workspace:*",
+    "@nekat/domain": "workspace:*",
+    "@nekat/shared": "workspace:*",
+    "fastify": "5.12.8",
+    "fastify-type-provider-zod": "7.0.0",
+    "zod": "4.6.7"
+  }
+}
