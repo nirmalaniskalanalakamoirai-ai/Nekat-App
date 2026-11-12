@@ -2,7 +2,7 @@
 
 **Update 12 Nov (sesi Build terjadwal, mode hemat):**
 - Langkah 0: belum ada komentar jawaban di issue #5/#6/#7 → tidak ada keputusan baru dicatat.
-- **T-012 → review (PR #8):** scaffold monorepo pnpm (api/worker/web + domain/shared/db/adapters), batas modul ESLint teruji, CI (lint, format, typecheck, test, build, gitleaks). Semua lulus lokal; Code Reviewer LULUS (minor ditunda ke T-013/T-014/T-045). Job gitleaks belum teruji lokal (docker daemon tidak ada) → cek Actions di PR #8.
+- **T-012 → review (PR #8):** scaffold monorepo pnpm (api/worker/web + domain/shared/db/adapters), batas modul ESLint teruji, CI (lint, format, typecheck, test, build, gitleaks). Semua lulus lokal; Code Reviewer LULUS (minor ditunda ke T-013/T-014/T-045). CI GitHub Actions di PR #8 HIJAU (lint/typecheck/test/build + gitleaks).
 - Hanya T-012 yang siap dikerjakan; task lain menunggu merge PR #2/#3 (T-004–T-007) atau #4 (T-018).
 - **Koreksi:** pemasangan paket npm KINI BERHASIL (registry lewat proxy). nodejs.org & API GitHub via `gh` masih ditolak.
 - Keputusan baru: **H15** (Joseph) versi Node 22 vs Active LTS — ditambahkan ke issue #7 & keputusan-terbuka.md.
