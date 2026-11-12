@@ -70,6 +70,8 @@ Sumber: komentar di issue #5 (Randy), #6 (Efan), #7 (Joseph). Riwayat di `keputu
 - **F-12:** drop point & antar rumah dalam satu grup.
 - **F-20:** ketersediaan barang dicek dulu di gudang/toko cabang penerima pesanan sebelum pesanan diterima/diproses; ongkir berlaku setelah terkunci; dibayar di muka.
 - **F-26:** batas bayar (TTL invoice) 60 menit.
+- **F-29:** ikut/buat grup tanpa bayar; batas pelunasan 60 menit; bila belum lunas, group order dibatalkan dan tercatat di riwayat sebagai "batal".
+- **G-05:** biaya admin flat (Rupiah) per pesanan; nilai dikosongkan, diinput admin nanti.
 
 **Harga** (agen tetap tidak mengisi angka harga/margin)
 - **#1:** data produk diserahkan Efan sebagai 3 file CSV (issue #6) untuk import (T-038).
