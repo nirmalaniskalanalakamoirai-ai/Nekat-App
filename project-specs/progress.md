@@ -1,5 +1,7 @@
 # Progress
 
+**Update 12 Nov malam (sesi chat, lanjutan QA):** pemilik menjawab 3 butir — (1) tim memakai satu akun GitHub bersama, jawaban di issue sah; (2) **K-07/F-29**: belum lunas → **seluruh grup** dibatalkan; (3) **K-04/H9**: admin tidak hanya OTP WA → **TOTP wajib**. Dicatat di PR #9 (`18212af`, termasuk baris "H-terbuka" yang usang) dan keputusan-terbuka.md. Dampak: T-047 ikut menyelaraskan ADR §4.1/§9 (H9 TOTP) dan flow T-002 (pembatalan seluruh grup). Masih terbuka: K-01–K-03, K-05, K-06, K-07 (titik mulai 60 menit), K-08–K-11.
+
 **Update 12 Nov 18.15 WIB (sesi QA & perbaikan otomatis — jadwal 09.13, berjalan terlambat mulai 17.49 WIB):**
 - Catatan jadwal: sesi ini seharusnya selesai sebelum 12.30 WIB tetapi baru terpicu 17.49 (bersamaan dengan sesi Tindak Lanjut & QA ringan). Tidak jatuh di jam cek manusia 13–14; dikerjakan penuh, tanpa merge.
 - Reviewer: Code Reviewer, AI-Generated Code Security Auditor (semua PR), API Tester (PR #8, server dijalankan sungguhan).

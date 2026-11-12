@@ -23,7 +23,7 @@ Catatan: bagian di bawah ditambahkan oleh sesi Build otomatis 10–11 Nov 2026. 
 | H6 | Aturan pembulatan rupiah (termasuk modal per satuan hasil bagi karton), tidak pernah di bawah modal | Efan | **DIPUTUSKAN 12 Nov: tidak boleh ada pembulatan rupiah (issue #6)** |
 | H7 | Kepemilikan akun (GitHub org + paket GitHub untuk gerbang production, Xendit, hosting, domain, Meta Business, secret store), min. 2 admin | Joseph + Randy | **DIPUTUSKAN 12 Nov: setuju rekomendasi: semua akun atas nama badan usaha, min. 2 admin dengan 2FA (issue #7)** |
 | H8 | Error tracking & log: SaaS vs self-host (masking PII) | Joseph | **DIPUTUSKAN 12 Nov: pakai SaaS (dengan penyamaran data pribadi) (issue #7)** |
-| H9 | Login admin: wajib TOTP atau cukup OTP WA | Joseph | **DIPUTUSKAN 12 Nov: cukup OTP WA (tanpa TOTP) (issue #7)** |
+| H9 | Login admin: wajib TOTP atau cukup OTP WA | Joseph | **DIPUTUSKAN ulang 12 Nov malam: tidak hanya OTP WA → admin wajib TOTP (rekomendasi ADR §9); menggantikan jawaban "cukup OTP WA" (lihat K-04)** |
 | H10 | Terima ADR-0001 (merge PR T-001) — membuka semua task kode | Joseph | **DIPUTUSKAN 11 Nov: diterima, PR #1 di-merge** → `keputusan.md` #10 |
 | H11 | (Fase 5) Deferred deep link iOS: layanan pihak ketiga vs fallback kode manual (selisih dengan keputusan #3) | Randy + Joseph | belum |
 | H12 | Lokasi penyimpanan data (region Indonesia atau luar negeri) + isian "[lokasi]" di kebijakan privasi | Randy + Joseph (+ hukum) | belum |
@@ -116,14 +116,14 @@ Catatan: bagian di bawah ditambahkan oleh sesi Build otomatis 10–11 Nov 2026. 
 | K-01 | Modal per satuan pecahan (hasil bagi karton/dus) vs H6 "tanpa pembulatan", padahal nominal Xendit integer: simpan modal dengan presisi lebih tinggi, atau modal wajib diinput per satuan jual? | Efan + Joseph | belum — default sementara (spec T-009 v0.2): SKU tidak tayang + antrean "perlu ditinjau", tidak dibulatkan |
 | K-02 | Ambang penurunan modal dari Gudang yang ditahan untuk tinjauan admin (cegah modal salah membuat harga jatuh) | Efan | belum — default: hanya dicatat di log admin |
 | K-03 | Timpaan modal (P-25) berlaku sampai dicabut admin, atau kedaluwarsa bila nilai Gudang berubah? | Joseph + Efan | belum — default: sampai dicabut |
-| K-04 | Tinjau ulang H9 (admin cukup OTP WA): satu faktor, rawan ambil-alih WA/SIM swap, padahal admin bisa menimpa modal & memproses refund (temuan Security Auditor) | Joseph | belum — H9 tetap berlaku sampai diubah manusia |
+| K-04 | Tinjau ulang H9 (admin cukup OTP WA): satu faktor, rawan ambil-alih WA/SIM swap, padahal admin bisa menimpa modal & memproses refund (temuan Security Auditor) | Joseph | **DIPUTUSKAN 12 Nov malam: pemilik setuju admin tidak hanya OTP WA → TOTP wajib (H9 diperbarui di PR #9)** |
 | K-05 | #4 "tarif ongkir diintegrasikan aplikasi eksternal": rumus ongkir di `keputusan.md` #4 diganti, atau tetap berlaku dengan tarif dari aplikasi eksternal? | Efan | belum |
 | K-06 | G-05 biaya admin flat: per pesanan, per akun per grup, atau per grup? (kata "per pesanan" tambahan agen) | Efan | belum |
-| K-07 | F-29 "belum lunas → group order dibatalkan": seluruh grup atau hanya pesanan akun yang belum lunas? 60 menit dihitung sejak akun ikut/membuat grup atau sejak invoice dibuat? | Randy + Efan | belum |
+| K-07 | F-29 "belum lunas → group order dibatalkan": seluruh grup atau hanya pesanan akun yang belum lunas? 60 menit dihitung sejak akun ikut/membuat grup atau sejak invoice dibuat? | Randy + Efan | **Sebagian DIPUTUSKAN 12 Nov malam: seluruh grup dibatalkan (bukan hanya akun yang belum lunas).** Masih terbuka: 60 menit dihitung sejak akun ikut/membuat grup atau sejak invoice dibuat |
 | K-08 | P-05 "tingkatan paling bawah = grosir": apakah ini level **Mitra Grosir** di pagar CLAUDE.md (individu ≥ Mitra Grosir ≥ Franchise)? | Efan | belum |
 | K-09 | P-03/F-04: tingkat harga dihitung dari kuantitas gabungan grup atau per akun? P-01 margin "per produk": tetap per level (individu/Mitra/Franchise) sesuai pagar? | Efan + Randy | belum |
 | K-10 | F-20 "ongkir berlaku setelah terkunci" vs bayar di muka 60 menit: ongkir ditagih di invoice awal, atau tagihan kedua setelah cut-off? | Randy + Efan | belum |
 | K-11 | F-02 grup gagal: "harga satuan" atau "pesanan tidak diproses/terkunci"? Bila pengguna tidak memilih, apa default-nya? | Randy | belum |
 
-Catatan QA: semua jawaban di issue #5–#7 dikirim dari satu akun GitHub; mohon tiap pemilik mengonfirmasi butirnya lewat review PR #9.
+Catatan: tim memakai satu akun GitHub bersama (dikonfirmasi pemilik 12 Nov malam); jawaban dari akun itu sah sebagai jawaban pemilik.
 
