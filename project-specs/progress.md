@@ -1,5 +1,12 @@
 # Progress
 
+**Update 12 Nov 17.35 WIB (sesi Build terjadwal, mode hemat):**
+- Langkah 0: **32 keputusan DIPUTUSKAN** dari issue #5 (F-02, F-26, P-28), #6 (1, F-01, F-06, P-04, P-05, P-22, 4, H6, F-04, F-08, F-09, F-12, F-20, P-01, P-02, P-03), #7 (3, 6, H2, H9, H14, P-10, H3, H4, H7, H8, H15, F-11, P-25). Dicatat di keputusan-terbuka.md, tabel issue diperbarui, komentar "Dicatat" dibalas. PR gabungan keputusan.md: **#9**.
+- Keputusan baru: **F-29** (F-01 lunas di awal vs P-04 ikut tanpa bayar) & **F-30** (minimum Rp100.000 per akun/grup) → issue #5/#6.
+- Tidak ada task kode/non-kode baru dikerjakan: semua task todo tergantung PR #2/#3/#4/#8 yang belum di-merge.
+- Ditambahkan **T-047**: sinkronkan PR #2/#3 (+ADR H9) dengan keputusan 12 Nov — beberapa jawaban (H6, P-03, P-05, H9, H14) mengubah isi spesifikasi, jadi sebaiknya PR #2/#3 diperbarui sebelum di-merge.
+- Butuh manusia: merge PR #9 (keputusan), lalu #3 → #2 → #4 → #8; jawab F-29, F-30.
+
 **Update 12 Nov (sesi Build terjadwal, mode hemat):**
 - Langkah 0: belum ada komentar jawaban di issue #5/#6/#7 → tidak ada keputusan baru dicatat.
 - **T-012 → review (PR #8):** scaffold monorepo pnpm (api/worker/web + domain/shared/db/adapters), batas modul ESLint teruji, CI (lint, format, typecheck, test, build, gitleaks). Semua lulus lokal; Code Reviewer LULUS (minor ditunda ke T-013/T-014/T-045). CI GitHub Actions di PR #8 HIJAU (lint/typecheck/test/build + gitleaks).
