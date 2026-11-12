@@ -56,3 +56,39 @@ NEKAT berdiri sendiri (repo & database sendiri) dan menyediakan **modul integras
 - **H1:** stack inti **TypeScript/Node.js + Fastify + PostgreSQL + React PWA** (Opsi A di `docs/adr/0001-tech-stack.md`), sesuai rekomendasi agen. Laravel tidak dipakai.
 - **H10:** ADR-0001 **diterima**; PR #1 di-merge 11 Nov 2026. Task kode yang tergantung T-001 boleh dikerjakan.
 - Butir H2–H9, H11–H14 tetap terbuka (default sementara di ADR §9 berlaku sampai diputuskan).
+
+## 11. Jawaban issue keputusan — DIPUTUSKAN 12 Nov 2026
+Sumber: komentar di issue #5 (Randy), #6 (Efan), #7 (Joseph). Riwayat di `keputusan-terbuka.md`.
+
+**Group order & pembayaran**
+- **F-01:** grup dilunasi di awal memakai Virtual Account atau QRIS. **P-04:** masuk/membuat grup tanpa bayar. (Batas pelunasan masih dibuka sebagai F-29.)
+- **F-02:** grup gagal (<3 akun) → harga satuan, dan pesanan tidak bisa diproses/terkunci.
+- **F-06:** tidak ada batas kuantitas per akun; 1 grup minimal 3 akun dengan minimum pembelian Rp100.000 (per akun/per grup dibuka sebagai F-30).
+- **F-08:** harga modal di-snapshot saat grup dibuka.
+- **F-09:** stok parsial mengikuti default dokumen T-002 §12.
+- **F-11:** keterlambatan bayar memakai `paid_at` dari Xendit; waktu webhook tetap disimpan.
+- **F-12:** drop point & antar rumah dalam satu grup.
+- **F-20:** ketersediaan barang dicek dulu di gudang/toko cabang penerima pesanan sebelum pesanan diterima/diproses; ongkir berlaku setelah terkunci; dibayar di muka.
+- **F-26:** batas bayar (TTL invoice) 60 menit.
+
+**Harga** (agen tetap tidak mengisi angka harga/margin)
+- **#1:** data produk diserahkan Efan sebagai 3 file CSV (issue #6) untuk import (T-038).
+- **P-01:** margin per produk dalam persen (tidak sama tiap produk); admin bisa input persen **atau** harga jual rupiah secara manual.
+- **H6 / P-02:** tidak ada pembulatan rupiah.
+- **P-03 / F-04:** price level berdasarkan satuan kuantitas: 1 pcs, 3 pcs, lusin, dus, koli; tiap produk memilih satuan yang tersedia. Minimum kuantitas Mitra berbeda per barang.
+- **P-05:** tingkatan harga paling bawah bernama **"grosir"**; syarat kuantitasnya diatur per produk.
+- **P-22:** pagar KETAT saja (individu ≥ Mitra ≥ Franchise), tanpa pemeriksaan per tier.
+- **P-25:** modal boleh ditimpa dari panel/CSV saat mode Gudang.
+- **P-28:** info harga Mitra drop point hanya di checkout (kartu = detail).
+
+**Teknis & operasional**
+- **#3 koordinat** dan **#6 domain:** diisi setelah aplikasi jadi (tetap dari konfigurasi).
+- **#4 tarif ongkir:** akan diintegrasikan dengan aplikasi eksternal.
+- **H2:** gateway WhatsApp jalur resmi Meta (Cloud API/BSP resmi).
+- **H3:** 1 VPS + PostgreSQL terkelola.
+- **H4:** n8n hanya di tepi (tanpa PII), host terpisah dari DB production.
+- **H7:** semua akun atas nama badan usaha, min. 2 admin dengan 2FA.
+- **H8:** error tracking SaaS dengan penyamaran data pribadi.
+- **H9:** login admin cukup OTP WA (tanpa TOTP).
+- **H14:** API Gudang tidak bisa dihubungi → tahan checkout. **P-10:** batas usia data modal 15 menit.
+- **H15:** Node 22 sekarang; bump ke Active LTS di T-045 sebelum pilot.
