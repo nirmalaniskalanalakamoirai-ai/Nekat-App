@@ -1,5 +1,7 @@
 # Progress
 
+**Update 12 Nov 16.30 WIB (sesi manual):** sesi terjadwal 12 Nov tidak menghasilkan apa pun karena kuota habis. T-009 dikerjakan manual → PR #4. Keputusan kini bisa dijawab kapan saja lewat issue berlabel `keputusan`: #5 (Randy), #6 (Efan), #7 (Joseph). Jawaban di komentar issue = DIPUTUSKAN. Task kode (T-012 dst.) terhambat: lingkungan agen tidak bisa memasang paket npm (akses jaringan untuk package manager mati).
+
 Terakhir diperbarui: Rabu 11 Nov 2026 14.08 WIB (merge PR #1 atas persetujuan manusia). Sebelumnya: sesi Laporan 12.31 WIB. Sebelumnya: sesi QA & perbaikan otomatis (09.13–09.35 WIB).
 
 ## Selesai
