@@ -55,13 +55,13 @@ NEKAT berdiri sendiri (repo & database sendiri) dan menyediakan **modul integras
 ## 10. Tech stack (ADR-0001) — DIPUTUSKAN 11 Nov 2026
 - **H1:** stack inti **TypeScript/Node.js + Fastify + PostgreSQL + React PWA** (Opsi A di `docs/adr/0001-tech-stack.md`), sesuai rekomendasi agen. Laravel tidak dipakai.
 - **H10:** ADR-0001 **diterima**; PR #1 di-merge 11 Nov 2026. Task kode yang tergantung T-001 boleh dikerjakan.
-- Butir H2–H9, H11–H14 tetap terbuka (default sementara di ADR §9 berlaku sampai diputuskan).
+- Butir H5, H11–H13 tetap terbuka (default sementara di ADR §9 berlaku sampai diputuskan). H2–H4, H6–H9, H14, H15 diputuskan 12 Nov (lihat §11).
 
 ## 11. Jawaban issue keputusan — DIPUTUSKAN 12 Nov 2026
-Sumber: komentar di issue #5 (Randy), #6 (Efan), #7 (Joseph). Riwayat di `keputusan-terbuka.md`.
+Sumber: komentar di issue #5 (Randy), #6 (Efan), #7 (Joseph). Tim memakai satu akun GitHub bersama; pemilik mengonfirmasi 12 Nov bahwa jawaban dari akun itu sah sebagai jawaban masing-masing pemilik. Riwayat di `keputusan-terbuka.md`.
 
 **Group order & pembayaran**
-- **F-01:** grup dilunasi di awal memakai Virtual Account atau QRIS. **P-04:** masuk/membuat grup tanpa bayar. (Batas pelunasan masih dibuka sebagai F-29.)
+- **F-01:** grup dilunasi di awal memakai Virtual Account atau QRIS. **P-04:** masuk/membuat grup tanpa bayar. (Batas pelunasan: lihat F-29.)
 - **F-02:** grup gagal (<3 akun) → harga satuan, dan pesanan tidak bisa diproses/terkunci.
 - **F-06:** tidak ada batas kuantitas per akun; 1 grup minimal 3 akun dengan minimum pembelian Rp100.000 (per akun/per grup dibuka sebagai F-30).
 - **F-08:** harga modal di-snapshot saat grup dibuka.
@@ -70,7 +70,7 @@ Sumber: komentar di issue #5 (Randy), #6 (Efan), #7 (Joseph). Riwayat di `keputu
 - **F-12:** drop point & antar rumah dalam satu grup.
 - **F-20:** ketersediaan barang dicek dulu di gudang/toko cabang penerima pesanan sebelum pesanan diterima/diproses; ongkir berlaku setelah terkunci; dibayar di muka.
 - **F-26:** batas bayar (TTL invoice) 60 menit.
-- **F-29:** ikut/buat grup tanpa bayar; batas pelunasan 60 menit; bila belum lunas, group order dibatalkan dan tercatat di riwayat sebagai "batal".
+- **F-29:** ikut/buat grup tanpa bayar; batas pelunasan 60 menit; bila belum lunas, **seluruh grup** dibatalkan (bukan hanya akun yang belum lunas) dan tercatat di riwayat sebagai "batal" (dikonfirmasi pemilik 12 Nov malam).
 - **G-05:** biaya admin flat (Rupiah) per pesanan; nilai dikosongkan, diinput admin nanti.
 
 **Harga** (agen tetap tidak mengisi angka harga/margin)
@@ -91,6 +91,6 @@ Sumber: komentar di issue #5 (Randy), #6 (Efan), #7 (Joseph). Riwayat di `keputu
 - **H4:** n8n hanya di tepi (tanpa PII), host terpisah dari DB production.
 - **H7:** semua akun atas nama badan usaha, min. 2 admin dengan 2FA.
 - **H8:** error tracking SaaS dengan penyamaran data pribadi.
-- **H9:** login admin cukup OTP WA (tanpa TOTP).
+- **H9:** login admin **tidak hanya OTP WA**: wajib faktor kedua, yaitu TOTP (aplikasi authenticator) sesuai rekomendasi ADR-0001 §9. Mengganti jawaban awal "cukup OTP WA" (dikonfirmasi pemilik 12 Nov malam, setelah temuan keamanan K-04).
 - **H14:** API Gudang tidak bisa dihubungi → tahan checkout. **P-10:** batas usia data modal 15 menit.
 - **H15:** Node 22 sekarang; bump ke Active LTS di T-045 sebelum pilot.
