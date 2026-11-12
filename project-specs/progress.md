@@ -1,5 +1,13 @@
 # Progress
 
+**Update 12 Nov (sesi Build terjadwal, mode hemat):**
+- Langkah 0: belum ada komentar jawaban di issue #5/#6/#7 → tidak ada keputusan baru dicatat.
+- **T-012 → review (PR #8):** scaffold monorepo pnpm (api/worker/web + domain/shared/db/adapters), batas modul ESLint teruji, CI (lint, format, typecheck, test, build, gitleaks). Semua lulus lokal; Code Reviewer LULUS (minor ditunda ke T-013/T-014/T-045). Job gitleaks belum teruji lokal (docker daemon tidak ada) → cek Actions di PR #8.
+- Hanya T-012 yang siap dikerjakan; task lain menunggu merge PR #2/#3 (T-004–T-007) atau #4 (T-018).
+- **Koreksi:** pemasangan paket npm KINI BERHASIL (registry lewat proxy). nodejs.org & API GitHub via `gh` masih ditolak.
+- Keputusan baru: **H15** (Joseph) versi Node 22 vs Active LTS — ditambahkan ke issue #7 & keputusan-terbuka.md.
+- Butuh manusia: setujui/merge PR #2, #3, #4, #8 (urutan #3 → #2 → #4 → #8 bebas, tidak saling konflik kode).
+
 **Update 12 Nov 16.30 WIB (sesi manual):** sesi terjadwal 12 Nov tidak menghasilkan apa pun karena kuota habis. T-009 dikerjakan manual → PR #4. Keputusan kini bisa dijawab kapan saja lewat issue berlabel `keputusan`: #5 (Randy), #6 (Efan), #7 (Joseph). Jawaban di komentar issue = DIPUTUSKAN. Task kode (T-012 dst.) terhambat: lingkungan agen tidak bisa memasang paket npm (akses jaringan untuk package manager mati).
 
 Terakhir diperbarui: Rabu 11 Nov 2026 14.08 WIB (merge PR #1 atas persetujuan manusia). Sebelumnya: sesi Laporan 12.31 WIB. Sebelumnya: sesi QA & perbaikan otomatis (09.13–09.35 WIB).

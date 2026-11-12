@@ -29,6 +29,7 @@ Catatan: bagian di bawah ditambahkan oleh sesi Build otomatis 10–11 Nov 2026. 
 | H12 | Lokasi penyimpanan data (region Indonesia atau luar negeri) + isian "[lokasi]" di kebijakan privasi | Randy + Joseph (+ hukum) | belum |
 | H13 | Cara kurir lokal & drop point menerima data antar (Fase 1: daftar antar dari admin, tanpa akun kurir?) | Randy (+ Operations) | belum |
 | H14 | Stok saat API Gudang tidak bisa dihubungi: tetap jual dengan snapshot di bawah batas umur (P-10) atau tahan checkout | Joseph + Efan | belum |
+| H15 | Versi Node: ADR minta Active LTS terbaru, scaffold T-012 dipin Node 22 (Maintenance LTS, EOL ±Apr 2027) karena hanya itu yang bisa diuji. Rekomendasi: terima 22 sekarang, bump ke Active LTS di T-045 sebelum pilot (PR #8, issue #7) | Joseph | belum |
 
 ## Dari peta flow group order (T-002) — `docs/flow/group-order.md` §12
 
