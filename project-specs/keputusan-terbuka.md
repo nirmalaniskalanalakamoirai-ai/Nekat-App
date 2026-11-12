@@ -103,3 +103,5 @@ Catatan: bagian di bawah ditambahkan oleh sesi Build otomatis 10–11 Nov 2026. 
 |---|---|---|---|
 | F-29 | Klarifikasi F-01 vs P-04: ikut/buat grup tanpa bayar (P-04), tetapi grup wajib lunas di awal via VA/QRIS (F-01). Kapan batas pelunasan, dan apakah yang belum lunas dihitung ke 3 akun & Rp100.000? Rekomendasi: ikut tanpa bayar; pelunasan wajib dalam TTL invoice 60 menit (F-26) dan paling lambat sebelum cut-off; hanya peserta lunas yang dihitung | Efan + Randy | belum |
 | F-30 | Minimum pembelian Rp100.000 (F-06): per akun atau total grup? Rekomendasi: per akun per grup | Efan | belum |
+| G-01 | Grup per produk atau per keranjang banyak produk (referensi Grab/Shopee, PR #10) | Randy | belum — rekomendasi: per keranjang |
+| G-02 | Daftar grup/tetangga tersimpan untuk diundang | Randy | belum — rekomendasi: Fase 2 |
