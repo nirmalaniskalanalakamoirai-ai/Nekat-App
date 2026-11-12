@@ -1,5 +1,12 @@
 # Progress
 
+**Update 12 Nov 17.50 WIB (sesi Tindak Lanjut, mode hemat):**
+- Langkah 0: F-29 & G-05 sudah dicatat sesi paralel (commit `b9db3cb`, PR #9 diperbarui `5c5d274`, balasan "Dicatat" di issue #5). Tidak ada jawaban baru lain.
+- Tidak ada PR yang di-approve manusia (#2, #3, #4, #8, #9, #10: 0 review) dan tidak ada komentar perubahan di PR → tidak ada merge/perbaikan.
+- T-047: dependensi F-29 terjawab; bagian keranjang/cara bayar tetap menunggu G-01 (konfirmasi) & G-03.
+- Catatan: komentar manusia & agen memakai akun GitHub yang sama; GitHub tidak mengizinkan approve PR milik sendiri → perlu akun reviewer lain untuk Joseph/Efan/Randy agar langkah merge bisa jalan.
+- Butuh manusia: approve PR #9 → #3 → #2 → #4 → #8; jawab G-01 (konfirmasi), G-03, G-04, F-30.
+
 **Update 12 Nov 17.35 WIB (sesi Build terjadwal, mode hemat):**
 - Langkah 0: **32 keputusan DIPUTUSKAN** dari issue #5 (F-02, F-26, P-28), #6 (1, F-01, F-06, P-04, P-05, P-22, 4, H6, F-04, F-08, F-09, F-12, F-20, P-01, P-02, P-03), #7 (3, 6, H2, H9, H14, P-10, H3, H4, H7, H8, H15, F-11, P-25). Dicatat di keputusan-terbuka.md, tabel issue diperbarui, komentar "Dicatat" dibalas. PR gabungan keputusan.md: **#9**.
 - Keputusan baru: **F-29** (F-01 lunas di awal vs P-04 ikut tanpa bayar) & **F-30** (minimum Rp100.000 per akun/grup) → issue #5/#6.
