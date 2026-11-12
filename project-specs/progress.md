@@ -1,5 +1,7 @@
 # Progress
 
+**Update 12 Nov (malam, sesi chat):** PR #8 (T-012 scaffold + CI) **di-merge** atas persetujuan Joseph, commit `f30d5f5`. Fase 1: 2/47 task selesai. T-013 & T-014 kini hanya menunggu T-004 / T-007.
+
 **Update 12 Nov 17.50 WIB (sesi QA ringan + laporan):**
 - Langkah 0: F-29 & G-05 (sudah di file) kini dibalas "Dicatat" di issue #5; tabel #5/#6 diperbarui (F-29 dihapus; G-01, G-02, G-03 ditambah ke #5; G-03, G-04 ditambah ke #6).
 - QA ringan: #8 LULUS (tes 10/10, lint, typecheck), #9 LULUS (minor), #4 PERLU PERBAIKAN (default H14, modal integer vs H6, file project-specs lama di branch), #10 BUTUH KEPUTUSAN (G-01, G-03).
@@ -33,6 +35,7 @@
 Terakhir diperbarui: Rabu 11 Nov 2026 14.08 WIB (merge PR #1 atas persetujuan manusia). Sebelumnya: sesi Laporan 12.31 WIB. Sebelumnya: sesi QA & perbaikan otomatis (09.13–09.35 WIB).
 
 ## Selesai
+- **T-012 done:** PR #8 di-merge 12 Nov (disetujui Joseph).
 - **T-001 done:** H1 (stack TypeScript, sesuai rekomendasi) & H10 disetujui; PR #1 di-merge 11 Nov 14.08 WIB (`keputusan.md` #10). Fase 1: 1/46 task selesai.
 - Backlog Fase 1 dipecah menjadi 46 task (Senior PM, 10 Nov).
 - T-001, T-002, T-003 dikerjakan agen (sesi Build A 11 Nov).
