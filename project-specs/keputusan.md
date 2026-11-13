@@ -96,3 +96,25 @@ Sumber: komentar di issue #5 (Randy), #6 (Efan), #7 (Joseph). Tim memakai satu a
 - **H9:** login admin **tidak hanya OTP WA**: wajib faktor kedua, yaitu TOTP (aplikasi authenticator) sesuai rekomendasi ADR-0001 §9. Mengganti jawaban awal "cukup OTP WA" (dikonfirmasi pemilik 12 Nov malam, setelah temuan keamanan K-04).
 - **H14:** API Gudang tidak bisa dihubungi → tahan checkout. **P-10:** batas usia data modal 15 menit.
 - **H15:** Node 22 sekarang; bump ke Active LTS di T-045 sebelum pilot.
+
+## 12. Jawaban issue keputusan — DIPUTUSKAN 13 Nov 2026
+Sumber: komentar issue #5, #6, #7 tanggal 13 Nov. Riwayat di `keputusan-terbuka.md`.
+
+**Group order & pembayaran**
+- **F-30:** minimum Rp100.000 dihitung dari **total grup**.
+- **K-07:** batas pelunasan 60 menit (F-29) dihitung **sejak invoice diterbitkan**.
+- **K-09:** dalam pesanan grup, setiap barang langsung mendapat **harga termurah dari tingkatan harga** meskipun hanya 1 pcs per jenis, dengan syarat minimum Rp100.000 total belanja grup. (Arti "termurah" terhadap pagar Mitra Grosir: K-14, terbuka.)
+- **K-10:** ongkir ditagih di **invoice setelah final** (bukan di invoice awal).
+- **K-06:** biaya admin flat (G-05) **per akun per grup** (mengganti kata "per pesanan" di §11).
+- **G-06:** loyalty point (G-03) = **saldo ledger yang sama**, 1 poin = Rp1, tanpa pembulatan; bila host bayar semua, poin masuk ke **akun host/pembayar**; **tanpa masa berlaku**; **bisa dicairkan** ke rekening bank, virtual account, atau e-wallet (ShopeePay, GoPay, DANA, dsb.). Tinjauan hukum (H5, aturan uang elektronik BI) tetap disarankan sebelum pencairan dibuka.
+- **G-04:** PPN: tarif & DPP dari konfigurasi (tidak di-hardcode), flag "bebas PPN" per produk, harga tampil sudah termasuk PPN, rincian PPN di checkout/nota.
+
+**Harga** (agen tetap tidak mengisi angka harga/margin)
+- **K-01:** modal diinput manual **per satuan jual**; modal pecahan → SKU tidak tayang + antrean "perlu ditinjau", tanpa pembulatan.
+- **K-02:** penurunan modal dari Gudang hanya dicatat di log admin (tanpa ambang tahan).
+- **K-03:** timpaan modal (P-25) berlaku sampai dicabut admin; ada kolom tanggal kedaluwarsa opsional, dan saat tanggal itu tercapai sistem mengirim pemberitahuan otomatis untuk barang tersebut beserta catatannya.
+- **K-05:** rumus ongkir §4 tetap; angka tarif dari adapter aplikasi eksternal.
+- **K-08:** tingkat "grosir" (P-05) = level **Mitra Grosir**; pagar individu ≥ Mitra Grosir ≥ Franchise.
+- **P-06:** margin Mitra tidak wajib agar produk tayang.
+- **P-07:** promo dibatasi dengan **batas bawah margin 5%** (basis 5%: K-16, terbuka).
+- **P-08:** harga di-snapshot **ketika sudah jadi invoice**; bila stok habis invoice dibatalkan; barang yang hanya di keranjang tidak memotong stok. (Hubungan dengan F-08 "snapshot saat grup dibuka": K-15, terbuka.)
