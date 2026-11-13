@@ -1,5 +1,11 @@
 # Progress
 
+**Update 13 Nov 12.35 WIB (sesi QA ringan + laporan harian, mode hemat):**
+- Langkah 0: tidak ada jawaban baru di issue #5–#7 sejak sesi Build 12.20.
+- QA ringan: 5 PR terbuka (#2, #3, #4, #9, #10) semuanya sudah punya komentar review → tidak ada review baru. Cek cepat §12 PR #9 (`78d16eb`): setia pada jawaban issue; K-14 tetap risiko pagar harga.
+- Laporan: `laporan/2026-11-13.md`. Fase 1: 2/47 (4%). Blocked: tidak ada.
+- Butuh manusia: merge #9 → jawab G-07, K-11–K-16 → T-047 → merge #3, #2, #4; squash merge #10.
+
 **Update 13 Nov 12.20 WIB (sesi Build terjadwal, mode hemat):**
 - Langkah 0: **16 keputusan DIPUTUSKAN** dari issue #5 (G-06, K-07), #6 (F-30, G-04, G-06, K-01–K-03, K-05–K-10, P-06–P-08), #7 (K-01, K-03) → keputusan-terbuka.md (`53e6abd`), tabel issue diperbarui, "Dicatat" dibalas. Masuk PR gabungan **#9** sebagai §12 (`78d16eb`).
 - Keputusan baru: **K-14** (arti "harga termurah" K-09 vs pagar Mitra Grosir), **K-15** (F-08 vs P-08: kapan snapshot), **K-16** (basis "5% margin" P-07) → issue #5/#6. G-07, K-12, K-13 kini juga di tabel issue #5. Issue #7 (Joseph) kosong.
