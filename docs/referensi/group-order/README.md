@@ -33,7 +33,7 @@ Screenshot di folder ini hanya untuk referensi internal; nama akun, nama kontak,
 |---|---|---|
 | Diskon naik berdasarkan **jumlah orang** (2, 3…6 orang) | Harga naik-turun berdasarkan **kuantitas barang** per tingkat produk; jumlah akun hanya syarat **membuka** grup (min. 3) | `keputusan.md` #3, P-03 (cara hitung kuantitas menunggu K-09, lihat R4) |
 | Diskon ditampilkan sebagai **persen** | Tampilkan **rupiah per pcs**, persen boleh sebagai pelengkap | CLAUDE.md "harga kartu = detail" |
-| **Split bill**: pembuat grup membayar dulu | Dilunasi di awal via VA/QRIS, batas bayar 60 menit; bila ada anggota belum lunas, **seluruh grup batal** (F-29). Selisih harga/refund dikembalikan sebagai **loyalty point senilai Rupiah**, yang bisa dipakai sebagai opsi bayar di checkout dan digabung dengan VA/QRIS (G-03). Pembuat grup bayar semua vs tiap akun bayar sendiri, dan akun penerima poin: **menunggu G-06** | F-01, F-26, F-29, G-03, G-06 |
+| **Split bill**: pembuat grup membayar dulu | Dilunasi di awal via VA/QRIS, batas bayar 60 menit; bila ada anggota belum lunas, **seluruh grup batal** (F-29). Selisih harga/refund dikembalikan sebagai **loyalty point senilai Rupiah**, yang bisa dipakai sebagai opsi bayar di checkout dan digabung dengan VA/QRIS (G-03). Pembuat grup bayar semua vs tiap akun bayar sendiri: **menunggu G-07** (sisa G-03); akun penerima poin: **menunggu G-06(b)** | F-01, F-26, F-29, G-03, G-06, G-07 |
 | **Deadline** diatur pembuat grup ("None") | Batas waktu = **cut-off slot kirim**, ditentukan sistem, tidak bisa diubah pembuat grup | flow T-002 (PR #2) |
 | Grup gagal = tidak dapat diskon tapi tetap kirim | Grup < 3 akun: harga satuan, pesanan **terkunci/tidak diproses** | F-02 |
 | Pengiriman instan (26–45 menit) | Pengiriman terjadwal per slot harian | backlog T-006 (slot harian) |
@@ -48,7 +48,7 @@ Urutan dari atas:
 4. **Slot kirim** (tanggal + jam) dan jam tutup grup — hanya tampil, tidak bisa diubah.
 5. **Cara kirim**: antar ke rumah / ambil di drop point. Jangan tampilkan nominal/label harga Mitra di layar ini; info harga Mitra drop point hanya di checkout (P-28).
 6. **Nama grup** (bisa diubah, default "Grup {nama depan}").
-7. **Pembayaran**: dilunasi di awal via VA/QRIS (bisa dipotong loyalty point, G-03), batas 60 menit; peringatan "Bila ada anggota belum lunas dalam 60 menit, seluruh grup batal" (F-29). Pilihan pembuat grup bayar semua / tiap anggota bayar sendiri menunggu **G-06**.
+7. **Pembayaran**: dilunasi di awal via VA/QRIS (bisa dipotong loyalty point, G-03), batas 60 menit; peringatan "Bila ada anggota belum lunas dalam 60 menit, seluruh grup batal" (F-29). Pilihan pembuat grup bayar semua / tiap anggota bayar sendiri menunggu **G-07** (sisa G-03).
 8. Tombol besar hijau di bawah: **"Buat Grup & Bagikan"** → langsung membuka lembar bagikan (R9).
 
 Pesan bagikan default (bisa diubah pengguna):
@@ -56,7 +56,7 @@ Pesan bagikan default (bisa diubah pengguna):
 
 Harga per pcs tidak dimasukkan ke pesan karena keranjang grup bisa campur produk (G-01) dan harga ditentukan kuantitas, bukan jumlah orang; harga tampil di halaman grup, sama persis dengan kartu produk (CLAUDE.md).
 
-## 4. Keputusan terkait (issue #5)
+## 4. Keputusan terkait (issue #5; G-01 diputuskan, lainnya masih terbuka)
 
 | # | Pertanyaan | Pilihan | Rekomendasi |
 |---|---|---|---|
