@@ -103,7 +103,7 @@ Sumber: komentar issue #5, #6, #7 tanggal 13 Nov. Riwayat di `keputusan-terbuka.
 **Group order & pembayaran**
 - **F-30:** minimum Rp100.000 dihitung dari **total grup**.
 - **K-07:** batas pelunasan 60 menit (F-29) dihitung **sejak invoice diterbitkan**.
-- **K-09:** dalam pesanan grup, setiap barang langsung mendapat **harga termurah dari tingkatan harga** meskipun hanya 1 pcs per jenis, dengan syarat minimum Rp100.000 total belanja grup. (Arti "termurah" terhadap pagar Mitra Grosir: K-14, terbuka.)
+- **K-09:** dalam pesanan grup, setiap barang langsung mendapat **harga termurah dari tingkatan harga** meskipun hanya 1 pcs per jenis, dengan syarat minimum Rp100.000 total belanja grup. (Arti "termurah": K-14 di bawah.)
 - **K-10:** ongkir ditagih di **invoice setelah final** (bukan di invoice awal).
 - **K-06:** biaya admin flat (G-05) **per akun per grup** (mengganti kata "per pesanan" di §11).
 - **G-06:** loyalty point (G-03) = **saldo ledger yang sama**, 1 poin = Rp1, tanpa pembulatan; bila host bayar semua, poin masuk ke **akun host/pembayar**; **tanpa masa berlaku**; **bisa dicairkan** ke rekening bank, virtual account, atau e-wallet (ShopeePay, GoPay, DANA, dsb.). Tinjauan hukum (H5, aturan uang elektronik BI) tetap disarankan sebelum pencairan dibuka.
@@ -116,5 +116,13 @@ Sumber: komentar issue #5, #6, #7 tanggal 13 Nov. Riwayat di `keputusan-terbuka.
 - **K-05:** rumus ongkir §4 tetap; angka tarif dari adapter aplikasi eksternal.
 - **K-08:** tingkat "grosir" (P-05) = level **Mitra Grosir**; pagar individu ≥ Mitra Grosir ≥ Franchise.
 - **P-06:** margin Mitra tidak wajib agar produk tayang.
-- **P-07:** promo dibatasi dengan **batas bawah margin 5%** (basis 5%: K-16, terbuka).
-- **P-08:** harga di-snapshot **ketika sudah jadi invoice**; bila stok habis invoice dibatalkan; barang yang hanya di keranjang tidak memotong stok. (Hubungan dengan F-08 "snapshot saat grup dibuka": K-15, terbuka.)
+- **P-07:** promo dibatasi dengan **batas bawah margin 5%** (basis 5%: K-16 di bawah).
+- **P-08:** harga di-snapshot **ketika sudah jadi invoice**; bila stok habis invoice dibatalkan; barang yang hanya di keranjang tidak memotong stok. (Menggantikan F-08: K-15 di bawah.)
+
+**Tambahan 13 Nov siang** (issue #5, #6)
+- **G-07:** Fase 1 **tiap akun bayar sendiri**; saat invoice tersedia **pilihan host yang membayar**. (Syarat 3 akun bila host bayar: K-17, terbuka.)
+- **K-12:** akun yang tidak melunasi dalam 60 menit **dikeluarkan otomatis** dari grup; grup **batal bila akun lunas < 3** (memperhalus F-29 "seluruh grup batal").
+- **K-13:** **satu ledger**, loyalty point = saldo (istilah §9 "saldo" dan G-03 "loyalty point" adalah hal yang sama).
+- **K-14:** harga grup individu **= harga Mitra Grosir** (harga grosir tanpa MOQ); pagar "individu ≥ Mitra Grosir" terpenuhi dengan sama. (Grup < Rp100.000: K-18, terbuka.)
+- **K-15:** harga & modal di-snapshot **saat invoice** (menggantikan F-08 "saat grup dibuka").
+- **K-16:** batas bawah 5% dihitung **dari modal** (harga setelah promo ≥ modal × 1,05), berlaku untuk promo & gratis ongkir; angka 5% disimpan di konfigurasi.
