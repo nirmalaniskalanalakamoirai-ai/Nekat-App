@@ -1,5 +1,12 @@
 # Progress
 
+**Update 13 Nov 14.20 WIB (sesi Tindak Lanjut, mode hemat):**
+- Langkah 0: **6 keputusan DIPUTUSKAN** dari issue #5 (G-07, K-12, K-13, K-14) & #6 (K-14, K-15, K-16) → keputusan-terbuka.md (`2c1bb36`), tabel issue diperbarui, "Dicatat" dibalas. PR gabungan **#9** diperbarui (§12 tambahan, `2dcddcb`).
+- Baru: **K-17** (syarat 3 akun bila host bayar, sisa G-07b), **K-18** (harga grup < Rp100.000, sisa K-14).
+- Merge: tidak ada — 0 review APPROVED di PR #2, #3, #4, #9, #10. Tidak ada komentar perubahan baru dari manusia di PR.
+- Catatan: K-14 menjadikan harga grup individu = Mitra Grosir (pagar ≥ tetap terpenuhi, tanpa selisih untuk drop point); K-15 menggantikan F-08.
+- Blocked: tidak ada. Butuh manusia: approve & merge **#9** → jawab K-11, K-17, K-18 → T-047 di #2/#3 → merge #3, #2, #4; squash merge **#10**.
+
 **Update 13 Nov 12.35 WIB (sesi QA ringan + laporan harian, mode hemat):**
 - Langkah 0: tidak ada jawaban baru di issue #5–#7 sejak sesi Build 12.20.
 - QA ringan: 5 PR terbuka (#2, #3, #4, #9, #10) semuanya sudah punya komentar review → tidak ada review baru. Cek cepat §12 PR #9 (`78d16eb`): setia pada jawaban issue; K-14 tetap risiko pagar harga.
