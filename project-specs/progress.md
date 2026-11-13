@@ -1,5 +1,12 @@
 # Progress
 
+**Update 13 Nov 12.20 WIB (sesi Build terjadwal, mode hemat):**
+- Langkah 0: **16 keputusan DIPUTUSKAN** dari issue #5 (G-06, K-07), #6 (F-30, G-04, G-06, K-01–K-03, K-05–K-10, P-06–P-08), #7 (K-01, K-03) → keputusan-terbuka.md (`53e6abd`), tabel issue diperbarui, "Dicatat" dibalas. Masuk PR gabungan **#9** sebagai §12 (`78d16eb`).
+- Keputusan baru: **K-14** (arti "harga termurah" K-09 vs pagar Mitra Grosir), **K-15** (F-08 vs P-08: kapan snapshot), **K-16** (basis "5% margin" P-07) → issue #5/#6. G-07, K-12, K-13 kini juga di tabel issue #5. Issue #7 (Joseph) kosong.
+- Catatan: G-06(d) "poin bisa dicairkan" → H5 (tinjauan hukum uang elektronik BI) tetap disarankan sebelum fitur pencairan.
+- Tidak ada task dikerjakan, tidak ada PR baru: semua task todo tergantung PR #2/#3/#4 (belum di-merge) atau T-047 (menunggu merge #9 + K-11–K-16, G-07). Tidak ada yang blocked teknis.
+- Butuh manusia: merge **#9** → jawab K-11–K-16, G-07 → T-047 di #2/#3 → merge #3, #2, #4; squash merge **#10**.
+
 **Update 13 Nov 09.20 WIB (sesi QA & perbaikan otomatis, jadwal 09.13, tepat waktu):**
 - Cakupan: 5 PR terbuka (#2, #3, #4, #9, #10). Sejak QA 12 Nov hanya #9 yang punya commit baru (`18212af`, `a6b5062`); #10 perlu diselaraskan dengan G-01/G-03 yang baru diputuskan. Tidak ada review/approve manusia baru.
 - Reviewer: Code Reviewer (#9 delta, #10 dua putaran) + AI-Generated Code Security Auditor (semua branch). API Tester / Test Automation Engineer tidak dijalankan: semua PR hanya dokumen. Tes di `main`: 12/12 lulus. Pindai rahasia semua branch: bersih.
