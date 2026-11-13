@@ -132,6 +132,7 @@ Catatan: bagian di bawah ditambahkan oleh sesi Build otomatis 10–11 Nov 2026. 
 | K-16 | (13 Nov) P-07 "batas bawah 5% margin": 5% dihitung dari modal (harga setelah promo ≥ modal × 1,05) atau dari harga jual? Berlaku juga untuk gratis ongkir (PG-4) dan untuk margin yang diinput admin (P-16)? Nilai disimpan sebagai konfigurasi | Efan | **DIPUTUSKAN 13 Nov: setuju rekomendasi: 5% dari modal, berlaku untuk promo & gratis ongkir, angka di konfigurasi (issue #6)** |
 | K-17 | (13 Nov, dari G-07) Bila host memilih membayar semua saat invoice: syarat minimal 3 akun (F-29/K-12) dihitung dari akun yang menambah barang ke keranjang grup, atau cukup host? | Randy + Efan | belum — rekomendasi: tetap 3 akun berbeda (OTP) yang menambah barang; host bayar hanya mengganti siapa yang melunasi |
 | K-18 | (13 Nov, dari K-14) Grup dengan total belanja < Rp100.000 (syarat K-09) memakai harga apa? | Efan | belum — rekomendasi: harga satuan individu (F-02) |
+| K-19 | (13 Nov, T-045) Staging: penyedia VPS + PostgreSQL terkelola (H3 memilih bentuk, belum penyedia) dan siapa membuat server + secret deploy (SSH deploy key, `DATABASE_URL`, kunci backup) di GitHub Environment `staging` | Joseph (+ Finance) | belum — rekomendasi: Joseph pilih penyedia region Jakarta/Singapura, buat server & secret sendiri (agen tidak pegang kredensial); agen siapkan Dockerfile, workflow deploy SSH, skrip backup |
 Catatan: tim memakai satu akun GitHub bersama (dikonfirmasi pemilik 12 Nov malam); jawaban dari akun itu sah sebagai jawaban pemilik.
 
 
@@ -141,3 +142,5 @@ Catatan 13 Nov 02.20 WIB: K-01–K-11 yang masih terbuka kini juga dicantumkan d
 Catatan 13 Nov 12.20 WIB (sesi Build): 16 jawaban dicatat dari issue #5/#6/#7 (F-30, G-04, G-06, K-01–K-03, K-05–K-10, P-06–P-08); baru: K-14, K-15, K-16.
 
 Catatan 13 Nov 14.20 WIB (sesi Tindak Lanjut): 6 jawaban dicatat dari issue #5/#6 (G-07, K-12–K-16); baru: K-17, K-18.
+
+Catatan 14 Nov 02.15 WIB (sesi Build): tidak ada jawaban baru di issue #5–#7; baru: K-19 (issue #7).

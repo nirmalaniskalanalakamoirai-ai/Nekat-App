@@ -1,5 +1,12 @@
 # Progress
 
+**Update 14 Nov 02.15 WIB (sesi Build terjadwal, mode hemat):**
+- Langkah 0: tidak ada jawaban baru di issue #5–#7 sejak 13 Nov 14.20. Tidak ada PR yang di-merge sejak itu.
+- **T-045a → review (PR #11):** pin GitHub Actions per SHA, job `pnpm audit --prod --audit-level=high`, Dependabot (github-actions). DevOps Automator + Code Reviewer LULUS (1 minor diperbaiki `a85b5a3`); lint/format/test 12/12, actionlint bersih. CI di PR menunggu jalan.
+- **T-045 sisa: blocked** — server staging & secret belum ada (baru: **K-19**, issue #7); image container tidak bisa ditarik di lingkungan agen (registry diblokir proxy), jadi Dockerfile/deploy belum bisa diuji di sini.
+- Task lain tidak siap: tergantung merge PR #2/#3/#4/#9 atau T-047.
+- Butuh manusia: merge **#9** → jawab K-11, K-17, K-18 → T-047 di #2/#3 → merge #3, #2, #4; squash merge #10; review **#11**; jawab **K-19** (Joseph).
+
 **Update 13 Nov 14.20 WIB (sesi Tindak Lanjut, mode hemat):**
 - Langkah 0: **6 keputusan DIPUTUSKAN** dari issue #5 (G-07, K-12, K-13, K-14) & #6 (K-14, K-15, K-16) → keputusan-terbuka.md (`2c1bb36`), tabel issue diperbarui, "Dicatat" dibalas. PR gabungan **#9** diperbarui (§12 tambahan, `2dcddcb`).
 - Baru: **K-17** (syarat 3 akun bila host bayar, sisa G-07b), **K-18** (harga grup < Rp100.000, sisa K-14).
