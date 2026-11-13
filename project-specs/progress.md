@@ -1,5 +1,15 @@
 # Progress
 
+**Update 13 Nov 09.30 WIB (sesi QA & perbaikan otomatis, jadwal 09.13, tepat waktu):**
+- Cakupan: 5 PR terbuka (#2, #3, #4, #9, #10). Sejak QA 12 Nov hanya #9 yang punya commit baru (`18212af`, `a6b5062`); #10 perlu diselaraskan dengan G-01/G-03 yang baru diputuskan. Tidak ada review/approve manusia baru.
+- Reviewer: Code Reviewer (#9 delta, #10 dua putaran) + AI-Generated Code Security Auditor (semua branch). API Tester / Test Automation Engineer tidak dijalankan: semua PR hanya dokumen. Tes di `main`: 12/12 lulus. Pindai rahasia semua branch: bersih.
+- **PR #10: LULUS setelah 2 putaran** (`34354a7`, `eedd4f6`): G-01 DIPUTUSKAN, G-03 loyalty point, peringatan F-29, catatan harga dikunci saat cut-off, pesan bagikan tanpa harga/“makin banyak orang makin murah”, rujukan K-09/G-07. Wajib squash merge (blob lama di `930d8f8`).
+- **PR #9: BUTUH KEPUTUSAN MANUSIA** (tidak diubah agen): G-03 “loyalty point” vs §9/CLAUDE.md “saldo” (K-13), inti G-03 cara bayar belum dipilih (G-07), F-29 rawan griefing (K-12), TOTP H9 tafsiran agen, G-01 vs pembuka CLAUDE.md.
+- **PR #2, #3:** tidak berubah, tetap PERLU PERBAIKAN lewat T-047 (cakupan + G-01/G-03/F-29). **PR #4:** tetap LULUS, G-01 tidak mengubah kontrak.
+- Keputusan baru di keputusan-terbuka.md: **G-07, K-12, K-13**.
+- Blocked: tidak ada.
+- Butuh manusia: merge **#9** (atau edit butirnya) → jawab G-06, G-07, K-12, K-13, K-01, K-07–K-11, F-30 → T-047 di #2/#3 → merge #3, #2, #4; squash merge **#10** (Randy).
+
 **Update 13 Nov 02.20 WIB (sesi Build terjadwal, mode hemat):**
 - Langkah 0: **G-01** (grup per keranjang, campur produk) & **G-03** (selisih/refund → loyalty point senilai Rupiah, bisa dikombinasikan di checkout) DIPUTUSKAN dari issue #5 → keputusan-terbuka.md, PR #9 (`a6b5062`), tabel issue diperbarui, "Dicatat" dibalas.
 - Keputusan baru: **G-06** (rincian loyalty point: sama dengan saldo ledger? akun penerima saat host bayar? masa berlaku? pencairan?). K-01–K-11 yang terbuka kini juga ada di tabel issue #5/#6/#7 dengan rekomendasi.
