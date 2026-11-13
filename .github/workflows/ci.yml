@@ -1,10 +1,12 @@
-# CI dasar NEKAT (T-012, ADR-0001 §3.4).
+# CI dasar NEKAT (T-012, ADR-0001 §3.4; hardening T-045a).
 # Urutan: install (lockfile beku) → lint → format → typecheck → unit test → build → gitleaks.
+# Audit dependensi produksi berjalan di job terpisah.
+# Semua action dipin ke commit SHA penuh; Dependabot (.github/dependabot.yml) memperbaruinya.
 # Belum ada di sini (menyusul):
 #   - Tes integrasi PostgreSQL (service container)  → T-013
 #   - E2E Playwright                                → T-043/T-044
-#   - Audit dependensi, pin action per commit SHA,
-#     deploy staging, branch protection             → T-045
+#   - Sisa T-045: deploy staging, backup DB, naik ke Node Active LTS,
+#     pin image gitleaks per digest, branch protection
 name: CI
 
 on:
@@ -28,14 +30,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           persist-credentials: false
 
       # Versi pnpm diambil dari field "packageManager" di package.json.
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -59,17 +61,38 @@ jobs:
       - name: Build semua app & paket
         run: pnpm build
 
+  audit:
+    name: Audit dependensi produksi
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version-file: .nvmrc
+
+      # Hanya dependensi produksi (--prod): kerentanan dev-only tidak menggagalkan CI.
+      # Tidak perlu install; pnpm membaca pnpm-lock.yaml.
+      - name: pnpm audit (high ke atas)
+        run: pnpm audit --prod --audit-level=high
+
   rahasia:
     name: Pindai rahasia (gitleaks)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           fetch-depth: 0 # seluruh riwayat, agar rahasia di commit lama juga terdeteksi
           persist-credentials: false
 
       # CLI gitleaks lewat image resmi (tanpa gitleaks-action yang butuh lisensi untuk akun organisasi).
+      # TODO T-045: pin image per digest (@sha256:...); registry tidak terjangkau saat T-045a.
       - name: gitleaks
         run: |
           # safe.directory: repo di-mount dengan pemilik berbeda dari user di dalam container.
