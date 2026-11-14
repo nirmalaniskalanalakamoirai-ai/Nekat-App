@@ -126,3 +126,17 @@ Sumber: komentar issue #5, #6, #7 tanggal 13 Nov. Riwayat di `keputusan-terbuka.
 - **K-14:** harga grup individu **= harga Mitra Grosir** (harga grosir tanpa MOQ); pagar "individu ≥ Mitra Grosir" terpenuhi dengan sama. (Grup < Rp100.000: K-18, terbuka.)
 - **K-15:** harga & modal di-snapshot **saat invoice** (menggantikan F-08 "saat grup dibuka").
 - **K-16:** batas bawah 5% dihitung **dari modal** (harga setelah promo ≥ modal × 1,05), berlaku untuk promo & gratis ongkir; angka 5% disimpan di konfigurasi.
+
+## 13. Jawaban issue keputusan — DIPUTUSKAN 14 Nov 2026
+Sumber: komentar issue #5 & #6 (14 Nov malam). Status juga di `keputusan-terbuka.md`.
+- **K-17:** grup tetap wajib **minimal 3 akun berbeda yang menambah barang**; host hanya memilih cara bayar. Bila host membayar seluruhnya → invoice **langsung disatukan** dan QR code dikirim ke host.
+- **K-18:** grup dengan total < Rp100.000 memakai **harga satuan**; aplikasi tetap menyarankan mencari grup dan menampilkan **perbandingan harga grup vs sendiri**.
+- **P-09 / P-26:** modal saat cut-off melewati harga dibayar, atau nilai bersih setelah promo & subsidi ongkir < modal → grup **DITAHAN** untuk keputusan admin; tidak pernah jual di bawah modal.
+- **P-11:** sel CSV kosong pada produk lama = nilai tersimpan **tidak berubah** (tafsiran agen; soal produk stok habis → K-20, terbuka).
+- **P-12:** pembulatan & tarif ongkir mengikuti aplikasi eksternal (#4, K-05); engine harga hanya menerima ongkir jadi.
+- **P-13:** minimal belanja gratis ongkir dihitung **sesudah diskon**.
+- **P-15:** diskon **tidak menumpuk**; diskon dihitung secara keseluruhan (arti persis: K-21, terbuka); tanpa pembulatan (H6).
+- **P-16:** **margin 0 tidak diizinkan**; bila perlu, kekurangan dimasukkan sebagai biaya admin.
+- **P-23:** kredit selisih di cut-off **dibatasi** agar bersih ≥ modal, dengan keterangan sebagai biaya admin.
+- **P-27:** bila gratis ongkir gagal pagar modal, pesanan **tidak langsung dibatalkan**: tampilkan "tidak memenuhi syarat", alasannya, dan rekomendasi jalan keluar agar pembeli bisa meneruskan pesanan grup.
+- Catatan (bukan jawaban P-21): barang ber-rating usia tidak boleh masuk grup dengan akun yang tidak memenuhi syarat — relevan Fase 3.
