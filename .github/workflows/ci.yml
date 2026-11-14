@@ -1,6 +1,6 @@
 # CI dasar NEKAT (T-012, ADR-0001 §3.4; hardening T-045a).
-# Urutan: install (lockfile beku) → lint → format → typecheck → unit test → build → gitleaks.
-# Audit dependensi produksi berjalan di job terpisah.
+# Tiga job paralel: verifikasi (install lockfile beku → lint → format → typecheck → unit test → build),
+# audit dependensi produksi, dan pindai rahasia (gitleaks).
 # Semua action dipin ke commit SHA penuh; Dependabot (.github/dependabot.yml) memperbaruinya.
 # Belum ada di sini (menyusul):
 #   - Tes integrasi PostgreSQL (service container)  → T-013
@@ -35,7 +35,8 @@ jobs:
           persist-credentials: false
 
       # Versi pnpm diambil dari field "packageManager" di package.json.
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0 (= v5.0.0, runtime node24)
+      # SHA ini juga ditandai v4.4.0 di upstream; label v5.0.0 dipakai agar Dependabot membaca versi dengan benar.
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
 
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
@@ -70,13 +71,15 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0 (= v5.0.0, runtime node24)
+      # SHA ini juga ditandai v4.4.0 di upstream; label v5.0.0 dipakai agar Dependabot membaca versi dengan benar.
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
 
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version-file: .nvmrc
 
       # Hanya dependensi produksi (--prod): kerentanan dev-only tidak menggagalkan CI.
+      # --audit-level=high: temuan moderate/low hanya dilaporkan, tidak menggagalkan CI.
       # Tidak perlu install; pnpm membaca pnpm-lock.yaml.
       - name: pnpm audit (high ke atas)
         run: pnpm audit --prod --audit-level=high
