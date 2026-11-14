@@ -1,5 +1,11 @@
 # Progress
 
+**Update 14 Nov 12.35 WIB (sesi QA ringan + laporan harian, mode hemat):**
+- Langkah 0: tidak ada jawaban baru di issue #5–#7 sejak 13 Nov 14.20.
+- QA ringan: 6 PR terbuka (#2, #3, #4, #9, #10, #11) semuanya sudah punya komentar review, tidak ada commit baru sejak QA 09.15 → tidak ada review baru.
+- Laporan: `laporan/2026-11-14.md`. Fase 1: 2/48 (4%). Blocked: T-045 (K-19).
+- Butuh manusia: merge **#11** (Joseph); merge #9 → jawab K-11, K-17, K-18 → T-047 → merge #3, #2, #4; squash merge #10; jawab K-19.
+
 **Update 14 Nov 09.20 WIB (sesi QA & perbaikan otomatis, jadwal 09.13, tepat waktu):**
 - Cakupan: 6 PR terbuka (#2, #3, #4, #9, #10, #11). Commit baru sejak QA 13 Nov hanya di **#11** (baru) dan **#9** (`2dcddcb`). Tidak ada review/approve manusia baru.
 - **PR #11 (T-045a): LULUS setelah 1 putaran** (`4e3508d`: komentar 3 job paralel, label `pnpm/action-setup` `# v5.0.0` agar Dependabot tidak buka PR bump palsu, catatan `--audit-level`). Tes lokal lint/format/typecheck/test 12/12/audit lulus; CI hijau di `4e3508d`; SHA action diverifikasi ke tag upstream. Code Reviewer + AI-Generated Code Security Auditor LULUS. API Tester / Test Automation Engineer tidak dijalankan (hanya config CI). Sisa → T-045: pin image gitleaks per digest, hash `packageManager`, audit terjadwal, `cancel-in-progress` di main, `groups` Dependabot.
