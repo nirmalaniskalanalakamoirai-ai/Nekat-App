@@ -1,5 +1,7 @@
 # Progress
 
+**Update 14 Nov 23.45 WIB:** PR #11 (T-045a hardening CI) **di-merge** manusia → T-045a done. Sisa T-045 tetap blocked (K-19).
+
 **Update 14 Nov 22.30 WIB (sesi Build, mode hemat):**
 - Langkah 0: **11 keputusan DIPUTUSKAN** dari issue #5/#6 (K-17, K-18, P-09, P-11, P-12, P-13, P-15, P-16, P-23, P-26, P-27) → keputusan-terbuka.md (`677d4f7`), tabel issue diperbarui, "Dicatat" dibalas; PR gabungan **#9** diberi §13 (`4676bea`).
 - P-19, P-20, P-21 tidak dipahami Efan → ditulis ulang dengan contoh di issue #6. Baru: **K-20** (produk stok habis tampil/sembunyi — berdampak T-025), **K-21** (arti "diskon keseluruhan" — T-032).
