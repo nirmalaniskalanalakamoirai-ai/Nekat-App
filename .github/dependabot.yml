@@ -1,0 +1,12 @@
+# Dependabot hanya untuk GitHub Actions: menjaga SHA yang dipin di workflow tetap mutakhir (T-045a).
+# Ekosistem npm sengaja tidak diaktifkan: lockfile dipin manual.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+    labels:
+      - dependencies
