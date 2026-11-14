@@ -1,5 +1,11 @@
 # Progress
 
+**Update 14 Nov 22.30 WIB (sesi Build, mode hemat):**
+- Langkah 0: **11 keputusan DIPUTUSKAN** dari issue #5/#6 (K-17, K-18, P-09, P-11, P-12, P-13, P-15, P-16, P-23, P-26, P-27) → keputusan-terbuka.md (`677d4f7`), tabel issue diperbarui, "Dicatat" dibalas; PR gabungan **#9** diberi §13 (`4676bea`).
+- P-19, P-20, P-21 tidak dipahami Efan → ditulis ulang dengan contoh di issue #6. Baru: **K-20** (produk stok habis tampil/sembunyi — berdampak T-025), **K-21** (arti "diskon keseluruhan" — T-032).
+- Tidak ada task dikerjakan / PR baru: semua todo tergantung merge PR #2/#3/#4/#9 atau T-047 (kini tinggal K-11 + merge #9). T-045 tetap blocked (K-19).
+- Butuh manusia: merge **#11**; merge **#9** → jawab K-11 → T-047 → merge #3, #2, #4; squash merge #10; jawab K-19, K-20, K-21, P-19–P-21.
+
 **Update 14 Nov 14.20 WIB (sesi Tindak Lanjut, mode hemat):**
 - Tidak ada aktivitas manusia baru: 0 komentar baru di issue #5–#7 (terakhir 13 Nov), 0 review APPROVED/komentar perubahan di PR #2, #3, #4, #9, #10, #11. Tidak ada merge, tidak ada task baru dikerjakan.
 - Blocked: T-045 (K-19). Antrean manusia tetap: merge **#11**; merge #9 → jawab K-11, K-17, K-18 → T-047 → merge #3, #2, #4; squash merge #10; jawab K-19.
