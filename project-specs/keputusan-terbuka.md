@@ -76,25 +76,25 @@ Catatan: bagian di bawah ditambahkan oleh sesi Build otomatis 10–11 Nov 2026. 
 | P-06 | Margin Mitra wajib diisi agar produk tayang? | Efan | **DIPUTUSKAN 13 Nov: setuju default dokumen: margin Mitra tidak wajib agar produk tayang (`mitra_wajib_untuk_tayang = false`) (issue #6)** |
 | P-07 | Promo yang melanggar modal: tidak diterapkan atau dibatasi sampai modal | Efan | **DIPUTUSKAN 13 Nov: batas bawah 5% margin (promo dibatasi, margin tidak boleh di bawah 5%) (issue #6)** — basis 5% lihat K-16 |
 | P-08 | Harga grup LIVE (ikut modal terkini) atau DIBEKUKAN sejak grup dibuka; ambang margin menipis (= F-08) | Efan | **DIPUTUSKAN 13 Nov: harga di-snapshot ketika sudah jadi invoice; bila stok habis invoice dibatalkan; barang yang hanya dimasukkan keranjang tidak memotong stok (issue #6)** — hubungan dengan F-08 lihat K-15 |
-| P-09 | Tindakan bila modal saat cut-off melewati harga dibayar peserta | Efan + Randy | belum |
+| P-09 | Tindakan bila modal saat cut-off melewati harga dibayar peserta | Efan + Randy | **DIPUTUSKAN 14 Nov: setuju rekomendasi A — grup DITAHAN untuk keputusan admin, tidak pernah jual di bawah modal (issue #6)** |
 | P-10 | Batas usia data modal dari Gudang | Joseph + Efan | **DIPUTUSKAN 12 Nov: 15 menit (issue #7)** |
-| P-11 | Sel CSV kosong pada produk lama: biarkan atau hapus | Efan + Joseph | belum |
-| P-12 | Pembulatan berat/jarak ongkir; tarif per kg global atau per armada | Efan + Operations | belum |
-| P-13 | Minimal belanja gratis ongkir dihitung sebelum atau sesudah diskon | Efan | belum |
+| P-11 | Sel CSV kosong pada produk lama: biarkan atau hapus | Efan + Joseph | **DIPUTUSKAN 14 Nov: biarkan (sel kosong = nilai tersimpan tidak berubah; tafsiran agen sesuai rekomendasi) (issue #6)** — tambahan jawaban soal stok habis → K-20 |
+| P-12 | Pembulatan berat/jarak ongkir; tarif per kg global atau per armada | Efan + Operations | **DIPUTUSKAN 14 Nov: menunggu/mengikuti aplikasi eksternal ongkir (#4, K-05); engine harga hanya menerima ongkir jadi (issue #6)** |
+| P-13 | Minimal belanja gratis ongkir dihitung sebelum atau sesudah diskon | Efan | **DIPUTUSKAN 14 Nov: sesudah diskon (issue #6)** |
 | P-14 | Perlu pagar harga antar kemasan (dus vs pcs)? | Efan | belum |
-| P-15 | Pembulatan diskon persen; boleh diskon menumpuk? | Efan | belum |
-| P-16 | Margin nol diizinkan? | Efan | belum |
+| P-15 | Pembulatan diskon persen; boleh diskon menumpuk? | Efan | **DIPUTUSKAN 14 Nov: diskon tidak boleh menumpuk; diskon dihitung secara keseluruhan (issue #6)**; pembulatan mengikuti H6 (tanpa pembulatan) — arti "keseluruhan" lihat K-21 |
+| P-16 | Margin nol diizinkan? | Efan | **DIPUTUSKAN 14 Nov: tidak — diskon/harga tidak boleh membuat margin 0; bila perlu, kekurangan dimasukkan sebagai biaya admin (issue #6)** |
 | P-17 | Harga coret = harga 1 pcs riil? | Randy + Efan | belum |
 | P-18 | Batas COD dibandingkan dengan total sebelum atau sesudah saldo | Randy + Joseph | belum |
-| P-19 | Siapa menanggung bila harga final > harga dibayar tapi masih ≥ modal | Efan + Randy | belum |
-| P-20 | Cara alokasi subsidi gratis ongkir ke baris pesanan untuk pagar modal | Efan + Joseph | belum |
-| P-21 | Tier grup (mis. 12+) boleh opsional per produk? | Efan | belum |
+| P-19 | Siapa menanggung bila harga final > harga dibayar tapi masih ≥ modal | Efan + Randy | belum — 14 Nov Efan: "tidak mengerti pertanyaan"; pertanyaan ditulis ulang lebih sederhana di issue #6 |
+| P-20 | Cara alokasi subsidi gratis ongkir ke baris pesanan untuk pagar modal | Efan + Joseph | belum — 14 Nov Efan: "tidak mengerti pertanyaan"; ditulis ulang di issue #6 |
+| P-21 | Tier grup (mis. 12+) boleh opsional per produk? | Efan | belum — 14 Nov Efan menafsirkan sebagai barang ber-rating usia (jawab: barang itu tidak boleh masuk grup dengan akun yang tidak memenuhi syarat; dicatat untuk Fase 3, rokok/bir); pertanyaan asli ditulis ulang di issue #6 |
 | P-22 | Cakupan pagar "individu ≥ Mitra ≥ Franchise": pagar KETAT wajib (CLAUDE.md); yang diputuskan hanya apakah ditambah pemeriksaan per tier (`KETAT_PLUS_PER_TIER`). Opsi "per tier saja" dihapus di sesi QA 11 Nov karena melanggar CLAUDE.md | Efan | **DIPUTUSKAN 12 Nov: pagar KETAT (default), tanpa pemeriksaan per tier (issue #6)** |
-| P-23 | Promo saat checkout lalu harga turun di cut-off: batasi kredit selisih agar bersih ≥ modal? | Efan + Randy | belum |
+| P-23 | Promo saat checkout lalu harga turun di cut-off: batasi kredit selisih agar bersih ≥ modal? | Efan + Randy | **DIPUTUSKAN 14 Nov: ya, dibatasi (A), dengan keterangan tambahan sebagai biaya admin (issue #6)** |
 | P-24 | Cakupan kategori terlarang Fase 1 (hanya rokok & bir, atau semua tembakau/nikotin & alkohol) | Randy | belum |
 | P-25 | Modal saat mode Gudang: boleh ditimpa dari panel/CSV? | Joseph + Efan | **DIPUTUSKAN 12 Nov: boleh (issue #7)** |
-| P-26 | Grup DITAHAN bila nilai bersih setelah promo & subsidi ongkir < modal saat cut-off (perluasan P-09) | Efan + Randy | belum |
-| P-27 | Satu baris gagal pagar modal saat gratis ongkir: batalkan gratis ongkir seluruh pesanan? | Efan | belum |
+| P-26 | Grup DITAHAN bila nilai bersih setelah promo & subsidi ongkir < modal saat cut-off (perluasan P-09) | Efan + Randy | **DIPUTUSKAN 14 Nov: setuju rekomendasi A (issue #6)** |
+| P-27 | Satu baris gagal pagar modal saat gratis ongkir: batalkan gratis ongkir seluruh pesanan? | Efan | **DIPUTUSKAN 14 Nov: jangan langsung dibatalkan; tampilkan keterangan "tidak memenuhi syarat" beserta alasannya dan rekomendasi jalan keluar agar pembeli bisa meneruskan pesanan grup (issue #6)** |
 | P-28 | Halaman detail menampilkan info "Ambil di drop point: Rp{harga Mitra}" yang tidak ada di kartu? A) boleh sebagai info terpisah; B) hanya di checkout (DEFAULT SEMENTARA, patuh "harga kartu = detail"); C) di kartu & detail (sesi QA 11 Nov) | Randy + Efan | **DIPUTUSKAN 12 Nov: B — info harga Mitra drop point hanya di checkout (issue #5)** |
 
 ## Baru dari sesi Build 12 Nov (setelah jawaban issue)
@@ -130,9 +130,11 @@ Catatan: bagian di bawah ditambahkan oleh sesi Build otomatis 10–11 Nov 2026. 
 | K-14 | (13 Nov, dari jawaban K-09) "Harga termurah dari tingkatan harga" untuk pesanan grup ≥ Rp100.000: tingkat termurah **di antara tier grup individu**, atau termasuk tingkat Grosir/Mitra? Bila termasuk Grosir, pagar CLAUDE.md "harga grup individu ≥ Mitra Grosir" jadi sama persis (tidak ada selisih untuk drop point). Juga: grup < Rp100.000 memakai harga apa? | Efan + Randy | **DIPUTUSKAN 13 Nov: harga grup individu = harga Mitra Grosir (kemudahan dapat harga grosir tanpa MOQ) (issue #6, Randy ikut Efan di issue #5)** — pagar ≥ terpenuhi dengan sama; grup < Rp100.000 lihat K-18 |
 | K-15 | (13 Nov) F-08 "snapshot saat grup dibuka" vs P-08 "snapshot ketika sudah jadi invoice": mana yang berlaku untuk harga & modal? | Efan | **DIPUTUSKAN 13 Nov: snapshot harga & modal saat invoice (menggantikan F-08) (issue #6)** |
 | K-16 | (13 Nov) P-07 "batas bawah 5% margin": 5% dihitung dari modal (harga setelah promo ≥ modal × 1,05) atau dari harga jual? Berlaku juga untuk gratis ongkir (PG-4) dan untuk margin yang diinput admin (P-16)? Nilai disimpan sebagai konfigurasi | Efan | **DIPUTUSKAN 13 Nov: setuju rekomendasi: 5% dari modal, berlaku untuk promo & gratis ongkir, angka di konfigurasi (issue #6)** |
-| K-17 | (13 Nov, dari G-07) Bila host memilih membayar semua saat invoice: syarat minimal 3 akun (F-29/K-12) dihitung dari akun yang menambah barang ke keranjang grup, atau cukup host? | Randy + Efan | belum — rekomendasi: tetap 3 akun berbeda (OTP) yang menambah barang; host bayar hanya mengganti siapa yang melunasi |
-| K-18 | (13 Nov, dari K-14) Grup dengan total belanja < Rp100.000 (syarat K-09) memakai harga apa? | Efan | belum — rekomendasi: harga satuan individu (F-02) |
+| K-17 | (13 Nov, dari G-07) Bila host memilih membayar semua saat invoice: syarat minimal 3 akun (F-29/K-12) dihitung dari akun yang menambah barang ke keranjang grup, atau cukup host? | Randy + Efan | **DIPUTUSKAN 14 Nov: tetap minimal 3 akun berbeda yang menambah barang; host hanya memilih cara bayar; bila host membayar seluruhnya → invoice langsung disatukan dan QR code dikirim (issue #5 & #6)** |
+| K-18 | (13 Nov, dari K-14) Grup dengan total belanja < Rp100.000 (syarat K-09) memakai harga apa? | Efan | **DIPUTUSKAN 14 Nov: pakai harga satuan, tetap sarankan mencari grup; tampilkan perbandingan harga pesan grup vs sendiri (issue #6)** |
 | K-19 | (13 Nov, T-045) Staging: penyedia VPS + PostgreSQL terkelola (H3 memilih bentuk, belum penyedia) dan siapa membuat server + secret deploy (SSH deploy key, `DATABASE_URL`, kunci backup) di GitHub Environment `staging` | Joseph (+ Finance) | belum — rekomendasi: Joseph pilih penyedia region Jakarta/Singapura, buat server & secret sendiri (agen tidak pegang kredensial); agen siapkan Dockerfile, workflow deploy SSH, skrip backup |
+| K-20 | (14 Nov, dari jawaban P-11) Produk stok habis: tetap tampil dengan label "Stok habis, segera distok" (tombol beli nonaktif), atau disembunyikan seperti di backlog T-025 ("hanya produk berstok")? | Efan + Randy | belum — rekomendasi: tampil dengan label & tombol nonaktif, tidak bisa masuk keranjang/grup |
+| K-21 | (14 Nov, dari jawaban P-15) "Diskon dihitung secara keseluruhan": satu diskon atas total pesanan (lalu dibagi proporsional ke baris untuk cek modal), atau satu diskon per barang? | Efan | belum — rekomendasi: satu diskon atas total pesanan, dibagi proporsional nilai ke tiap baris untuk pagar modal |
 Catatan: tim memakai satu akun GitHub bersama (dikonfirmasi pemilik 12 Nov malam); jawaban dari akun itu sah sebagai jawaban pemilik.
 
 
@@ -144,3 +146,5 @@ Catatan 13 Nov 12.20 WIB (sesi Build): 16 jawaban dicatat dari issue #5/#6/#7 (F
 Catatan 13 Nov 14.20 WIB (sesi Tindak Lanjut): 6 jawaban dicatat dari issue #5/#6 (G-07, K-12–K-16); baru: K-17, K-18.
 
 Catatan 14 Nov 02.15 WIB (sesi Build): tidak ada jawaban baru di issue #5–#7; baru: K-19 (issue #7).
+
+Catatan 14 Nov 22.30 WIB (sesi Build): 11 jawaban dicatat dari issue #5/#6 (K-17, K-18, P-09, P-11, P-12, P-13, P-15, P-16, P-23, P-26, P-27); P-19, P-20, P-21 belum dipahami → ditulis ulang; baru: K-20, K-21.
