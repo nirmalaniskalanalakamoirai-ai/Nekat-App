@@ -24,15 +24,15 @@ Dokumen ini menetapkan **perilaku wajib**, bukan cara implementasi. Tidak ada an
 | **Anggota** | Satu akun dalam satu grup (unik per akun per grup). Punya 0..n **baris keranjang** dan satu cara kirim (antar rumah / ambil di drop point; keduanya boleh dalam satu grup, F-12). |
 | **Baris keranjang** | Produk × satuan jual (1 pcs, 3 pcs, lusin, dus, koli — yang tersedia untuk produk itu, P-03) × qty. **Tidak memotong stok** (P-08). |
 | **Akun berbarang** | Anggota dengan ≥ 1 baris keranjang qty > 0. Akun unik per nomor HP terverifikasi OTP (keputusan #3). |
-| **Syarat grup** | (a) **≥ 3 akun berbarang** (keputusan #3, K-17) **dan** (b) **total grup ≥ Rp100.000** (F-30, nilai di konfigurasi `grup.min_total`). Dasar hitung total: **menunggu Q-02** (DEFAULT SEMENTARA: Σ harga grup × qty semua baris, harga tampil termasuk PPN, sebelum diskon, tanpa biaya admin & ongkir). |
-| **Harga grup** | Untuk setiap baris: **harga level Mitra Grosir** satuan jual itu, tanpa MOQ grosir, meskipun hanya 1 pcs (K-09, K-14, K-08). Satuan jual tanpa sel Mitra Grosir: **menunggu Q-05** (DEFAULT SEMENTARA: baris itu memakai harga satuan dan diberi label "tidak dapat harga grup"). |
+| **Syarat grup** | (a) **≥ 3 akun berbarang** (keputusan #3, K-17) **dan** (b) **total grup ≥ Rp100.000** (F-30, nilai di konfigurasi `grup.min_total`). Dasar hitung total: **menunggu K-23** (DEFAULT SEMENTARA: Σ harga grup × qty semua baris, harga tampil termasuk PPN, sebelum diskon, tanpa biaya admin & ongkir). |
+| **Harga grup** | Untuk setiap baris: **harga level Mitra Grosir** satuan jual itu, tanpa MOQ grosir, meskipun hanya 1 pcs (K-09, K-14, K-08). Satuan jual tanpa sel Mitra Grosir: **menunggu K-27** (DEFAULT SEMENTARA: baris itu memakai harga satuan dan diberi label "tidak dapat harga grup"). |
 | **Harga satuan** | Harga level individu satuan jual itu (engine-harga §5). Dipakai bila syarat grup (a) terpenuhi tetapi (b) tidak (K-18), kecuali baris memenuhi MOQ grosir produk (P-05). |
 | **Invoice barang** | Tagihan barang + biaya admin satu akun (mode `SENDIRI`) atau gabungan semua akun berbarang (mode `HOST`, K-17). Terbit saat checkout grup (§5 B-04). Batas bayar **60 menit sejak terbit** (F-26, K-07, `invoice.ttl_menit`). Metode: VA / QRIS (F-01) + saldo (G-03). |
 | **Invoice ongkir** | Tagihan kedua yang memuat ongkir, terbit **setelah harga final dikunci** (K-10). Hanya untuk akun antar rumah; drop point = ongkir 0 (keputusan #4). |
 | **Pembayar** | Akun yang melunasi invoice: anggota itu sendiri (`SENDIRI`) atau host (`HOST`). Semua kredit (selisih, refund, bayar terlambat) masuk ke **akun pembayar** (G-06b). |
 | **Snapshot invoice** | Saat invoice barang terbit, tiap baris menyimpan harga per unit, jenis harga, modal, rincian PPN, dan `id_versi_harga` (K-15, P-08). Nilai ini tidak pernah berubah = **harga dibayar (D)**. |
 | **Cut-off** | Waktu penutupan slot kirim. Harga final dikunci saat cut-off (CLAUDE.md). Semua grup di slot yang sama berbagi satu cut-off (A-01). |
-| **Harga final (F)** | Harga per unit yang dikunci saat cut-off: `min(D, harga berlaku saat cut-off untuk jenis harga yang sama)` (engine-harga §5.4). Tidak pernah > D (PG-7) dan tidak pernah di bawah modal; gagal pagar → grup **DITAHAN** (P-09, P-26). |
+| **Harga final (F)** | Harga per unit yang dikunci saat cut-off: `min(D, harga berlaku saat cut-off untuk jenis harga yang sama)` (engine-harga §5.4). Tidak pernah > D (PG-7, **DEFAULT SEMENTARA P-19**) dan selalu di atas modal (margin 0 ditolak, P-16); gagal pagar → grup **DITAHAN** (P-09, P-26). |
 | **Kredit cut-off** | Selisih harga (`D − F` untuk unit teralokasi) + refund stok (unit tidak teralokasi), sebagai nilai bersih engine-harga §5.5, **dibatasi** agar nilai bersih ≥ modal (P-23); bagian yang ditahan tampil sebagai "biaya admin (penyesuaian pagar modal)". Satu entri ledger `selisih:{grup_id}:{anggota_id}` ke akun pembayar. |
 | **Saldo (= loyalty point)** | **Satu ledger** per akun (K-13, G-06a): 1 poin = Rp1, tanpa pembulatan, **tanpa masa berlaku** (G-06c), tidak pernah negatif. Bisa dipakai sebagai metode bayar dan digabung dengan VA/QRIS (G-03). Bisa dicairkan (G-06d) — alur pencairan adalah workflow terpisah (§11 R-10), tinjauan hukum H5 disarankan sebelum dibuka. Istilah UI: "Poin NEKAT (1 poin = Rp1)". |
 | **Biaya admin** | Flat Rupiah **per akun per grup** (G-05, K-06), dari konfigurasi `biaya_admin.per_akun_per_grup`; nilai **kosong** sampai diisi admin. DEFAULT SEMENTARA: kosong = tidak ada baris biaya admin (asumsi A-09). |
@@ -46,7 +46,7 @@ Dokumen ini menetapkan **perilaku wajib**, bukan cara implementasi. Tidak ada an
 |---|---|---|---|
 | A-01 | Cut-off per slot kirim (konfigurasi Operations) | fase-1-mvp fitur 5, T-006 | Job cut-off per grup |
 | A-02 | Zona grup = zona host (alamat/drop point); anggota wajib di zona yang sama | keputusan #5 | Ongkir & harga lintas zona |
-| A-03 | Pesanan grup **dibayar di muka**; COD tidak dipakai di pesanan grup (tafsiran F-01 "dilunasi di awal via VA/QRIS" & F-20 "dibayar di muka"; perlakuan COD menunggu **F-05**) | F-01, F-20 | Status COD di grup perlu dirancang |
+| A-03 | (Dipindah ke §12.1 sebagai **K-31**: COD di pesanan grup adalah keputusan bisnis, bukan asumsi) | — | — |
 | A-04 | Invoice barang hanya bisa terbit bila `sekarang + TTL ≤ cut-off`, sehingga tidak ada invoice yang hidup melewati cut-off (pengganti A-05 v0.5) | K-07, S&K §5.3 | Pelunasan bertabrakan dengan kunci harga |
 | A-06 | Waktu disimpan UTC (`timestamptz`), jadwal & tampilan WIB | ADR-0001 | Cut-off meleset 7 jam |
 | A-07 | Reservasi stok milik NEKAT, dibuat **saat invoice terbit** (bukan saat masuk keranjang, P-08) di atas snapshot lokal `InventorySource` | ADR-0001, P-08 | Dobel-jual |
@@ -93,7 +93,7 @@ stateDiagram-v2
     DIPROSES --> SELESAI: semua anggota di status akhir
     DIBUKA --> BATAL: cut-off tanpa checkout (menunggu K-11) / host atau admin membatalkan
     MENUNGGU_PELUNASAN --> BATAL: admin membatalkan
-    TERKONFIRMASI --> BATAL: admin membatalkan
+    TERKONFIRMASI --> BATAL: admin membatalkan / akun lunas < 3 setelah pembatalan (G4b, menunggu K-30)
     BATAL --> [*]
     SELESAI --> [*]
 ```
@@ -108,8 +108,9 @@ Atribut (bukan status): `host_akun_id`, `zona_id`, `slot_id`, `kode`, `cara_baya
 |---|---|---|---|---|---|---|
 | G1 | — | `BuatGrup` | Host login OTP + S&K versi terkini, dalam zona, slot punya cut-off > sekarang + TTL, akun tidak dibekukan | Buat grup + kode 6 karakter (unik), host jadi anggota pertama (belum berbarang) | DIBUKA | HOST |
 | G2 | DIBUKA | `CheckoutGrup` | Hanya host; `akun_berbarang ≥ 3` (K-17); `sekarang + TTL ≤ cut-off` (A-04); cek stok cabang sukses (F-20, H14); data modal ≤ 15 menit (P-10) | Satu transaksi (§5 B-04): kunci keranjang, tentukan `jenis_harga_grup` (GRUP bila total ≥ Rp100.000, selain itu SATUAN, K-18), snapshot baris (K-15), reservasi stok (A-07), buat invoice barang (`SENDIRI`: per akun berbarang; `HOST`: satu gabungan, K-17), debit saldo sementara bila dipakai; setelah commit panggil Xendit, QR ke host (`HOST`) atau ke tiap akun (`SENDIRI`); outbox WA-04 | MENUNGGU_PELUNASAN | HOST |
-| G3 | MENUNGGU_PELUNASAN | Invoice terakhir berstatus akhir (lunas / kedaluwarsa / dibatalkan) | Akun lunas ≥ 3 | Catat `himpunan_lunas`; anggota tak lunas sudah DIKELUARKAN (A3). Total lunas < Rp100.000 padahal `jenis_harga_grup = GRUP`: **menunggu Q-03** (DEFAULT SEMENTARA: harga grup tetap, tidak ada tagihan tambahan) | TERKONFIRMASI | GE |
+| G3 | MENUNGGU_PELUNASAN | Invoice terakhir berstatus akhir (lunas / kedaluwarsa / dibatalkan) | Akun lunas ≥ 3 | Catat `himpunan_lunas`; anggota tak lunas sudah DIKELUARKAN (A3). Total lunas < Rp100.000 padahal `jenis_harga_grup = GRUP`: **menunggu K-24** (DEFAULT SEMENTARA: harga grup tetap, tidak ada tagihan tambahan) | TERKONFIRMASI | GE |
 | G4 | MENUNGGU_PELUNASAN | sama dengan G3 | Akun lunas < 3 | Satu transaksi: semua anggota LUNAS → BATAL → DIREFUND (`refund:{anggota_id}` ke pembayar); lepas semua reservasi; `alasan_batal = KURANG_AKUN_LUNAS`; outbox WA-08 (K-12, F-29) | BATAL | GE |
+| G4b | TERKONFIRMASI | Anggota lunas membatalkan (A13) / akun dibekukan | Akun lunas < 3 (dihitung ulang di dalam kunci) | Seperti G4 (`alasan_batal = KURANG_AKUN_LUNAS`) | BATAL | GE |
 | G5 | TERKONFIRMASI | `CutOffTiba` → §6 | Stok terkonfirmasi, harga cut-off tersedia, pagar lolos untuk semua baris teralokasi > 0, `himpunan_lunas` tidak berubah | Satu transaksi: alokasi, harga final, kredit cut-off ke pembayar, outbox `picking:{grup_id}` + WA-07; lalu GE meminta ONG ongkir dan menerbitkan invoice ongkir (§5 B-08) | HARGA_TERKUNCI | JOB |
 | G6 | TERKONFIRMASI | §6 gagal | Pagar modal gagal untuk baris mana pun dengan alokasi > 0 (P-09, P-26), atau INV/PE tidak tersedia setelah retry, atau data modal > 15 menit (P-10) | Tidak ada kredit/refund/picking; `GrupDitahan` + alert admin; WA-09 | DITAHAN | JOB |
 | G7 | DITAHAN | Admin "Lanjutkan" | Guard G5 dijalankan ulang atas input terkoreksi; engine tidak punya override di bawah modal | Seperti G5 | HARGA_TERKUNCI | ADM |
@@ -135,7 +136,8 @@ stateDiagram-v2
     BERGABUNG --> TANPA_PESANAN: invoice terbit (akun tanpa barang)
     MENUNGGU_BAYAR --> LUNAS: webhook PAID dalam TTL
     MENUNGGU_BAYAR --> DIKELUARKAN: TTL 60 menit habis / invoice dibatalkan karena stok (K-12, P-08)
-    LUNAS --> BATAL: grup batal (lunas < 3, admin, DITAHAN dibatalkan)
+    LUNAS --> BATAL: grup batal (lunas < 3, admin, DITAHAN dibatalkan) / batal mandiri sebelum cut-off (A13, menunggu K-30)
+    MENUNGGU_BAYAR --> KELUAR: batal mandiri sebelum bayar (menunggu K-30)
     LUNAS --> TERKUNCI: cut-off, harga final dikunci
     TERKUNCI --> DIPROSES: picking diterima
     TERKUNCI --> BATAL: alokasi 0 semua baris
@@ -163,16 +165,21 @@ Atribut anggota: `cara_kirim` (ANTAR / DROP_POINT), `id_alamat` / `id_drop_point
 | A2 | BERGABUNG | Ubah keranjang / keluar | Grup DIBUKA (dicek di dalam kunci grup) | Simpan baris (tanpa reservasi stok, P-08; stok snapshot hanya informasi) / KELUAR. Host tidak bisa KELUAR; host membatalkan grup (G10) | BERGABUNG / KELUAR | USR |
 | A3 | MENUNGGU_BAYAR | Job TTL `ttl:{invoice_id}` (sejak terbit + 60 menit) atau `PembayaranKedaluwarsa` | Belum LUNAS di dalam kunci | Satu transaksi: anggota (semua anggota invoice itu bila `HOST`) → DIKELUARKAN; lepas reservasi; `saldo-balik:{invoice_id}`; evaluasi G3/G4 bila ini invoice terakhir; outbox WA-03 (K-12) | DIKELUARKAN | JOB / PAY |
 | A4 | MENUNGGU_BAYAR | Webhook PAID (dikonfirmasi GET Xendit) | Satu transaksi insert `webhook_event` + proses; di dalam kunci grup: anggota MENUNGGU_BAYAR, invoice tidak `dibatalkan`, debit saldo sementara masih aktif, nominal cocok, `waktu_bayar` ≤ terbit + TTL (F-11) | LUNAS; evaluasi G3/G4 bila invoice terakhir; outbox WA-02 | LUNAS | PAY |
-| A5 | MENUNGGU_BAYAR | Stok habis sebelum lunas (INV menurunkan stok di bawah reservasi) | — | Invoice akun itu dibatalkan (P-08), sama seperti A3 dengan `alasan_batal = STOK_HABIS`; WA-03b menyebut barangnya. Batal seluruh invoice atau hanya baris: **menunggu Q-07** (DEFAULT SEMENTARA: seluruh invoice akun itu, sesuai teks P-08) | DIKELUARKAN | GE |
+| A5 | MENUNGGU_BAYAR | Stok habis sebelum lunas (INV menurunkan stok di bawah reservasi) | — | Invoice akun itu dibatalkan (P-08), sama seperti A3 dengan `alasan_batal = STOK_HABIS`; WA-03b menyebut barangnya. Batal seluruh invoice atau hanya baris: **menunggu K-29** (DEFAULT SEMENTARA: seluruh invoice akun itu, sesuai teks P-08) | DIKELUARKAN | GE |
 | A6 | LUNAS | Grup → BATAL (G4/G8/G11) | — | Ledger `refund:{anggota_id}` ke pembayar langsung di transaksi yang sama, kecuali `dana_ditahan` → DANA_DITAHAN | BATAL → DIREFUND | GE / ADM |
 | A7 | LUNAS | Cut-off G5/G7 | Dijamin guard G5 | Tulis `harga_final`, `qty_teralokasi` per baris; kredit cut-off ke pembayar | TERKUNCI | JOB |
 | A8 | TERKUNCI | Semua baris alokasi 0 | — | Kredit cut-off = seluruh nilai bersih (refund stok); WA-11 | BATAL → DIREFUND | JOB |
 | A9 | DIKELUARKAN / BATAL / grup ≥ TERKONFIRMASI | Webhook PAID terlambat | A4 tidak lolos | Ledger `bayar_terlambat:{pembayaran_id}` sebesar **seluruh** nominal ke pembayar (akun dibekukan → DANA_DITAHAN); tidak menghidupkan anggota, tidak menghitung ulang grup; WA-15 | (tetap) | PAY |
 | A10 | BATAL / DIKELUARKAN | Akun dibekukan (B-13) dengan dana masuk | — | Tanpa kredit, `dana_ditahan = true`, tugas review admin | DANA_DITAHAN | ADM |
 | A11 | DANA_DITAHAN | Admin melepas | Alasan tercatat di log admin (admin login TOTP, H9) | Ledger `refund:{anggota_id}` / `bayar_terlambat:{pembayaran_id}`; keputusan lain menunggu F-10 | DIREFUND | ADM |
+| A13 | LUNAS | Anggota (atau host, mode `HOST`) "Batalkan" | Sebelum cut-off, grup ∈ {MENUNGGU_PELUNASAN, TERKONFIRMASI} (dicek di dalam kunci) — **DEFAULT SEMENTARA, menunggu K-30** | Satu transaksi (grup → stok SKU → anggota → invoice → akun_saldo): `refund:{anggota_id}` ke pembayar; lepas reservasi; hitung ulang akun lunas → G4/G4b bila < 3; WA-10 | BATAL → DIREFUND | USR |
 | A12 | DIPROSES → … → DITERIMA | Kurir / drop point | sesuai `cara_kirim` | WA-12/13/14 | DIKIRIM / SIAP_DIAMBIL / DITERIMA | ADM / kurir |
 
-Pembatalan mandiri oleh anggota **setelah** invoice terbit: **menunggu F-07**. DEFAULT SEMENTARA: tidak tersedia di aplikasi (tidak membayar = dikeluarkan otomatis, A3); setelah LUNAS hanya lewat CS untuk kesalahan NEKAT (S&K §7.2). Alasan: pembatalan setelah lunas bisa menjatuhkan grup di bawah 3 akun lunas dan membatalkan grup orang lain (sama dengan risiko yang dimitigasi K-12).
+Pembatalan mandiri oleh anggota (**menunggu K-30**; DEFAULT SEMENTARA = default v0.5, selaras S&K §7.1): boleh **sebelum cut-off**.
+- MENUNGGU_BAYAR → invoice dibatalkan (di luar transaksi, setelah commit), anggota KELUAR, lepas reservasi, `saldo-balik:{invoice_id}`; PAID sesudahnya → A9. Mode `HOST`: hanya host yang bisa membatalkan invoice gabungan (semua anggota invoice itu ikut keluar).
+- LUNAS → **A13**: dana penuh ke saldo **pembayar** (`refund:{anggota_id}`), lepas reservasi, syarat grup dihitung ulang; akun lunas < 3 → grup BATAL (G4 / G4b). Mode `HOST`: anggota non-host boleh membatalkan bagiannya; refund ke host.
+- Setelah cut-off: tidak ada tombol batal; hanya CS untuk kesalahan NEKAT (S&K §7.2).
+- Catatan risiko untuk K-30: satu akun lunas yang membatalkan bisa menjatuhkan grup di bawah 3 akun lunas dan membatalkan grup orang lain (pola griefing yang dimitigasi K-12).
 
 ---
 
@@ -188,13 +195,14 @@ Format: langkah bernomor; `⟂` = cabang gagal.
 
 ### B-02 Gabung lewat link `/g/XXXXXX`
 1. Aplikasi native terpasang → halaman grup; belum → halaman install lalu kembali ke grup yang sama (deferred deep link, Fase 5/H11); PWA → halaman grup di browser + ajakan "Tambah ke layar utama".
-2. `resolveKode`. ⟂ Kode tidak ada → "Link grup tidak ditemukan" tanpa info lain.
+2. `resolveKode` dengan **rate limit per IP dan per akun** (anti enumerasi kode). ⟂ Kode tidak ada → "Link grup tidak ditemukan" tanpa info lain.
+   Pengunjung **belum login** hanya melihat nama grup, jam tutup, dan jumlah akun; **tidak** melihat detail zona, drop point, atau daftar anggota. Detail tampil setelah login dan lokasi cocok.
 3. Grup ≠ DIBUKA → "Grup ini sudah ditutup / sedang dibayar" + tombol "Buat grup baru". Anggota grup itu melihat status pesanannya.
 4. Zona pengguna ≠ zona grup → B-12. Belum login → B-03.
 5. A1 → BERGABUNG. Nama anggota lain tampil disamarkan ("Bu S***", Kebijakan Privasi §3); tanpa nomor HP/alamat. Parameter `ref` opsional harus opaque (F-22).
 
 ### B-03 Login OTP & persetujuan S&K
-1. Niat (kode grup / buat grup) disimpan di sesi lokal → nomor HP → OTP WhatsApp (ADR §4.3: sekali pakai, kedaluwarsa, batas percobaan, rate limit per nomor & IP; respons tidak membedakan nomor terdaftar). ⟂ WA mati → §7 M-05.
+1. Niat (kode grup / buat grup) disimpan di sesi lokal → nomor HP → OTP WhatsApp (ADR §4.3: sekali pakai, kedaluwarsa, **batas percobaan salah per kode dan per nomor per hari yang tidak di-reset oleh kirim ulang** (CWE-307), rate limit kirim per nomor & per IP, anggaran biaya kirim global; respons tidak membedakan nomor terdaftar/belum). ⟂ WA mati → §7 M-05.
 2. Akun dibekukan → "Akun tidak dapat ikut grup, hubungi CS".
 3. S&K + Kebijakan Privasi versi terkini wajib dicentang; promo opsional. Versi berubah: **menunggu F-23** (DEFAULT SEMENTARA: persetujuan ulang wajib sebelum gabung berikutnya). ⟂ Tidak setuju → tidak bisa gabung; katalog tetap bisa dilihat.
 4. Kembali ke niat; guard dicek ulang.
@@ -202,23 +210,23 @@ Format: langkah bernomor; `⟂` = cabang gagal.
 ### B-04 Mengisi keranjang grup (grup DIBUKA)
 1. Anggota menambah produk × satuan jual × qty. Tidak ada reservasi stok (P-08); qty > stok snapshot → peringatan "Stok tersisa N" (informasi, belum mengikat).
 2. Tidak ada batas qty per akun (F-06).
-3. Setiap baris menampilkan **perbandingan "Harga grup vs sendiri"** (K-18): harga grup (Mitra Grosir) dan harga satuan per satuan jual, dari `tampilanHarga` engine harga (harga kartu = detail = halaman grup, PG-6; promo tampil terpisah). Info harga Mitra drop point tidak tampil di kartu/detail (P-28); di halaman grup hanya sebagai harga grup yang berlaku untuk semua cara kirim.
+3. Setiap baris menampilkan **perbandingan "Harga grup vs sendiri"** (K-18; tampilan harga Mitra Grosir sebagai "Harga Belanja Bareng" di kartu/detail **menunggu K-38**, P-28 vs K-14): harga grup (Mitra Grosir) dan harga satuan per satuan jual, dari `tampilanHarga` engine harga (harga kartu = detail = halaman grup, PG-6; promo tampil terpisah). Info harga Mitra drop point tidak tampil di kartu/detail (P-28); di halaman grup hanya sebagai harga grup yang berlaku untuk semua cara kirim.
 4. Kalimat ajakan: "Kurang {n} akun lagi" (akun berbarang < 3); "Kurang Rp{x} lagi agar harga grup berlaku" (total < Rp100.000); keduanya terpenuhi → "Harga grup berlaku · checkout sebelum {jam}".
 5. Anggota boleh mengubah/menghapus baris dan keluar grup selama DIBUKA (A2).
 6. Pengingat ke host & anggota berbarang menjelang batas checkout (`cut_off − TTL`): WA-05, batas frekuensi **menunggu F-17**.
 
 ### B-05 Checkout grup & penerbitan invoice (G2)
-Pemicu: **menunggu Q-01** (DEFAULT SEMENTARA: host menekan "Checkout grup"; tombol aktif bila akun berbarang ≥ 3 dan `sekarang + TTL ≤ cut-off`; tidak ada penerbitan otomatis).
+Pemicu: **menunggu K-22** (DEFAULT SEMENTARA: host menekan "Checkout grup"; tombol aktif bila akun berbarang ≥ 3 dan `sekarang + TTL ≤ cut-off`; tidak ada penerbitan otomatis).
 1. Host memilih **cara bayar** (G-07, K-17): "Masing-masing bayar" (`SENDIRI`, bawaan) atau "Saya bayar semua" (`HOST`). Syarat 3 akun tetap dihitung dari akun berbarang, bukan dari pembayar (K-17).
 2. FE menampilkan ringkasan per akun: baris, harga per baris, jenis harga, potongan, rincian PPN, biaya admin per akun (K-06), catatan "Ongkir ditagih terpisah setelah harga final" (K-10).
 3. Di luar transaksi: GE meminta INV cek stok cabang penerima (F-20) untuk semua baris. ⟂ Gudang tak terjangkau → **tahan checkout** (H14, T-009 §6): "Stok sedang dicek, coba lagi sebentar", tidak ada invoice. ⟂ Data modal > 15 menit (P-10) → sama.
 4. ⟂ Stok kurang untuk baris tertentu → checkout ditolak dengan daftar baris kurang; anggota terkait diberi tahu (WA-03b) dan host bisa mencoba lagi setelah keranjang disesuaikan (P-08: barang di keranjang tidak memotong stok).
 5. Satu transaksi (kunci grup → stok SKU → anggota → invoice → akun_saldo), guard G2 dicek ulang di dalam kunci:
    1. Kunci keranjang (grup → MENUNGGU_PELUNASAN). Anggota tanpa barang → TANPA_PESANAN.
-   2. `jenis_harga_grup` = GRUP bila total grup ≥ Rp100.000 (dasar hitung Q-02), selain itu SATUAN (K-18). Baris yang memenuhi MOQ grosir produk tetap mendapat harga Mitra Grosir walau SATUAN (P-05).
+   2. `jenis_harga_grup` = GRUP bila total grup ≥ Rp100.000 (dasar hitung K-23), selain itu SATUAN (K-18). Baris yang memenuhi MOQ grosir produk tetap mendapat harga Mitra Grosir walau SATUAN (P-05).
    3. PE `hargaInvoice` per baris → snapshot D, modal, PPN, `id_versi_harga` (K-15). Pagar PG-1/PG-2 dan batas bawah promo (engine-harga §4) dicek; satu diskon per invoice, tidak menumpuk (P-15; arti "keseluruhan" **menunggu K-21**).
    4. Reservasi stok per baris (A-07).
-   5. Invoice barang: `SENDIRI` → satu per akun berbarang; `HOST` → satu gabungan atas nama host berisi semua akun (K-17). Biaya admin = biaya per akun × jumlah akun yang ditagih. Pemakaian saldo pembayar: debit sementara `debit:{invoice_id}` (G-03).
+   5. Invoice barang: `SENDIRI` → satu per akun berbarang; `HOST` → satu gabungan atas nama host berisi semua akun (K-17); rincian per anggota di invoice/QR/nota host hanya memakai **nama samaran**, tanpa alamat atau nomor HP anggota (CWE-359). Biaya admin = biaya per akun × jumlah akun yang ditagih. Pemakaian saldo pembayar: debit sementara `debit:{invoice_id}` (G-03).
    6. Anggota berbarang → MENUNGGU_BAYAR; `invoice_terbit_pada` = sekarang; job `ttl:{invoice_id}` dijadwalkan terbit + 60 menit (K-07).
 6. Setelah commit: PAY membuat invoice Xendit (`external_id` = `pembayaran_id`, kedaluwarsa = terbit + 60 menit). `HOST`: QR/VA dikirim ke host (K-17); `SENDIRI`: ke tiap akun. Timeout Xendit → cek ulang dengan `external_id` sama (M-06). Saldo menutup seluruh tagihan → langsung LUNAS tanpa Xendit.
 7. WA-04 ke semua anggota berbarang: "Grup {nama} checkout · bayar sebelum {jam}" (`HOST`: anggota non-host diberi tahu bahwa host yang membayar).
@@ -240,8 +248,8 @@ Pemicu: **menunggu Q-01** (DEFAULT SEMENTARA: host menekan "Checkout grup"; tomb
 1. Setelah HARGA_TERKUNCI, GE meminta ONG ongkir jadi per pengiriman (akun antar rumah). Drop point → ongkir 0, tidak ada invoice ongkir.
 2. PE mengevaluasi gratis ongkir: minimal belanja dihitung **sesudah diskon** (P-13); subsidi dialokasikan ke baris (**menunggu P-20**, DEFAULT SEMENTARA: proporsional nilai bersih); pagar batas bawah promo per baris (K-16).
 3. ⟂ Gratis ongkir gagal pagar → pesanan **tidak dibatalkan** (P-27): tampilkan "Gratis ongkir tidak memenuhi syarat", alasannya, dan jalan keluar yang bisa dipilih (mis. ambil di drop point = ongkir 0, atau bayar ongkir normal).
-4. Invoice ongkir terbit (mode bayar sama dengan invoice barang; `HOST` → ke host), TTL 60 menit (F-26), bisa dipotong saldo.
-5. ⟂ Invoice ongkir tidak lunas dalam TTL: **menunggu Q-04** (DEFAULT SEMENTARA: pengiriman akun itu dialihkan ke ambil di drop point zona, ongkir 0, WA-13b; barang tetap disiapkan). Tidak memengaruhi status grup atau harga anggota lain.
+4. Invoice ongkir terbit sebagai **tagihan kedua** (mode bayar sama dengan invoice barang; `HOST` → ke host, rincian per anggota hanya nama samaran tanpa alamat/HP, CWE-359), TTL 60 menit (F-26), bisa dipotong saldo.
+5. ⟂ Invoice ongkir tidak lunas dalam TTL: **menunggu K-25** (DEFAULT SEMENTARA: pengiriman akun itu dialihkan ke ambil di drop point zona, ongkir 0, WA-13b; barang tetap disiapkan). Tidak memengaruhi status grup atau harga anggota lain.
 6. Picking (`picking:{grup_id}`) tidak menunggu invoice ongkir; hanya cara kirim per akun yang bisa berubah.
 
 ### B-09 Stok kurang saat cut-off (alokasi parsial, F-09)
@@ -253,14 +261,15 @@ Pemicu: **menunggu Q-01** (DEFAULT SEMENTARA: host menekan "Checkout grup"; tomb
 ### B-10 Refund & kredit (semua jalur)
 1. Sumber: grup BATAL (G4/G8/G11), alokasi 0/parsial (kredit cut-off), PAID terlambat (A9), ongkir (`refund_ongkir:{invoice_ongkir_id}` bila pengiriman batal setelah ongkir dibayar), keluhan barang (**menunggu F-24**).
 2. Tujuan: **selalu saldo** (= loyalty point) **akun pembayar** (K-13, G-03, G-06b). Tidak ada refund ke metode asal; pencairan saldo adalah workflow terpisah (G-06d, H5).
-3. Nominal = nilai bersih yang benar-benar dibayar untuk baris itu (engine-harga §5.5). Biaya admin akun ikut dikembalikan bila grup batal sebelum kunci harga (**menunggu Q-08**, DEFAULT SEMENTARA: ya).
+3. Nominal = nilai bersih yang benar-benar dibayar untuk baris itu (engine-harga §5.5). Biaya admin akun ikut dikembalikan bila grup batal sebelum kunci harga (**menunggu K-26**, DEFAULT SEMENTARA: ya).
 4. Ledger ditulis **langsung** di transaksi yang mengubah status; entri ganda ditolak constraint unik dan dianggap sukses. Gagal tulis ledger = rollback seluruh transaksi.
 5. Akun pembayar dibekukan → tidak ada kredit; DANA_DITAHAN sampai admin memutuskan (F-10).
 
 ### B-11 Webhook ganda / tidak berurutan
-1. Verifikasi callback token; PAID dikonfirmasi GET status ke Xendit sebelum transaksi (ADR §4.2). ⟂ Token salah → 401, log keamanan.
-2. Satu transaksi: insert `webhook_event` (`UNIQUE(gateway, external_id, status)`) + proses. Duplikat → 200 tanpa efek.
-3. PAID untuk yang sudah LUNAS → no-op. EXPIRED setelah PAID → diabaikan. PAID tak dikenal → "yatim" + alert. Nominal ≠ invoice → tetap MENUNGGU_BAYAR + alert.
+1. Verifikasi callback token dengan **perbandingan constant-time**. ⟂ Token salah → 401, tidak ada efek, log keamanan.
+2. PAID dikonfirmasi lewat GET status ke Xendit **sebelum** transaksi dibuka (ADR §4.2). ⟂ GET gagal → 5xx agar Xendit mengulang.
+3. Satu transaksi: insert `webhook_event` (`UNIQUE(gateway, external_id, status)`) + proses. Duplikat → 200 tanpa efek. Error lain → rollback + 5xx (tidak ada event "tercatat tapi tidak diproses").
+4. PAID untuk yang sudah LUNAS → no-op. EXPIRED setelah PAID → diabaikan. PAID tak dikenal → "yatim" + alert. Nominal ≠ invoice → tetap MENUNGGU_BAYAR + alert.
 
 ### B-12 Pengguna di luar zona
 1. Di luar semua zona → "Maaf, NEKAT belum melayani lokasimu" (daftar tunggu **menunggu F-18**); katalog boleh dilihat.
@@ -343,9 +352,10 @@ Semua event membawa `id_event`, `waktu` (ISO-8601 dengan offset), `versi_skema`,
 
 ### 8.1 Aturan kepercayaan input (wajib)
 - `akun_id` **selalu** dari sesi; `id_akun` di body diabaikan/400 (CWE-639). Saldo yang didebit selalu saldo akun sesi (host pada mode `HOST`).
-- Zona diturunkan server dari alamat/drop point milik akun sesi.
+- Zona diturunkan server: `id_alamat` **harus milik akun sesi**; `id_drop_point` harus ada, **aktif**, dan berada di **zona grup** → selain itu 403 `LUAR_ZONA` / 422.
+- Dokumen untuk host (invoice gabungan, invoice ongkir, nota) hanya memuat nama samaran anggota, tanpa alamat/nomor HP (CWE-359).
 - Harga, diskon, PPN, biaya admin, ongkir, nominal tidak pernah dari klien.
-- Hanya host yang bisa checkout & memilih cara bayar; anggota hanya bisa mengubah baris miliknya. Akses lintas akun/grup → 404.
+- Hanya host yang bisa checkout & memilih cara bayar; anggota hanya bisa mengubah baris miliknya. Akses lintas akun/grup → 404. Tes API (T-044) **wajib** mencoba akses lintas akun dan lintas grup dan memastikan ditolak (CWE-639).
 
 ---
 
@@ -384,7 +394,7 @@ Template final & batas frekuensi di T-010 (**menunggu F-17**).
 | WA-09 | G6 | anggota | "Pesanan sedang kami periksa" |
 | WA-10 | G8/G10/G11 | anggota | "Grup dibatalkan · Rp{n} masuk Poin NEKAT" |
 | WA-11 | B-09 / A8 | pembayar + anggota | "{n} dari {q} tidak tersedia · {poin} poin masuk" |
-| WA-12/13/13b/14 | pengiriman | anggota | Diantar / siap diambil / dialihkan ke drop point (Q-04) / diterima |
+| WA-12/13/13b/14 | pengiriman | anggota | Diantar / siap diambil / dialihkan ke drop point (K-25) / diterima |
 | WA-15 | A9 | pembayar | "Pembayaran masuk setelah batas waktu · Rp{n} masuk Poin NEKAT" |
 
 Pesan promo hanya untuk akun yang mencentang persetujuan promo.
@@ -407,12 +417,12 @@ Data uji tanpa harga asli: pakai nilai simbolik (`Hg` = harga grup/Mitra Grosir,
 | TC-GO-08 | Invoice terbit `tI`; akun A lunas `tI + 59 menit`; akun B belum bayar | A LUNAS; B DIKELUARKAN pada `tI + 60 menit` (K-07, K-12) |
 | TC-GO-09 | 4 akun, 1 tidak lunas | Akun itu DIKELUARKAN; 3 lunas → TERKONFIRMASI |
 | TC-GO-10 | 3 akun, 1 tidak lunas | Grup BATAL `KURANG_AKUN_LUNAS`; 2 akun lunas DIREFUND penuh ke saldo masing-masing; riwayat "batal" (F-29) |
-| TC-GO-11 | Mode `HOST`, host tidak bayar 60 menit | Semua akun DIKELUARKAN; grup BATAL; tidak ada ledger |
+| TC-GO-11 | Mode `HOST`, host tidak bayar 60 menit | Semua akun DIKELUARKAN; grup BATAL; tidak ada kredit; bila host memakai saldo, debit sementara dikembalikan tepat sekali (`saldo-balik:{invoice_id}`) |
 | TC-GO-12 | Mode `HOST`, lunas, cut-off, harga turun | Kredit cut-off semua akun masuk ke **saldo host** (G-06b) |
 | TC-GO-13 | Tiap akun bayar sebagian dengan saldo + QRIS | `debit:{invoice_id}` + invoice sisa; kedaluwarsa → `saldo-balik:{invoice_id}` |
 | TC-GO-14 | Saldo menutup seluruh tagihan | LUNAS tanpa Xendit |
 | TC-GO-15 | PAID dengan `waktu_bayar` > `tI + 60` | A9: seluruh nominal ke saldo pembayar, `bayar_terlambat:{pembayaran_id}`; anggota tetap DIKELUARKAN |
-| TC-GO-16 | 4 akun lunas sisa 3 akun dengan total lunas < Rp100.000 | DEFAULT SEMENTARA Q-03: TERKONFIRMASI, harga grup tetap, tidak ada tagihan tambahan |
+| TC-GO-16 | 4 akun lunas sisa 3 akun dengan total lunas < Rp100.000 | DEFAULT SEMENTARA K-24: TERKONFIRMASI, harga grup tetap, tidak ada tagihan tambahan |
 | TC-GO-17 | Barang hanya di keranjang, stok snapshot turun ke 0 | Tidak ada efek ke grup sebelum checkout (P-08); peringatan stok di keranjang |
 | TC-GO-18 | Checkout, stok kurang untuk satu baris | 422 `STOK_KURANG` + daftar baris; tidak ada invoice |
 | TC-GO-19 | Setelah invoice terbit, stok Gudang turun di bawah reservasi akun A sebelum A bayar | Invoice A dibatalkan (P-08), A DIKELUARKAN `STOK_HABIS`, WA-03b; grup dievaluasi |
@@ -433,7 +443,7 @@ Data uji tanpa harga asli: pakai nilai simbolik (`Hg` = harga grup/Mitra Grosir,
 | TC-GO-34 | Setelah HARGA_TERKUNCI, akun antar rumah | Invoice ongkir terbit terpisah, TTL 60 menit (K-10); akun drop point tanpa invoice ongkir |
 | TC-GO-35 | Gratis ongkir: minimal belanja dibanding nilai sesudah diskon | Berlaku/tidak sesuai nilai sesudah diskon (P-13) |
 | TC-GO-36 | Gratis ongkir gagal batas bawah modal × faktor (K-16) | Pesanan lanjut; teks "tidak memenuhi syarat" + alasan + jalan keluar; ongkir normal ditagih (P-27) |
-| TC-GO-37 | Invoice ongkir tidak lunas 60 menit | DEFAULT SEMENTARA Q-04: dialihkan ke drop point, WA-13b; harga & anggota lain tidak berubah |
+| TC-GO-37 | Invoice ongkir tidak lunas 60 menit | DEFAULT SEMENTARA K-25: dialihkan ke drop point, WA-13b; harga & anggota lain tidak berubah |
 | TC-GO-38 | Dua diskon berlaku untuk satu invoice | Hanya satu diskon dipakai (P-15) |
 | TC-GO-39 | Biaya admin konfigurasi kosong | Tidak ada baris biaya admin (A-09) |
 | TC-GO-40 | Produk bebas PPN dan kena PPN dalam satu invoice | Rincian PPN hanya untuk baris kena PPN; harga tampil sudah termasuk PPN (G-04) |
@@ -443,13 +453,21 @@ Data uji tanpa harga asli: pakai nilai simbolik (`Hg` = harga grup/Mitra Grosir,
 | TC-GO-44 | Bukan host memanggil checkout | 403 `BUKAN_HOST` |
 | TC-GO-45 | `POST checkout` dengan `id_akun` akun lain / nominal di body | Diabaikan/400; harga dihitung server |
 | TC-GO-46 | Akun A membuka keranjang milik akun B | 404 |
-| TC-GO-47 | Harga kartu vs detail vs halaman grup | Identik; promo terpisah (PG-6); harga Mitra drop point tidak tampil di kartu/detail (P-28) |
+| TC-GO-47 | Harga kartu vs detail vs halaman grup | Identik; promo terpisah (PG-6); harga Mitra Grosir sebagai "Harga Belanja Bareng" di kartu: **menunggu K-38** (P-28 vs K-14) |
 | TC-GO-48 | Akun pembayar dibekukan sebelum kunci harga | Anggota DANA_DITAHAN tanpa ledger; syarat grup dihitung ulang |
 | TC-GO-49 | Akun dibekukan setelah HARGA_TERKUNCI | Flag `dana_ditahan`; tidak ada entri `selisih`; status kirim tidak berubah |
 | TC-GO-50 | Penulisan ledger gagal di transaksi kunci harga | Rollback penuh; run ulang mengkredit tepat sekali |
 | TC-GO-51 | Produk rokok/bir ditambahkan ke keranjang | Ditolak `PRODUK_TIDAK_TAYANG` |
 | TC-GO-52 | Saldo hasil kredit tidak berkurang setelah waktu lama | Tidak ada kedaluwarsa poin (G-06c) |
 | TC-GO-53 | Event & kolom waktu | UTC tersimpan, ISO-8601 dengan offset, tampilan WIB |
+| TC-GO-54 | 4 akun lunas, satu membatalkan sebelum cut-off (DEFAULT SEMENTARA K-30) | `refund:{anggota_id}` penuh ke saldo pembayar; grup tetap TERKONFIRMASI |
+| TC-GO-55 | 3 akun lunas, satu membatalkan sebelum cut-off | G4b: grup BATAL; dua akun lain DIREFUND; WA-10 |
+| TC-GO-56 | Batal setelah cut-off | Ditolak; hanya kanal CS |
+| TC-GO-57 | `POST gabung` dengan `id_alamat` akun lain / `id_drop_point` nonaktif atau di zona lain | 403 `LUAR_ZONA` / 422; tidak ada anggota |
+| TC-GO-58 | Invoice gabungan & invoice ongkir mode `HOST` | Hanya nama samaran anggota; tidak ada alamat/HP |
+| TC-GO-59 | Webhook token salah / GET Xendit gagal | 401 tanpa efek / 5xx tanpa efek, Xendit mengulang |
+| TC-GO-60 | `/g/{kode}` acak berulang dari satu IP; pengunjung belum login | Rate limit; tanpa login tidak ada detail zona, drop point, atau anggota |
+| TC-GO-61 | OTP salah berkali-kali lalu kirim ulang | Hitungan percobaan per nomor per hari tidak di-reset (CWE-307) |
 
 ---
 
@@ -467,7 +485,7 @@ Data uji tanpa harga asli: pakai nilai simbolik (`Hg` = harga grup/Mitra Grosir,
 | R-08 | Backlog T-022–T-024, T-027/T-028 masih berbunyi "grup per produk × zona × slot" dan "tier 6+/12+" | backlog | Judul/isi task diselaraskan PM (bukan di T-047) |
 | R-09 | ADR-0001 §4.1/§9 H14 masih menulis default "jual snapshot", §5.1 menulis pembulatan ke atas (H6), §9 H5 "saldo tidak bisa dicairkan" | ADR-0001 | Di luar cakupan T-047 (hanya H9); usul task lanjutan |
 | R-10 | Workflow **pencairan saldo** (G-06d) belum punya spesifikasi | — | Status registry: **Missing**; spesifikasi terpisah setelah tinjauan hukum H5 |
-| R-11 | Workflow invoice ongkir tak lunas, keluhan barang (F-24), barang drop point tak diambil (F-28) belum punya status akhir lengkap | — | Q-04, F-24, F-28 |
+| R-11 | Workflow invoice ongkir tak lunas, keluhan barang (F-24), barang drop point tak diambil (F-28) belum punya status akhir lengkap | — | K-25, F-24, F-28 |
 
 ---
 
@@ -482,11 +500,11 @@ DEFAULT SEMENTARA = asumsi kerja agar developer & QA bisa jalan, dibangun sebaga
 | K-11 | Grup gagal (< 3 akun): harga satuan atau dibatalkan; default bila diam | **Dibatalkan**, dana (bila ada) ke saldo = rekomendasi K-11. Dalam model v0.6: tombol checkout nonaktif bila < 3 akun berbarang; grup DIBUKA saat cut-off → BATAL (G9) |
 | K-20 | Produk stok habis: tampil berlabel atau disembunyikan | Tampil "Stok habis, segera distok", tombol beli nonaktif, tidak bisa masuk keranjang/grup |
 | K-21 | Arti "diskon dihitung secara keseluruhan" | Satu diskon atas total invoice, dibagi proporsional nilai ke baris untuk pagar modal (engine-harga §6) |
-| P-19 | Siapa menanggung bila harga cut-off > D tetapi ≥ modal | Tidak ada tagihan tambahan (F ≤ D) |
+| P-19 | Siapa menanggung bila harga cut-off > D tetapi ≥ modal | Tidak ada tagihan tambahan (`F ≤ D`). Bila P-19 diputuskan lain, PG-7, constraint `harga_final <= harga_dibayar`, dan TC-HE-27/TC-HE-47 di engine-harga ikut berubah |
 | P-20 | Alokasi subsidi gratis ongkir ke baris | Proporsional nilai bersih, metode sisa terbesar |
 | P-21 | Tier grup opsional per produk | Tidak ada tier grup terpisah (K-14: harga grup = Mitra Grosir); lihat engine-harga §11 |
-| F-05 | Perlakuan COD di grup | COD tidak dipakai di pesanan grup (A-03) |
-| F-07 | Pembatalan setelah invoice/lunas | Tidak tersedia di aplikasi; hanya CS (§4.1) |
+| K-31 (dari F-05) | COD di pesanan grup | **DEFAULT SEMENTARA, berubah dari v0.5, menunggu K-31**: COD tidak dipakai di pesanan grup (tafsiran F-01 "dilunasi di awal via VA/QRIS" & F-20 "dibayar di muka"); v0.5 mengizinkan peserta COD. Bila K-31 mengizinkan COD, status COD & hitungan akun lunas perlu dirancang |
+| K-30 (dari F-07) | Pembatalan mandiri setelah invoice/lunas | Default v0.5: boleh sebelum cut-off, dana penuh ke saldo pembayar, hitung ulang ≥ 3 akun (bisa memicu G4/G4b), selaras S&K §7.1; risiko griefing dicatat di §4.1 |
 | F-10 | Dana akun curang; kirim barang setelah dibekukan? | Dana ditahan; barang tetap dikirim |
 | F-13 | Batas waktu grup DITAHAN | Sebelum picking slot → BATAL + refund saldo |
 | F-15, F-17, F-18, F-19, F-22, F-23, F-24, F-25, F-28 | Istilah, frekuensi WA, daftar tunggu, zona lain, atribusi, versi S&K, keluhan, ganti alamat, barang tak diambil | Seperti v0.5 (disesuaikan ke model keranjang); lihat teks cabang terkait |
@@ -494,15 +512,15 @@ DEFAULT SEMENTARA = asumsi kerja agar developer & QA bisa jalan, dibangun sebaga
 
 F-14 (satu grup per produk × zona × slot), F-16 (produk sama di slot berbeda), dan F-27 (jalur beli biasa) **tidak relevan lagi** sebagai pertanyaan flow grup setelah G-01; F-27 tetap terbuka untuk pembelian di luar grup (di luar dokumen ini).
 
-### 12.2 Butir baru (diusulkan ditambahkan ke `keputusan-terbuka.md`)
+### 12.2 Butir baru (ID resmi di `keputusan-terbuka.md`)
 
-| ID usulan | Pertanyaan | Rekomendasi agen | DEFAULT SEMENTARA | Pemilik |
+| ID | Pertanyaan | Rekomendasi agen | DEFAULT SEMENTARA | Pemilik |
 |---|---|---|---|---|
-| Q-01 | Kapan invoice barang terbit: host menekan "Checkout grup", otomatis menjelang cut-off, atau keduanya? Boleh tambah barang setelah invoice terbit? | Host checkout bila ≥ 3 akun berbarang; otomatis checkout pada `cut_off − TTL` bila syarat (a) terpenuhi dan host belum checkout; keranjang terkunci setelah invoice | Host checkout saja; keranjang terkunci; tanpa checkout otomatis | Randy |
-| Q-02 | Dasar hitung Rp100.000 (F-30): harga grup atau harga satuan; termasuk PPN; sebelum/sesudah diskon; biaya admin & ongkir? | Σ harga grup × qty, harga tampil (termasuk PPN), sebelum diskon, tanpa biaya admin & ongkir | Sama dengan rekomendasi | Efan |
-| Q-03 | Setelah akun tak lunas dikeluarkan, sisa lunas ≥ 3 tetapi total lunas < Rp100.000: harga grup tetap, tagih selisih, atau batal? | Harga grup tetap (masih ≥ modal, tanpa tagihan tambahan) | Harga grup tetap | Efan + Randy |
-| Q-04 | Invoice ongkir (K-10) tidak dilunasi dalam 60 menit | Alihkan ke ambil di drop point (ongkir 0) + WA; bukan batal | Sama dengan rekomendasi | Randy + Efan |
-| Q-07 | Stok habis setelah invoice terbit sebelum lunas (P-08): batalkan seluruh invoice akun atau hanya baris yang habis? | Hanya baris yang habis, nominal invoice dikurangi (lebih ramah, butuh invoice ulang) | Seluruh invoice akun (teks P-08) | Efan |
-| Q-08 | Biaya admin dikembalikan saat grup batal? | Ya, ikut refund (grup tidak jadi) | Ya | Efan |
+| K-22 | Kapan invoice barang terbit: host menekan "Checkout grup", otomatis menjelang cut-off, atau keduanya? Boleh tambah barang setelah invoice terbit? Risiko default: host tidak aktif → grup tidak pernah checkout dan batal saat cut-off (G9) walau syarat terpenuhi | Host checkout bila ≥ 3 akun berbarang; otomatis checkout pada `cut_off − TTL` bila syarat (a) terpenuhi dan host belum checkout; keranjang terkunci setelah invoice | Host checkout saja; keranjang terkunci; tanpa checkout otomatis | Randy |
+| K-23 | Dasar hitung Rp100.000 (F-30): harga grup atau harga satuan; termasuk PPN; sebelum/sesudah diskon; biaya admin & ongkir? | Σ harga grup × qty, harga tampil (termasuk PPN), sebelum diskon, tanpa biaya admin & ongkir | Sama dengan rekomendasi | Efan |
+| K-24 | Setelah akun tak lunas dikeluarkan, sisa lunas ≥ 3 tetapi total lunas < Rp100.000: harga grup tetap, tagih selisih, atau batal? | Harga grup tetap (masih ≥ modal, tanpa tagihan tambahan) | Harga grup tetap | Efan + Randy |
+| K-25 | Ongkir sebagai tagihan kedua (K-10): invoice ongkir tidak dilunasi dalam 60 menit | Alihkan ke ambil di drop point (ongkir 0) + WA; bukan batal | Sama dengan rekomendasi | Randy + Efan |
+| K-29 | Stok habis setelah invoice terbit sebelum lunas (P-08): batalkan seluruh invoice akun atau hanya baris yang habis? | Hanya baris yang habis, nominal invoice dikurangi (lebih ramah, butuh invoice ulang) | Seluruh invoice akun (teks P-08) | Efan |
+| K-26 | Biaya admin dikembalikan saat grup batal? | Ya, ikut refund (grup tidak jadi) | Ya | Efan |
 
-Q-05 (sel Mitra Grosir per satuan jual) dan Q-06 (PPN & pecahan rupiah) ada di `docs/spec/engine-harga.md` §11.2.
+K-27 (sel Mitra Grosir per satuan jual) dan K-28 (PPN & pecahan rupiah) ada di `docs/spec/engine-harga.md` §11.2.

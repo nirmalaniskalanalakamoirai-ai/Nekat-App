@@ -31,7 +31,7 @@ interface SkuSumber {
   kategori: string;                  // kode kategori sumber, dipakai filter rokok/bir (§7)
   satuanDasar: 'pcs' | 'kg' | 'liter';
   konversiSatuan: Array<{            // P-03: satuan kuantitas yang tersedia per produk
-    satuan: '3pcs' | 'lusin' | 'dus' | 'koli';
+    satuan: 'PCS_3' | 'LUSIN' | 'DUS' | 'KOLI';   // kode kanonik P-03 (PCS_1 = satuanDasar)
     isi: number;                     // integer ≥ 1, dalam satuanDasar (mis. dus isi 24 pcs, koli isi 4 dus = 96)
   }>;                                // boleh kosong (produk hanya dijual 1 pcs); tiap satuan maks. sekali
   beratGram: number;                 // integer ≥ 0, dipakai kalkulator ongkir (T-031)
@@ -49,7 +49,7 @@ interface StokSumber {
 
 interface ModalSumber {
   skuId: SkuId;
-  satuan: 'pcs' | '3pcs' | 'lusin' | 'dus' | 'koli';   // K-01: modal per satuan jual, tanpa pembagian karton
+  satuan: 'PCS_1' | 'PCS_3' | 'LUSIN' | 'DUS' | 'KOLI';   // K-01: modal per satuan jual, tanpa pembagian karton
   modalPerSatuan: Rupiah | null;     // null / ≤ 0 / pecahan → satuan jual TIDAK TAYANG (bukan harga nol)
   dataPada: string;
 }
@@ -201,9 +201,9 @@ Satu set tes yang sama dijalankan terhadap `LocalInventory` dan `GudangApiInvent
 8. `PermintaanPicking` tidak memuat nama, nomor HP, atau alamat (dicek skema).
 9. (Gudang) redirect 3xx tidak diikuti; respons > batas ukuran → `DATA_TIDAK_VALID`; token tidak muncul di log.
 10. Baris modal tidak valid → satuan jual tidak tayang walau snapshot lama ada; modal pecahan tidak dibulatkan dan masuk antrean tinjau (K-01).
+11. `getStok` memakai `lokasiId`; stok cabang lain tidak dipakai.
 12. `getHargaModal` mengembalikan modal per satuan jual (`satuan`), bukan per karton yang dibagi.
 13. `PermintaanPicking` memakai `anggotaId` dan qty teralokasi; tidak ada field `pesananId` atau data pribadi.
-11. `getStok` memakai `lokasiId`; stok cabang lain tidak dipakai.
 
 ## 11. Butuh keputusan / data dari manusia
 
