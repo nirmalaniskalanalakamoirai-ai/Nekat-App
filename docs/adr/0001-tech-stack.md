@@ -430,7 +430,7 @@ dipecah (mis. `admin_harga`, `admin_operasional`, `cs`) tanpa migrasi besar. Nam
 
 - Setiap aksi admin yang mengubah data (harga, stok, COD, koreksi saldo, status pesanan) ditulis ke `log_admin`
   (append-only: siapa, kapan, sebelum/sesudah, alasan).
-- Login admin: H9 — **rekomendasi kuat: TOTP wajib sebelum panel admin ke production, menunggu H9**. Sesi admin
+- Login admin: H9 — **DIPUTUSKAN 12 Nov (`keputusan.md` §11): tidak hanya OTP WA; admin wajib faktor kedua TOTP** (aplikasi authenticator) untuk semua peran admin, berlaku sebelum panel admin ke production. Sesi admin
   lebih pendek dari sesi pembeli; akses `/admin` dibatasi rate limit.
 
 **Kepemilikan data (IDOR, CWE-639).** Setiap resource milik pengguna (pesanan, peserta, saldo, alamat) difilter
@@ -504,7 +504,7 @@ atau berada di balik adapter/konfigurasi. Kolom "Harus diputuskan sebelum" menun
 | H6 | Aturan pembulatan rupiah (termasuk modal per satuan hasil bagi karton), tidak pernah di bawah modal | Efan | Bulatkan **ke atas** ke kelipatan yang dipilih Efan (sama dengan P-02); modal per satuan hasil bagi karton juga dibulatkan ke atas. Kode memakai pembulatan ke atas ke rupiah penuh sampai diputuskan | T-020 selesai review |
 | H7 | Kepemilikan akun (GitHub org + paket GitHub untuk gerbang production, Xendit, hosting, domain, Meta Business, secret store), min. 2 admin | Joseph + Randy | Semua akun atas nama **badan usaha**, minimal 2 admin manusia dengan 2FA, kredensial di password manager tim; agen hanya mendapat token terbatas. Cek apakah paket GitHub saat ini mendukung *required reviewers* untuk environment repo privat | T-045 |
 | H8 | Error tracking & log: SaaS vs self-host (masking PII) | Joseph | **SaaS dengan paket gratis/kecil** untuk pilot (Sentry atau setara) dengan scrubbing PII aktif + pino redact; self-host hanya bila H12 mewajibkan data di Indonesia. Batas paket gratis perlu dicek | T-045 |
-| H9 | Login admin: wajib TOTP atau cukup OTP WA | Joseph | **Wajib TOTP** (aplikasi authenticator) untuk semua peran admin, OTP WA hanya untuk pembeli. Akun admin mengubah harga & saldo, jadi layak dilindungi faktor yang tidak bergantung pada WhatsApp | T-036 |
+| H9 | Login admin: wajib TOTP atau cukup OTP WA | Joseph | **DIPUTUSKAN 12 Nov malam (`keputusan.md` §11, menggantikan jawaban awal "cukup OTP WA" setelah temuan K-04): admin wajib faktor kedua TOTP** (aplikasi authenticator) selain OTP WA, untuk semua peran admin; OTP WA saja hanya untuk pembeli. Akun admin mengubah harga & saldo, jadi dilindungi faktor yang tidak bergantung pada WhatsApp | T-036 |
 | H10 | Terima ADR-0001 (merge PR T-001) — membuka semua task kode | Joseph | Merge setelah H1 disetujui; butir lain boleh menyusul | Gelombang 2 |
 | H11 | (Fase 5) Deferred deep link iOS: layanan pihak ketiga vs fallback kode manual | Randy + Joseph | Fase 1 PWA cukup: link `/g/:kode` membuka web + ajakan install (sesuai keputusan #3); struktur deferred deep link disiapkan di T-024 (base URL dari konfigurasi, kode grup dibawa lewat path). Untuk native: siapkan fallback kode grup yang bisa diketik + clipboard; nilai layanan pihak ketiga di Fase 5 | Fase 5 |
 | H12 | **Baru.** Lokasi penyimpanan data (server di Indonesia atau luar negeri) dan isian "[lokasi]" di kebijakan privasi | Randy + Joseph (+ hukum) | Pilih **region Indonesia** bila tersedia di penyedia H3 dengan biaya wajar; bila memakai region luar negeri, minta tinjauan hukum atas UU PDP & aturan transfer data lintas negara, lalu sebutkan jujur di kebijakan privasi | T-045 / rilis pilot |
