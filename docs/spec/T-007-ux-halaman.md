@@ -11,7 +11,7 @@
 | Dipakai oleh | T-008 (komponen), T-014 (fondasi PWA), T-015, T-024, T-026–T-028, T-033, T-036, T-039, T-043 |
 | Di luar cakupan | Kode aplikasi (T-014 dst.), angka harga/margin/tarif (semua `Rp —` / simbolik), produk rokok & bir (tidak dijual Fase 1) |
 
-Notasi: `{x}` = nilai dari server/konfigurasi; `Rp —` = nominal dari server (agen tidak mengisi angka). **[menunggu K-xx]** = varian yang dipilih setelah manusia memutuskan. **[UX-xx]** = pertanyaan baru (§10).
+Notasi: `{x}` = nilai dari server/konfigurasi; `Rp —` = nominal dari server (agen tidak mengisi angka). **[menunggu K-xx]** = varian yang dipilih setelah manusia memutuskan. Pertanyaan dari spesifikasi ini memakai ID resmi K-xx (§10).
 
 ---
 
@@ -23,7 +23,7 @@ Notasi: `{x}` = nilai dari server/konfigurasi; `Rp —` = nominal dari server (a
 | A2 | Grup aktif bila **≥ 3 akun berbeda yang menambah barang** (K-17, §3); akun unik per nomor HP OTP | Syarat 1 di blok syarat: "{n}/3 orang sudah ikut belanja". Akun yang ikut tanpa menambah barang tidak dihitung. |
 | A3 | Minimum **total grup** `{min_grup}` (F-30 = Rp100.000, dari konfigurasi) | Syarat 2: "Total grup Rp — dari {min_grup}". |
 | A4 | Grup ≥ 3 akun **dan** total ≥ `{min_grup}` → setiap barang dapat harga termurah = **harga Mitra Grosir**, walau 1 pcs (K-09, K-14) | Label harga "Harga Belanja Bareng". Tidak ada tangga "tambah 5 pcs lagi" di grup (pola R4 kuantitas diganti, lihat §2). |
-| A5 | Grup < `{min_grup}` → **harga satuan** + saran cari grup + **perbandingan grup vs sendiri** (K-18) | Kartu perbandingan di keranjang, halaman grup, dan checkout. |
+| A5 | (a) Grup ≥ 3 akun tetapi total < `{min_grup}` → **harga satuan** + saran cari grup + **perbandingan grup vs sendiri** (K-18). (b) Grup < 3 akun → harga grup tidak berlaku, pesanan **terkunci/tidak diproses** (F-02) **[menunggu K-11]** | (a) Kartu perbandingan di keranjang, halaman grup, checkout. (b) Checkout tidak bisa dibayar sebagai grup; teks "Grup belum 3 orang" + jalan keluar (ajak tetangga). |
 | A6 | Ikut/buat grup **tanpa bayar** (P-04, F-29) | "Ikut grup" tidak membuka pembayaran. Pembayaran baru saat tagihan terbit. |
 | A7 | Tagihan berlaku **60 menit sejak terbit** (F-26, K-07) | Hitung mundur besar + jam batas absolut ("sebelum 14.35 WIB"). |
 | A8 | Akun tak lunas 60 menit **dikeluarkan otomatis**; grup **batal bila akun lunas < 3** (K-12) | Peringatan sebelum bayar; status "Dikeluarkan dari grup"; status grup "Batal". |
@@ -98,7 +98,7 @@ Flow T-002 v0.5 masih memakai model lama. UX ini mengikuti keputusan.md; flow di
 | `/akun` | H-13 Akun (tampilan, privasi, zona) | Ya |
 | `/admin/*` | H-14 Panel admin | Login admin + TOTP (H9) |
 
-**Navigasi bawah (pembeli):** Belanja · Keranjang (lencana jumlah) · Pesanan · Saldo · Akun. Lima tombol, ikon + label teks, tinggi 64 px. Halaman H-07/H-08/H-09/H-10 menyembunyikan navigasi bawah (fokus selesai bayar).
+**Navigasi bawah (pembeli):** Belanja · Keranjang (lencana jumlah) · Pesanan · Saldo · Akun. Lima tombol, ikon + label teks, tinggi 64 px. Halaman H-07/H-08/H-09/H-10 menyembunyikan navigasi bawah (fokus selesai bayar); bilah CTA di sana menempel di dasar layar (`.l-app--cta-only`). Halaman ber-CTA yang tetap punya navigasi (H-03, H-04, H-05): CTA duduk **di atas** navigasi (`.l-cta-bar--above-nav`, padding isi `.l-app--with-cta` = tinggi navigasi + CTA).
 **App bar:** nama zona (tap → ganti zona) · ikon cari · ikon keranjang. **Pita grup aktif** (R10) di bawah app bar selama pengguna punya grup berjalan: "Kamu di Grup {nama} · tutup {jam} WIB · Lihat".
 
 ---
@@ -118,7 +118,7 @@ Flow T-002 v0.5 masih memakai model lama. UX ini mengikuti keputusan.md; flow di
 
 ### 4.2 Komponen `Harga` (satu sumber, A13/A20)
 - Input hanya dari respons server `tampilanHarga` (`harga_aktif`, `harga_grup`, `promo`, `harga_coret`); klien tidak menghitung.
-- Isi: harga aktif + satuan (`/pcs`, `/dus isi {n}`) · baris kecil "Belanja Bareng Rp —/pcs" (A4) · chip promo terpisah (A13) · harga coret **[menunggu P-17]** (varian A: tampil; varian B: disembunyikan sampai P-17).
+- Isi: harga aktif + satuan (`/pcs`, `/dus isi {n}`) · baris kecil "Belanja Bareng Rp —/pcs" (A4; nilainya = harga Mitra Grosir, K-14 — boleh tampil di kartu sebagai harga grup atau hanya di checkout menurut P-28 **[menunggu K-38]**; varian B: kartu/detail hanya "Hemat pakai Belanja Bareng" tanpa nominal) · chip promo terpisah (A13) · harga coret **[menunggu P-17]** (varian A: tampil; varian B: disembunyikan sampai P-17).
 - Tidak pernah menampilkan harga Mitra/drop point (A14) di luar checkout.
 - Sebelum tagihan: catatan kecil "Harga bisa berubah sampai tagihan terbit" (A10).
 
@@ -152,7 +152,7 @@ Kalimat ajakan (R4) berdasarkan kondisi:
 Urutan baris: Subtotal barang · Diskon (baris sendiri, bila ada) · Biaya admin Rp — · Ongkir: "ditagih di tagihan final" · Saldo dipakai −Rp — · **Total bayar sekarang Rp —** · baris kecil "Termasuk PPN Rp —" (untuk barang kena PPN; barang bebas PPN diberi tanda). Pembaca layar membaca tiap baris sebagai pasangan label–nilai (`<dl>`).
 
 ### 4.7 Nama samaran anggota
-Anggota lain hanya tampil sebagai inisial + nama samaran ("Bu S***, RW 05"); tidak ada nomor HP/alamat (Kebijakan Privasi §3). Isi barang anggota lain: **[UX-03]**.
+Anggota lain hanya tampil sebagai inisial + nama samaran ("Bu S***, RW 05"); tidak ada nomor HP/alamat (Kebijakan Privasi §3). Isi barang anggota lain: **[menunggu K-32]**.
 
 ---
 
@@ -166,7 +166,7 @@ Anggota lain hanya tampil sebagai inisial + nama samaran ("Bu S***, RW 05"); tid
 - Dalam zona → simpan zona di sesi lokal → H-02 (atau kembali ke `/g/:kode` bila datang dari link).
 - Izin ditolak → "Tidak apa-apa, pilih lokasi secara manual" + daftar.
 - **Di luar zona** (B-13) → layar "NEKAT belum melayani lokasimu" + "Lihat katalog saja" (mode lihat, A-state di luar zona) + "Pilih lokasi lain". Daftar tunggu **[menunggu F-18]** (varian: tombol "Kabari saya lewat WhatsApp" bila F-18 = ya).
-- Ganti zona saat keranjang berisi / sedang di grup → dialog "Ganti lokasi? Keranjang dan grupmu di {zona} tidak ikut pindah." (F-25).
+- Ganti zona saat keranjang berisi / sedang di grup → dialog "Ganti lokasi? Keranjang dan grupmu di {zona} tidak ikut pindah." **[menunggu F-25]** (varian B bila F-25 memutuskan lain: grup tetap, hanya alamat kirim yang diganti di zona yang sama).
 **Teks kunci:** "Pakai lokasiku sekarang" · "Pilih manual" · "Kamu ada di zona {nama zona}" · "NEKAT belum melayani lokasimu".
 **Aksesibilitas:** jangan minta izin lokasi otomatis saat halaman dibuka (hanya saat tombol ditekan); daftar manual bisa dicari dan dinavigasi keyboard; hasil deteksi diumumkan `aria-live`.
 
@@ -223,16 +223,16 @@ Anggota lain hanya tampil sebagai inisial + nama samaran ("Bu S***, RW 05"); tid
 6. Info bayar: "Belum bayar sekarang. Tagihan terbit nanti dan harus dibayar dalam 60 menit. Yang belum bayar dikeluarkan dari grup; grup batal bila kurang dari 3 orang yang bayar." (A6–A8).
 7. CTA "Buat Grup & Bagikan" → (login H-07 + persetujuan H-08 bila perlu) → **lembar bagikan** (R9).
 
-**Lembar bagikan:** pratinjau pesan (bisa diubah) "Yuk ikut Belanja Bareng di Grup {nama} di NEKAT! Grup tutup {jam} WIB. {link}" · link pendek `/g/{kode}` · tombol urut: **WhatsApp** (utama), **Salin link**, **Bagikan lainnya** (Web Share API bila ada). Tanpa harga di pesan (G-01).
+**Lembar bagikan:** pratinjau pesan (bisa diubah) "Yuk ikut Belanja Bareng di Grup {nama} di NEKAT! Grup tutup {jam} WIB. {link}" · link pendek `/g/{kode}` · tombol urut: **WhatsApp** (utama), **Salin link**, **Bagikan lainnya** (Web Share API bila ada). Tanpa harga di pesan (referensi README §3: keranjang campur, harga tampil di halaman grup).
 
-**Mode B — sedang di grup** (keranjang = bagian kamu + ringkasan grup)
+**Mode B — sedang di grup** (keranjang = bagian kamu + ringkasan grup) **[menunggu K-22]**: kapan tagihan terbit dan keranjang terkunci setelahnya mengikuti K-22.
 1. Kepala grup: "Grup {nama}" · peran (Host/Anggota) · "tutup {jam} WIB" · tombol "Undang".
 2. `SyaratGrup`.
-3. "Barang kamu" (bisa diubah sampai tagihan terbit).
-4. "Total grup Rp — dari {n} orang" (+ isi anggota lain sesuai **[UX-03]**).
+3. "Barang kamu" (bisa diubah sampai tagihan terbit; setelah terbit terkunci: "Keranjang grup sudah dikunci karena tagihan sudah terbit" **[menunggu K-22]**).
+4. "Total grup Rp — dari {n} orang" (+ isi anggota lain sesuai **[menunggu K-32]**).
 5. CTA: sebelum tagihan → "Lihat halaman grup"; setelah tagihan terbit → "Bayar tagihan" (H-10).
 **State:** kosong ("Keranjangmu masih kosong" + "Mulai belanja") · memuat · harga berubah sejak ditambahkan (baris disorot + "Harga berubah dari Rp — ke Rp —") · stok kurang ("Tinggal {n}. Jumlah kami sesuaikan") · produk tidak tayang (baris abu + "Hapus") · offline (jumlah terlihat, harga "—", CTA nonaktif) · error.
-**Cabang:** keranjang berisi barang beda zona setelah ganti zona → minta hapus/kosongkan; keluar grup (Anggota, sebelum tagihan) → dialog "Keluar dari Grup {nama}? Barangmu kembali ke keranjang biasa."; host keluar → **[UX-05]**.
+**Cabang:** keranjang berisi barang beda zona setelah ganti zona → minta hapus/kosongkan; keluar grup (Anggota, sebelum tagihan) → dialog "Keluar dari Grup {nama}? Barangmu kembali ke keranjang biasa."; host keluar → **[menunggu K-33]** (rekomendasi: peran host pindah ke anggota paling awal yang menambah barang).
 **Aksesibilitas:** hapus selalu bisa diurungkan; perubahan total diumumkan; dialog keluar grup fokus ke tombol aman ("Batal").
 
 ### H-05 Halaman grup — `/g/:kode`
@@ -251,13 +251,14 @@ Anggota lain hanya tampil sebagai inisial + nama samaran ("Bu S***, RW 05"); tid
 |---|---|---|
 | Terbuka, < 3 orang menambah barang | "Kurang {x} orang lagi" | Belum ikut: "Ikut grup" · Sudah ikut: "Tambah barang" + "Undang tetangga" |
 | ≥ 3 orang, total < `{min_grup}` | "Tambah Rp — lagi untuk Harga Belanja Bareng" | "Tambah barang" |
-| Syarat terpenuhi, tagihan belum terbit | "Harga Belanja Bareng berlaku" | "Tambah barang"; Host: "Terbitkan tagihan" **[UX-01]** |
+| Syarat terpenuhi, tagihan belum terbit | "Harga Belanja Bareng berlaku" | "Tambah barang"; Host: "Terbitkan tagihan" **[menunggu K-22]** |
 | Tagihan terbit | "Bayar sebelum {jam} WIB" + `HitungMundur` | "Bayar tagihan" (→ H-10) |
 | Host pilih bayar semua | Anggota: "Tagihanmu dibayar oleh host" · Host: tagihan gabungan | Host: "Bayar semua" |
-| Kamu sudah bayar | "Kamu sudah bayar. Menunggu {x} orang lagi" | "Undang tetangga" (bila masih boleh) / "Lihat pesanan" |
+| Kamu sudah bayar **[menunggu K-22]** | "Kamu sudah bayar. Menunggu {x} orang lagi" | "Lihat pesanan"; "Undang tetangga" hanya bila K-22 mengizinkan anggota baru setelah tagihan terbit |
+| Kamu batal sebelum grup tutup **[menunggu K-30]** | "Kamu keluar dari grup. Rp — masuk Saldo NEKAT" (S&K §7.1) | "Belanja lagi" |
 | Kamu dikeluarkan (K-12) | "Kamu dikeluarkan dari grup karena belum bayar dalam 60 menit" | "Belanja lagi" |
 | Grup batal (lunas < 3, K-12 / F-29) | "Grup batal karena kurang dari 3 orang yang bayar. Dana yang sudah dibayar masuk Saldo NEKAT" | "Buat grup baru" |
-| Grup tidak tercapai saat tutup **[menunggu K-11]** | Varian A (rekomendasi K-11): pilihan "Lanjut harga satuan" / "Batalkan, dana ke Saldo", default batal; varian B: pesanan terkunci, tidak diproses | sesuai varian |
+| Grup < 3 akun saat tutup (F-02: pesanan terkunci) **[menunggu K-11]** | Varian A (rekomendasi K-11): pilihan "Lanjut harga satuan" / "Batalkan, dana ke Saldo", default batal; varian B: pesanan terkunci, tidak diproses | sesuai varian |
 | Ditutup / dikunci / diproses | "Grup sudah ditutup" | Bukan anggota: "Buat grup baru" · Anggota: "Lihat pesanan" |
 | Ditahan admin (P-09/P-26) | "Pesanan sedang kami periksa. Kabar paling lambat {waktu}" | "Lihat pesanan" |
 
@@ -295,12 +296,12 @@ Anggota lain hanya tampil sebagai inisial + nama samaran ("Bu S***, RW 05"); tid
 4. Barang (bisa dilipat): nama · satuan · jumlah · harga.
 5. Promo/diskon: chip otomatis + `KartuTidakMemenuhiSyarat` bila gagal (A16).
 6. **Pakai Saldo NEKAT**: toggle "Pakai saldo (Rp — tersedia)" → baris "Saldo dipakai −Rp —". Saldo menutup semua → metode bayar disembunyikan, CTA "Bayar pakai saldo".
-7. **Metode bayar** (sisa): QRIS · Virtual Account (pilih bank) · e-wallet (pilih) · COD hanya bila server menyatakan layak (A19; batas `{batas_cod}`, dibanding total sebelum/sesudah saldo **[P-18]**).
+7. **Metode bayar** (sisa): pesanan grup: QRIS · Virtual Account (pilih bank) (F-01); e-wallet untuk grup **[menunggu K-36]** (varian A: tampil; varian B: hanya QRIS/VA); pesanan non-grup: QRIS · VA · e-wallet (§9) · COD hanya bila server menyatakan layak (A19; batas `{batas_cod}`, dibanding total sebelum/sesudah saldo **[P-18]**).
 8. Host saja, saat tagihan tersedia: "Siapa yang bayar?" — "Tiap orang bayar sendiri" (bawaan) / "Saya bayar untuk semua ({n} orang)" → rincian gabungan per anggota (nama samaran + subtotal) + biaya admin × {n} akun (K-06) + catatan "Selisih harga nanti masuk Saldo NEKAT kamu" (G-06b).
 9. `RincianBiaya` (A11, A12).
 10. Peringatan: "Setelah tagihan terbit, bayar dalam 60 menit. Yang belum bayar dikeluarkan dari grup."
 11. CTA lengket: "Bayar Rp —" → H-10.
-**State:** memuat · alamat di luar zona ("Alamat ini di luar zona {zona}. Pilih drop point atau alamat lain") · slot habis · stok berubah saat tagihan dibuat (P-08: "Stok {produk} habis. Tagihan dibatalkan, ubah keranjangmu") · harga berubah sejak keranjang ("Harga terbaru: Rp —") · grup belum memenuhi syarat (K-18: harga satuan + perbandingan + "Tetap lanjut dengan harga satuan" / "Ajak tetangga dulu") · gateway gangguan ("Pembayaran sedang gangguan. Coba lagi beberapa menit") · Gudang tidak terjangkau (H14: "Kami sedang memeriksa stok. Checkout belum bisa dilanjutkan") · offline · error.
+**State:** memuat · alamat di luar zona ("Alamat ini di luar zona {zona}. Pilih drop point atau alamat lain") · slot habis · stok berubah saat tagihan dibuat (P-08: "Stok {produk} habis. Tagihan dibatalkan, ubah keranjangmu") · harga berubah sejak keranjang ("Harga terbaru: Rp —") · **(a) ≥ 3 akun, total < `{min_grup}`** (K-18): harga satuan + perbandingan "Belanja Bareng Rp — vs sendiri Rp —" + "Tambah belanja Rp — lagi" / "Tetap lanjut dengan harga satuan" · **(b) < 3 akun** (F-02): "Grup belum 3 orang, pesanan belum bisa diproses" + "Ajak tetangga"; CTA bayar nonaktif **[menunggu K-11]** · gateway gangguan ("Pembayaran sedang gangguan. Coba lagi beberapa menit") · Gudang tidak terjangkau (H14: "Kami sedang memeriksa stok. Checkout belum bisa dilanjutkan") · offline · error.
 **Cabang:** tagihan sudah terbit sebelumnya → langsung ke H-10 (tidak membuat tagihan ganda); host sudah bayar semua → anggota melihat "Tagihanmu sudah dibayar host" tanpa CTA bayar.
 **Teks kunci:** "Antar ke rumah" · "Ambil sendiri di drop point" · "Pakai Saldo NEKAT" · "Ongkir ditagih di tagihan final" · "Bayar Rp —".
 **Aksesibilitas:** setiap grup radio punya `legend`; total bayar diumumkan saat berubah; CTA berisi nominal yang sama dengan total.
@@ -313,8 +314,8 @@ Anggota lain hanya tampil sebagai inisial + nama samaran ("Bu S***, RW 05"); tid
 - E-wallet: tombol "Buka {e-wallet}".
 → "Saldo dipakai −Rp —" (bila ada) → rincian (lipat) → "Ganti metode bayar" (selama belum dibayar) → "Batalkan tagihan" (dua langkah, **[F-07]**).
 **Host bayar semua:** satu tagihan gabungan + QR (K-17); judul "Tagihan Grup {nama} · {n} orang"; QR juga dikirim ke WhatsApp host.
-**Tagihan final (ongkir, K-10)** **[UX-02]**: kartu terpisah "Tagihan final: ongkir Rp —" dengan `HitungMundur` sendiri, muncul setelah grup dikunci.
-**State:** menunggu bayar · memeriksa ("Kami sedang memastikan pembayaranmu…"; halaman kembali dari Xendit **tidak** dianggap bukti lunas, status dari server — ADR-0001) · lunas (centang + "Pembayaran diterima" + "Lihat pesanan"; banner H-06) · kedaluwarsa ("Waktu bayar habis. Kamu dikeluarkan dari grup.") · dibatalkan · bayar terlambat (P17: "Pembayaranmu masuk setelah batas waktu. Rp — masuk Saldo NEKAT") · offline (QR/VA tetap terlihat dari data yang sudah dimuat, status "Tidak bisa cek status saat offline").
+**Tagihan kedua (ongkir, K-10)** **[menunggu K-25]**: kartu terpisah "Tagihan ongkir Rp —" dengan `HitungMundur` sendiri, terbit setelah grup final. Tidak lunas → pesanan dialihkan ke ambil sendiri di drop point (rekomendasi K-25): "Ongkir belum dibayar. Pesananmu bisa diambil di {drop point}".
+**State:** menunggu bayar · memeriksa ("Kami sedang memastikan pembayaranmu…"; halaman kembali dari Xendit **tidak** dianggap bukti lunas, status dari server — ADR-0001) · lunas (centang + "Pembayaran diterima" + "Lihat pesanan"; banner H-06) · kedaluwarsa ("Waktu bayar habis. Kamu dikeluarkan dari grup.") · dibatalkan · bayar terlambat (pembayaran masuk setelah batas, flow T-002 B-11: "Pembayaranmu masuk setelah batas waktu. Rp — masuk Saldo NEKAT") · offline (QR/VA tetap terlihat dari data yang sudah dimuat, status "Tidak bisa cek status saat offline").
 **Aksesibilitas:** QR punya alternatif teks (nominal + "kode QRIS untuk membayar Rp —") dan opsi VA/e-wallet; nomor VA dibaca per kelompok digit; salin memberi konfirmasi `aria-live` "Nomor disalin".
 
 ### H-11 Status pesanan — `/pesanan`, `/pesanan/:id`
@@ -333,13 +334,13 @@ Anggota lain hanya tampil sebagai inisial + nama samaran ("Bu S***, RW 05"); tid
 | Parsial | "{a} dari {q} {satuan} tersedia · Rp — masuk Saldo NEKAT" |
 | Diantar / Siap diambil | "Sedang diantar" / "Siap diambil di {drop point}, {jam}" |
 | Diterima | "Pesanan diterima" |
-**Cabang:** batal (sebelum tutup, **[F-07]**) dua langkah dengan dampak ("Grup jadi kurang 1 orang", "Rp — masuk Saldo NEKAT"); kalah balapan dengan tutup grup → "Grup sudah ditutup, pesanan tidak bisa dibatalkan"; grup tidak tercapai **[menunggu K-11]**.
+**Cabang:** batal oleh anggota sebelum grup tutup (S&K §7.1, dana ke Saldo NEKAT) **[menunggu K-30]**, dua langkah dengan dampak ("Grup jadi kurang 1 orang", "Rp — masuk Saldo NEKAT"); kalah balapan dengan tutup grup → "Grup sudah ditutup, pesanan tidak bisa dibatalkan"; grup tidak tercapai **[menunggu K-11]**.
 **Aksesibilitas:** garis waktu = daftar berurutan, langkah aktif `aria-current="step"`; status tidak hanya warna.
 
 ### H-12 Saldo NEKAT (loyalty point) — `/saldo`, `/saldo/cairkan`
 **Tujuan:** melihat saldo, asal-usulnya, memakainya, dan mencairkannya.
 **Blok (urut):** kartu saldo besar "Rp —" + "1 poin = Rp1 · tidak kedaluwarsa" → tombol "Belanja pakai saldo" dan "Cairkan" → riwayat (filter: Semua / Masuk / Keluar), baris: ikon arah · alasan ("Selisih harga Grup {nama}", "Refund grup batal", "Dipakai untuk pesanan #{no}", "Pencairan ke {tujuan}") · tanggal · nominal (+ hijau / − teks utama) · status pencairan.
-**Cairkan (`/saldo/cairkan`):** tujuan (rekening bank / virtual account / e-wallet; pilih dari daftar) → data tujuan (nama pemilik dicocokkan bila tersedia) → nominal (bisa "Semua") → rincian (biaya & minimal **[UX-04]**) → konfirmasi ulang OTP WhatsApp **[UX-04]** → status "Diproses / Berhasil / Gagal (saldo dikembalikan)".
+**Cairkan (`/saldo/cairkan`):** tujuan (rekening bank / virtual account / e-wallet; pilih dari daftar) → data tujuan: rekening/e-wallet **wajib atas nama pemilik akun** (nama dicocokkan; tidak cocok → "Nama pemilik rekening harus sama dengan nama akunmu") → nominal (bisa "Semua") → rincian (minimal & biaya **[menunggu K-34]**, nilai kosong) → **step-up OTP WhatsApp** (kode baru wajib walau sudah masuk) → status "Diproses / Berhasil / Gagal (saldo dikembalikan)".
 **State:** saldo 0 ("Saldo kamu Rp0. Selisih harga grup akan masuk ke sini") · memuat · riwayat kosong · pencairan belum dibuka (**[menunggu H5]** tinjauan hukum: tombol "Cairkan" tampil nonaktif + "Pencairan segera tersedia") · gagal · offline (saldo "—").
 **Aksesibilitas:** nominal dibaca dengan tanda ("masuk Rp —", "keluar Rp —"), bukan warna; formulir pencairan dengan label & error per kolom.
 
@@ -382,7 +383,7 @@ State panel: daftar kosong, memuat (skeleton tabel), error, tanpa izin ("Peranmu
 | ≥ 900 px (`lg`) | Tetap kolom tengah 640 px (aplikasi HP di layar lebar) | Sidebar tetap |
 | ≥ 1200 px (`xl`) | sama | Tabel lebar, panel detail samping |
 
-Aturan: tidak ada scroll horizontal halaman (tab kategori menggulir di dalam deretnya); bilah CTA lengket menghormati `safe-area-inset-bottom`; konten tidak tertutup CTA (`.l-app--with-cta`); gambar `loading="lazy"` + ukuran tetap agar tata letak tidak lompat; aset statis saja yang di-cache service worker, data harga/stok selalu jaringan (ADR-0001).
+Aturan: tidak ada scroll horizontal halaman (tab kategori menggulir di dalam deretnya); bilah CTA lengket menghormati `safe-area-inset-bottom`; konten tidak tertutup CTA (`.l-app--with-cta` bila ada navigasi bawah, `.l-app--cta-only` bila navigasi disembunyikan; lihat §3.3); gambar `loading="lazy"` + ukuran tetap agar tata letak tidak lompat; aset statis saja yang di-cache service worker, data harga/stok selalu jaringan (ADR-0001).
 
 Kerangka halaman (urutan DOM): `a.skip-link` → `header.l-appbar` → pita (offline / grup aktif) → `main#isi.l-container` → `div.l-cta-bar` (bila ada) → `nav.l-bottomnav`.
 
@@ -429,31 +430,40 @@ Tema: bawaan **ikuti HP** (`prefers-color-scheme`), dipaksa lewat `html[data-the
 
 | # | Halaman | Varian A (rekomendasi yang tertulis) | Varian B |
 |---|---|---|---|
-| K-11 | H-05, H-11 | Grup tidak tercapai: pembeli memilih "Lanjut harga satuan" / "Batalkan, dana ke Saldo"; bawaan batal | Pesanan terkunci, tidak diproses, dana ke saldo |
+| K-11 | H-05, H-09, H-11 | Grup < 3 akun (F-02): pembeli memilih "Lanjut harga satuan" / "Batalkan, dana ke Saldo"; bawaan batal | Pesanan terkunci, tidak diproses, dana ke saldo |
 | K-20 | H-02, H-03 | Stok habis tampil abu + "Stok habis, segera distok", tidak bisa ditambah | Disembunyikan; jumlah tab tidak menghitung |
 | K-21 | H-09 | Satu baris "Diskon −Rp —" atas total | Diskon per barang di tiap baris |
 | P-17 | Komponen `Harga` | Harga coret tampil | Disembunyikan |
 | F-27 | H-04 | Ada "Beli sendiri" | Hanya grup |
-| F-07 | H-11 | Batal sampai grup tutup | Sesuai keputusan |
+| F-07 | H-10 | Batalkan tagihan sebelum grup tutup | Sesuai keputusan |
 | F-18 | H-01 | Daftar tunggu WhatsApp di luar zona | Tanpa daftar tunggu |
+| F-25 | H-01, H-04 | Ganti zona = keranjang & grup tidak ikut pindah (batal + ikut grup lain) | Sesuai keputusan |
+| K-22 | H-04, H-05 | Host menerbitkan tagihan (cadangan otomatis sebelum tutup); keranjang grup terkunci setelah terbit | Sesuai keputusan |
+| K-24 | H-11 | Anggota dikeluarkan, lunas ≥ 3 tapi total < `{min_grup}`: harga yang dibayar tetap | Sesuai keputusan |
+| K-25 | H-10 | Ongkir di tagihan kedua setelah final; tak lunas → ambil di drop point | Sesuai keputusan |
+| K-30 | H-05, H-11 | Anggota boleh batal sebelum tutup, dana ke saldo | Sesuai keputusan |
+| K-32 | H-04, H-05 | Anggota hanya lihat jumlah & nama samaran; host lihat rincian saat bayar semua | Sesuai keputusan |
+| K-33 | H-04 | Host keluar → peran pindah ke anggota paling awal | Grup bubar |
+| K-34 | H-12 | Minimal & biaya pencairan dari Pengaturan (kosong) | Sesuai keputusan |
+| K-36 | H-09 | E-wallet tersedia untuk grup | Hanya QRIS/VA (F-01) |
+| K-38 | `Harga` | Harga Mitra Grosir tampil di kartu sebagai harga grup | Nominal hanya di checkout (P-28) |
 | F-19 / F-23 / P-18 | H-05 / H-08 / H-09 | Lihat teks di halaman masing-masing | — |
 | H5 | H-12 | Pencairan dibuka | Nonaktif sampai tinjauan hukum |
 
 ---
 
-## 10. Pertanyaan keputusan baru (UX)
+## 10. Pertanyaan keputusan (ID resmi di `keputusan-terbuka.md`)
+
+Pertanyaan dari spesifikasi ini dicatat koordinator dengan ID resmi berikut.
 
 | # | Pertanyaan | Rekomendasi | Pemilik |
 |---|---|---|---|
-| UX-01 | Kapan tagihan grup terbit (awal 60 menit, K-07)? (a) tiap anggota menekan "Bayar" sendiri, (b) host menekan "Terbitkan tagihan" setelah syarat terpenuhi, (c) otomatis 60 menit sebelum grup tutup | (b) + cadangan (c) bila host tidak menekan: satu waktu snapshot harga (K-15) untuk semua, pilihan host bayar semua (G-07) masuk akal, hitung mundur sama untuk semua anggota | Randy |
-| UX-02 | K-10 "ongkir di tagihan setelah final": dua pembayaran (barang lalu ongkir) atau satu tagihan yang baru terbit setelah grup final? Bila dua: tagihan ongkir juga 60 menit, dan apa akibat bila ongkir tidak dibayar? | Satu tagihan setelah grup final berisi barang + biaya admin + ongkir (pembeli sekali bayar); bila tetap dua, ongkir tak dibayar → barang ditahan di drop point, tidak membatalkan grup | Randy + Efan |
-| UX-03 | Apakah anggota boleh melihat **isi barang** anggota lain di halaman grup (bukan hanya jumlah & nama samaran)? Host yang bayar semua jelas perlu melihat rincian | Anggota: hanya jumlah orang, total grup, nama samaran; host: rincian barang per anggota hanya saat memilih "bayar semua" (tanpa alamat/HP) | Randy |
-| UX-04 | Pencairan saldo (G-06d): minimal nominal, biaya pencairan (ditanggung siapa), dan apakah wajib OTP ulang + pencocokan nama pemilik rekening? | OTP WhatsApp ulang wajib + nama pemilik harus cocok dengan nama akun; minimal & biaya diisi pemilik di Pengaturan (kosong dulu) | Efan (nominal/biaya) + Joseph (keamanan) |
-| UX-05 | Host keluar grup sebelum tagihan terbit: grup bubar atau peran host pindah ke anggota pertama? | Pindah ke anggota yang paling awal menambah barang; host tidak bisa keluar setelah tagihan terbit | Randy |
-| UX-06 | Setelah anggota dikeluarkan (K-12), akun lunas masih ≥ 3 tetapi total lunas < `{min_grup}`: harga tetap Harga Belanja Bareng yang sudah dibayar, atau turun ke harga satuan (tagih tambahan)? | Tetap harga yang dibayar, tanpa tagihan tambahan, selama lolos pagar modal (bila tidak lolos → DITAHAN seperti P-09) | Efan |
-| UX-07 | Boleh menambah barang / ikut grup setelah tagihan terbit (sebelum grup tutup)? | Tidak: keranjang grup terkunci saat tagihan terbit; pendatang baru diarahkan ke grup baru | Randy |
-
----
+| K-22 | Kapan tagihan grup terbit (awal 60 menit, K-07), dan apakah keranjang grup terkunci setelah terbit? | Host menekan "Terbitkan tagihan" setelah syarat terpenuhi, cadangan otomatis 60 menit sebelum grup tutup; keranjang terkunci setelah terbit, pendatang baru diarahkan ke grup baru | Randy |
+| K-24 | Anggota dikeluarkan (K-12), akun lunas ≥ 3 tetapi total lunas < `{min_grup}`: harga apa? | Tetap harga yang dibayar, tanpa tagihan tambahan, selama lolos pagar modal (gagal → DITAHAN, P-09) | Efan |
+| K-25 | K-10: bentuk tagihan ongkir | Ongkir di tagihan kedua setelah final (sesuai K-10), berlaku 60 menit; tak lunas → pesanan dialihkan ke ambil di drop point | Randy + Efan |
+| K-32 | Anggota boleh melihat isi barang anggota lain? | Tidak; hanya jumlah orang, total grup, nama samaran. Host melihat rincian per anggota hanya saat memilih bayar semua (tanpa alamat/HP) | Randy |
+| K-33 | Host keluar grup sebelum tagihan terbit | Peran host pindah ke anggota paling awal yang menambah barang; host tidak bisa keluar setelah tagihan terbit | Randy |
+| K-34 | Pencairan saldo: minimal & biaya | Diisi pemilik di Pengaturan (kosong dulu). Keamanan sudah di spesifikasi: step-up OTP + rekening atas nama pemilik akun | Efan |
 
 ## 11. Serah terima
 

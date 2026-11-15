@@ -239,6 +239,7 @@ html {
 
 body {
   margin: 0;
+  min-height: 100vh;  /* cadangan browser lama */
   min-height: 100dvh;
   background-color: var(--color-bg);
   color: var(--color-text);
@@ -316,11 +317,15 @@ a { color: var(--color-info); text-underline-offset: 2px; }
 
 /* Kerangka halaman pembeli: app bar atas, isi, bottom nav */
 .l-app {
+  min-height: 100vh;
   min-height: 100dvh;
   padding-top: calc(var(--appbar-h) + var(--safe-top));
   padding-bottom: calc(var(--bottomnav-h) + var(--safe-bottom));
 }
-.l-app--with-cta { padding-bottom: calc(var(--cta-bar-h) + var(--safe-bottom) + var(--space-4)); }
+/* Halaman ber-CTA yang tetap punya navigasi bawah (H-03, H-04, H-05) */
+.l-app--with-cta { padding-bottom: calc(var(--bottomnav-h) + var(--cta-bar-h) + var(--safe-bottom) + var(--space-4)); }
+/* Halaman ber-CTA tanpa navigasi bawah (H-07–H-10: navigasi disembunyikan) */
+.l-app--cta-only { padding-bottom: calc(var(--cta-bar-h) + var(--safe-bottom) + var(--space-4)); }
 
 .l-appbar {
   position: fixed; inset: 0 0 auto 0; z-index: var(--z-appbar);
@@ -339,13 +344,19 @@ a { color: var(--color-info); text-underline-offset: 2px; }
   border-top: 1px solid var(--color-border);
 }
 
-/* Bilah aksi lengket bawah (Tambah ke keranjang, Bayar, Buat Grup) */
+/* Bilah aksi lengket bawah (Tambah ke keranjang, Bayar, Buat Grup).
+   Bawaan: di dasar layar (halaman tanpa navigasi bawah).
+   Bila navigasi bawah tampil: tambah .l-cta-bar--above-nav. */
 .l-cta-bar {
   position: fixed; inset: auto 0 0 0; z-index: var(--z-sticky);
   padding: var(--space-3) var(--gutter) calc(var(--space-3) + var(--safe-bottom));
   background: var(--color-surface);
   box-shadow: var(--shadow-top);
   display: flex; gap: var(--space-2); align-items: center;
+}
+.l-cta-bar--above-nav {
+  bottom: calc(var(--bottomnav-h) + var(--safe-bottom));
+  padding-bottom: var(--space-3);
 }
 
 /* Panel admin: sidebar >= 900px, drawer di bawahnya */
@@ -403,6 +414,8 @@ a { color: var(--color-info); text-underline-offset: 2px; }
 .chip--warning { background: var(--color-warning-soft); color: var(--color-warning); }
 .chip--danger { background: var(--color-danger-soft); color: var(--color-danger); }
 .chip--success { background: var(--color-success-soft); color: var(--color-success); }
+/* Chip yang bisa diketuk (filter, pilihan) wajib target sentuh penuh */
+button.chip, a.chip, .chip--interactive { min-height: var(--tap-min); padding: 0 var(--space-3); cursor: pointer; }
 
 /* Tab kategori: chip-tab yang bisa disentuh (>= 44px tinggi area sentuh) */
 .tab {
