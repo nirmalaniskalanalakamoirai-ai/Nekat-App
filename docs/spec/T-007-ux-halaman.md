@@ -328,6 +328,7 @@ Anggota lain hanya tampil sebagai inisial + nama samaran ("Bu S***, RW 05"); tid
 | Menunggu bayar | "Bayar sebelum {jam} WIB" |
 | Lunas, grup berjalan | "Sudah dibayar · grup tutup {jam} WIB" |
 | Dikeluarkan (K-12) | "Dikeluarkan dari grup · belum bayar dalam 60 menit" |
+| Anggota lain dikeluarkan, lunas ≥ 3, total < `{min_grup}` **[menunggu K-24]** | "Ada anggota yang dikeluarkan. Harga yang sudah kamu bayar tetap berlaku" (rekomendasi K-24) |
 | Grup batal (K-12) | "Grup batal · Rp — masuk Saldo NEKAT" |
 | Ditahan | "Sedang kami periksa · kabar paling lambat {waktu}" |
 | Dikunci | "Harga final Rp — · sedang disiapkan" (+ "Rp — masuk Saldo NEKAT" bila ada selisih) |
@@ -340,7 +341,7 @@ Anggota lain hanya tampil sebagai inisial + nama samaran ("Bu S***, RW 05"); tid
 ### H-12 Saldo NEKAT (loyalty point) — `/saldo`, `/saldo/cairkan`
 **Tujuan:** melihat saldo, asal-usulnya, memakainya, dan mencairkannya.
 **Blok (urut):** kartu saldo besar "Rp —" + "1 poin = Rp1 · tidak kedaluwarsa" → tombol "Belanja pakai saldo" dan "Cairkan" → riwayat (filter: Semua / Masuk / Keluar), baris: ikon arah · alasan ("Selisih harga Grup {nama}", "Refund grup batal", "Dipakai untuk pesanan #{no}", "Pencairan ke {tujuan}") · tanggal · nominal (+ hijau / − teks utama) · status pencairan.
-**Cairkan (`/saldo/cairkan`):** tujuan (rekening bank / virtual account / e-wallet; pilih dari daftar) → data tujuan: rekening/e-wallet **wajib atas nama pemilik akun** (nama dicocokkan; tidak cocok → "Nama pemilik rekening harus sama dengan nama akunmu") → nominal (bisa "Semua") → rincian (minimal & biaya **[menunggu K-34]**, nilai kosong) → **step-up OTP WhatsApp** (kode baru wajib walau sudah masuk) → status "Diproses / Berhasil / Gagal (saldo dikembalikan)".
+**Cairkan (`/saldo/cairkan`):** tujuan (rekening bank / virtual account / e-wallet; pilih dari daftar) → data tujuan: rekening/e-wallet **wajib atas nama pemilik akun** **[menunggu K-34]** (nama dicocokkan; tidak cocok → "Nama pemilik rekening harus sama dengan nama akunmu") → nominal (bisa "Semua") → rincian (minimal & biaya **[menunggu K-34]**, nilai kosong) → **step-up OTP WhatsApp** (kode baru wajib walau sudah masuk) **[menunggu K-34]** → status "Diproses / Berhasil / Gagal (saldo dikembalikan)".
 **State:** saldo 0 ("Saldo kamu Rp0. Selisih harga grup akan masuk ke sini") · memuat · riwayat kosong · pencairan belum dibuka (**[menunggu H5]** tinjauan hukum: tombol "Cairkan" tampil nonaktif + "Pencairan segera tersedia") · gagal · offline (saldo "—").
 **Aksesibilitas:** nominal dibaca dengan tanda ("masuk Rp —", "keluar Rp —"), bukan warna; formulir pencairan dengan label & error per kolom.
 
@@ -444,7 +445,7 @@ Tema: bawaan **ikuti HP** (`prefers-color-scheme`), dipaksa lewat `html[data-the
 | K-30 | H-05, H-11 | Anggota boleh batal sebelum tutup, dana ke saldo | Sesuai keputusan |
 | K-32 | H-04, H-05 | Anggota hanya lihat jumlah & nama samaran; host lihat rincian saat bayar semua | Sesuai keputusan |
 | K-33 | H-04 | Host keluar → peran pindah ke anggota paling awal | Grup bubar |
-| K-34 | H-12 | Minimal & biaya pencairan dari Pengaturan (kosong) | Sesuai keputusan |
+| K-34 | H-12 | Minimal & biaya dari Pengaturan (kosong); verifikasi: step-up OTP + rekening atas nama pemilik akun | Sesuai keputusan |
 | K-36 | H-09 | E-wallet tersedia untuk grup | Hanya QRIS/VA (F-01) |
 | K-38 | `Harga` | Harga Mitra Grosir tampil di kartu sebagai harga grup | Nominal hanya di checkout (P-28) |
 | F-19 / F-23 / P-18 | H-05 / H-08 / H-09 | Lihat teks di halaman masing-masing | — |
@@ -463,7 +464,7 @@ Pertanyaan dari spesifikasi ini dicatat koordinator dengan ID resmi berikut.
 | K-25 | K-10: bentuk tagihan ongkir | Ongkir di tagihan kedua setelah final (sesuai K-10), berlaku 60 menit; tak lunas → pesanan dialihkan ke ambil di drop point | Randy + Efan |
 | K-32 | Anggota boleh melihat isi barang anggota lain? | Tidak; hanya jumlah orang, total grup, nama samaran. Host melihat rincian per anggota hanya saat memilih bayar semua (tanpa alamat/HP) | Randy |
 | K-33 | Host keluar grup sebelum tagihan terbit | Peran host pindah ke anggota paling awal yang menambah barang; host tidak bisa keluar setelah tagihan terbit | Randy |
-| K-34 | Pencairan saldo: minimal & biaya | Diisi pemilik di Pengaturan (kosong dulu). Keamanan sudah di spesifikasi: step-up OTP + rekening atas nama pemilik akun | Efan |
+| K-34 | Pencairan saldo: minimal, biaya & verifikasi | Minimal & biaya diisi pemilik di Pengaturan (kosong dulu); verifikasi: step-up OTP + rekening atas nama pemilik akun | Efan + Joseph |
 
 ## 11. Serah terima
 
