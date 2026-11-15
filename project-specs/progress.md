@@ -1,5 +1,14 @@
 # Progress
 
+**Update 15 Nov WIB (sesi Build, mode hemat):**
+- Langkah 0: tidak ada jawaban baru di issue #5–#7 (semua komentar manusia sudah "Dicatat"). PR #2, #3, #4, #9, #10 sudah di-merge 14 Nov malam → T-002, T-003, T-009 done.
+- **T-047 → PR #15** (Workflow Architect): flow grup v0.6, engine harga v0.6, T-009 v0.3, ADR H9. Code Reviewer 3 putaran + Security Auditor LULUS. Default sementara bertanda: K-30 (batal sebelum cut-off), K-31 (tanpa COD di grup), P-19.
+- **T-004 → PR #16** (Backend Architect): model data & ERD. Code Reviewer 3 putaran + Security Auditor LULUS (OTP, pencairan, four-eyes koreksi saldo).
+- **T-007 → PR #17** (UX Architect): UX halaman + token CSS. Code Reviewer LULUS.
+- Evidence Collector tidak dipakai: tiga task hanya dokumen, tanpa UI.
+- Keputusan baru: **K-22–K-38** → keputusan-terbuka.md (`39eca45`) + tabel issue #5/#6/#7. Mendesak: K-22, K-30 (Randy); K-23, K-26, K-28 (Efan). Task baru: T-048 (sisa ADR: H6, H14, H5).
+- Blocked: T-045 (K-19). Butuh manusia: review & merge #15, #16, #17; jawab K-11, K-20–K-38; K-19. Dependabot #12–#14 menunggu Joseph.
+
 **Update 14 Nov 23.45 WIB:** PR #11 (T-045a hardening CI) **di-merge** manusia → T-045a done. Sisa T-045 tetap blocked (K-19).
 
 **Update 14 Nov 22.30 WIB (sesi Build, mode hemat):**
