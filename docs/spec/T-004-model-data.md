@@ -3,7 +3,7 @@
 | Atribut | Nilai |
 |---|---|
 | Task | T-004 (`task/T-004-model-data`) · non-kode |
-| Versi | 0.1 — Draf, 15 Nov 2026 |
+| Versi | 0.2 — Draf, 15 Nov 2026 (putaran perbaikan 1: append-only + pengecualian, keamanan OTP / pencairan / four-eyes, level `SATUAN`, ID keputusan resmi) |
 | Penyusun | Backend Architect (squad Build & QA, pemilik: Joseph) |
 | Sumber kebenaran | `project-specs/keputusan.md` (§1–§13). Bila bertentangan dengan dokumen lain, keputusan.md yang berlaku |
 | Dibaca | `CLAUDE.md`, ADR-0001, `docs/flow/group-order.md` (T-002), `docs/spec/engine-harga.md` (T-003), `docs/spec/T-009-kontrak-inventory-source.md` |
@@ -20,14 +20,16 @@ dan ditandai `menunggu K-xx / P-xx`.
 | # | Prinsip | Alasan |
 |---|---|---|
 | M1 | **Uang = `bigint` rupiah penuh** (integer, tanpa pecahan). Tipe TS `Rupiah` bermerek. Tidak ada `float`/`real`/`numeric` untuk nominal uang | Xendit IDR hanya menerima integer; H6 melarang pembulatan, jadi nilai pecahan **tidak boleh tercipta**, bukan dibulatkan. Dengan `bigint`, nilai pecahan tidak bisa tersimpan sama sekali: modal pecahan (K-01) dan hasil hitung pecahan ditolak di domain → SKU tidak tayang + `antrean_tinjauan`. `numeric` justru akan menyimpan pecahan diam-diam |
-| M2 | **Persen = `numeric(9,4)`** (desimal eksak, bukan float), hanya untuk *rasio* (margin %, diskon %, tarif PPN). Hasil terapannya wajib integer rupiah; bila tidak → tidak tayang / tidak diterapkan + antrean (lihat Q-01) | P-01 presisi persen belum ditetapkan; `numeric` eksak menampung input CSV apa adanya. Engine T-020 boleh memetakan ke basis poin bila presisi cukup |
+| M2 | **Persen = `numeric(9,4)`** (desimal eksak, bukan float), hanya untuk *rasio* (margin %, diskon %, tarif PPN). Hasil terapannya wajib integer rupiah; bila tidak → tidak tayang / tidak diterapkan + antrean (menunggu K-28) | **Keputusan teknis T-004** (bukan keputusan bisnis): DB menyimpan `numeric(9,4)` karena presisi persen P-01 belum ditetapkan dan input CSV harus tersimpan apa adanya; engine T-020 memetakan ke representasi internalnya (mis. basis poin) dan menolak presisi di luar batas dengan `MARGIN_FORMAT` |
 | M3 | Waktu `timestamptz` (UTC), tanggal bisnis `date` dalam WIB. ID `uuid` (v7, urut waktu) kecuali disebut lain | ADR §3.2 |
 | M4 | Status = `text` + `CHECK (status IN (...))`, bukan `ENUM` PostgreSQL | Menambah nilai (keputusan terbuka) cukup ganti constraint, tanpa `ALTER TYPE` |
-| M5 | Tabel **append-only**: `ledger_saldo`, `log_admin`, `log_audit`, `webhook_event`, `persetujuan_legal`. Hak `UPDATE/DELETE` dicabut dari peran DB aplikasi + trigger penolak | ADR §5.2, §7 |
+| M5 | Tabel **append-only**: `ledger_saldo`, `log_admin`, `log_audit`, `webhook_event`, `persetujuan_legal`, `konfigurasi_ppn`, `persetujuan_koreksi_saldo` (baris pengajuan). Hak `UPDATE/DELETE` dicabut dari peran DB aplikasi `app_rw` + trigger penolak. **Pengecualian (hanya ini)**: (1) status proses webhook tidak disimpan di `webhook_event`, tetapi di tabel terpisah `webhook_proses`; (2) payload webhook ada di tabel terpisah `webhook_payload` yang boleh dihapus **hanya** oleh fungsi `SECURITY DEFINER` `pangkas_webhook_payload(batas timestamptz)` (dijalankan job retensi, peran `retensi`); (3) anonimisasi `persetujuan_legal` hanya lewat fungsi `SECURITY DEFINER` `anonimkan_akun(akun_id)` yang boleh meng-`NULL`-kan `ip_hmac` & `user_agent_ringkas` (kolom lain tetap); trigger penolak mengizinkan perubahan itu hanya bila `current_user` = pemilik fungsi. Setiap pemanggilan dicatat di `log_audit` | ADR §5.2, §7 |
 | M6 | Snapshot saat **invoice diterbitkan** (harga, modal, PPN, versi aturan) disimpan di baris invoice; riwayat tidak ikut berubah | K-15, P-08 |
 | M7 | Koordinat gudang / drop point / radius zona **hanya** di `config/lokasi.json`. DB menyimpan `kode_konfig` yang merujuk entri config | keputusan §5, §11 #3 |
 | M8 | Kolom data pribadi ditandai **[PII]**; rahasia ditandai **[RAHASIA]** (hanya terenkripsi aplikasi, kunci di env). Detail akses & retensi di §6 | UU PDP, ADR §7 |
-| M9 | Uang & status dijaga dua lapis: fungsi domain **dan** constraint DB. Pagar lintas baris (individu ≥ Mitra Grosir ≥ Franchise) hanya di domain; tabel hasil hanya boleh ditulis use case harga | ADR §3.2, engine-harga §4.2 |
+| M10 | ID `uuid` v7 **mudah ditebak** (urut waktu) → bukan pengaman. Setiap query resource pengguna wajib difilter `akun_id` dari sesi, dan **wajib ada tes** akses lintas akun per endpoint (T-044) | ADR §7 (CWE-639) |
+| M11 | Kolom terenkripsi/HMAC membawa `kunci_versi smallint NN` agar kunci bisa dirotasi tanpa kehilangan data (baca dengan versi lama, tulis dengan versi baru) | rotasi kunci |
+| M9 | Uang & status dijaga dua lapis: fungsi domain **dan** constraint DB. Pagar lintas baris (`SATUAN ≥ MITRA_GROSIR ≥ FRANCHISE`) hanya di domain; tabel hasil hanya boleh ditulis use case harga | ADR §3.2, engine-harga §4.2 |
 
 Nama tabel/kolom: bahasa Indonesia, `snake_case`. Kolom audit standar (`dibuat_pada`, `diubah_pada`) tidak diulang di tabel bawah.
 
@@ -47,6 +49,7 @@ erDiagram
     akun ||--|| akun_saldo : saldo
     akun ||--o| status_cod : kelayakan
     akun ||--o{ sesi : login
+    akun ||--o{ tujuan_pencairan_terverifikasi : tujuan
     admin ||--o{ sesi : login
     admin ||--o{ admin_peran : memegang
     peran ||--o{ admin_peran : diberikan
@@ -66,8 +69,14 @@ erDiagram
         uuid id PK
         bytea hp_hmac "blind index"
         text tujuan
-        bytea kode_hash
+        bytea kode_hmac "pepper server"
         timestamptz kedaluwarsa_pada
+        timestamptz digantikan_pada
+    }
+    otp_gagal_harian {
+        bytea hp_hmac PK
+        date tanggal PK
+        integer gagal
     }
     dokumen_legal {
         uuid id PK
@@ -193,6 +202,9 @@ erDiagram
     invoice ||--o{ baris_invoice : rincian
     invoice ||--o{ pembayaran : dilunasi
     pembayaran ||--o{ webhook_event : notifikasi
+    webhook_event ||--o| webhook_proses : diproses
+    webhook_event ||--o| webhook_payload : payload
+    tujuan_pencairan_terverifikasi ||--o{ pencairan_saldo : ke
     akun ||--o{ ledger_saldo : mutasi
     akun ||--o{ pencairan_saldo : mencairkan
     baris_invoice ||--o{ reservasi_stok : memesan
@@ -235,6 +247,17 @@ erDiagram
         timestamptz paid_at_gateway
         timestamptz webhook_diterima_pada
     }
+    webhook_event {
+        uuid id PK
+        uuid pembayaran_id FK
+        text event_id_gateway UK
+    }
+    pencairan_saldo {
+        uuid id PK
+        uuid akun_id FK
+        uuid tujuan_id FK
+        bigint jumlah_rp
+    }
     ledger_saldo {
         bigint id PK
         uuid akun_id FK
@@ -244,6 +267,11 @@ erDiagram
     akun_saldo {
         uuid akun_id PK
         bigint saldo_rp "lebih besar sama 0"
+    }
+    keranjang {
+        uuid id PK
+        uuid akun_id FK
+        uuid grup_id FK
     }
 ```
 
@@ -305,6 +333,12 @@ erDiagram
         jsonb sebelum
         jsonb sesudah
     }
+    outbox {
+        uuid id PK
+        uuid grup_id FK
+        text jenis
+        text kunci_idempotensi UK
+    }
 ```
 
 ---
@@ -322,10 +356,11 @@ Kunci: `PK` primary key, `FK` foreign key, `UK` unique. "NN" = `NOT NULL`. Semua
 |---|---|---|
 | id | uuid | PK |
 | nomor_hp_e164 | text | **[PII]** NULL hanya setelah dianonimkan. `UK` parsial `WHERE nomor_hp_e164 IS NOT NULL`. `CHECK (nomor_hp_e164 ~ '^\+62[0-9]{8,13}$')` |
-| hp_hmac | bytea | HMAC-SHA256(nomor HP, kunci env) — blind index untuk cek ulang daftar setelah akun dihapus (anti banyak akun, F-10). NN, `UK` |
+| hp_hmac | bytea | HMAC-SHA256(nomor HP, kunci env) + `kunci_versi` — blind index untuk deteksi daftar ulang setelah akun dihapus (anti banyak akun, F-10). NN. `UK` **penuh** (termasuk akun dihapus) — **menunggu K-35** (bila K-35 mengizinkan daftar ulang: ganti `UK` parsial `WHERE status <> 'DIHAPUS'`) |
 | hp_terverifikasi_pada | timestamptz | NN. Akun hanya dibuat setelah OTP lolos |
+| hp_diganti_pada | timestamptz | waktu ganti nomor HP terakhir; memicu jeda pencairan (§3.11) |
 | nama_panggilan | text | **[PII]** opsional, 1–40 karakter; tampil tersamar di halaman grup |
-| level | text | `CHECK IN ('INDIVIDU','MITRA_GROSIR','FRANCHISE')`, bawaan `INDIVIDU`. Mitra/Franchise sebagai akun = Fase 2+ |
+| jenis_pelanggan | text | `CHECK IN ('PERORANGAN','MITRA_GROSIR','FRANCHISE')`, bawaan `PERORANGAN`. Mitra/Franchise sebagai akun = Fase 2+. Bukan level harga (§3.7) |
 | status | text | `AKTIF`, `DIBEKUKAN`, `DIHAPUS`. Dibekukan = dana ditahan (F-10) |
 | dibekukan_alasan | text | wajib bila `DIBEKUKAN` (`CHECK`) |
 | dianonimkan_pada | timestamptz | diisi saat hapus akun; PII di-NULL-kan / diganti, transaksi tetap |
@@ -337,12 +372,17 @@ Kunci: `PK` primary key, `FK` foreign key, `UK` unique. "NN" = `NOT NULL`. Semua
 | id | uuid | PK |
 | hp_hmac | bytea | NN. Bukan nomor asli |
 | tujuan | text | `LOGIN_PEMBELI`, `LOGIN_ADMIN` (faktor pertama admin, H9) |
-| kode_hash | bytea | NN, hash + salt; **[RAHASIA]** |
-| percobaan | smallint | NN, `CHECK (percobaan >= 0)`; batas di konfigurasi |
+| kode_hmac | bytea | NN, HMAC-SHA256(kode, **pepper server** dari env) + `kunci_versi`; **[RAHASIA]**. Kode 6 digit terlalu kecil untuk hash biasa |
+| percobaan | smallint | NN, `CHECK (percobaan >= 0)`; batas per kode di konfigurasi |
 | kedaluwarsa_pada, terpakai_pada | timestamptz | `CHECK (terpakai_pada IS NULL OR terpakai_pada <= kedaluwarsa_pada)` |
+| digantikan_pada | timestamptz | diisi saat OTP baru terbit untuk `(hp_hmac, tujuan)` yang sama — OTP lama langsung nonaktif |
 | ip_hmac | bytea | untuk rate limit |
 
-Indeks: `(hp_hmac, dibuat_pada DESC)`. Rate limit OTP memakai indeks ini.
+`UK (hp_hmac, tujuan) WHERE terpakai_pada IS NULL AND digantikan_pada IS NULL` (paling banyak satu OTP hidup). Indeks `(hp_hmac, dibuat_pada DESC)`.
+
+**`otp_gagal_harian`** (anti tebak, CWE-307): PK `(hp_hmac, tanggal date WIB)`; `gagal` integer NN `CHECK (>= 0)`; `kirim` integer NN `CHECK (>= 0)`.
+Penghitung **tidak di-reset** oleh kirim ulang OTP; melewati batas harian (konfigurasi) → verifikasi ditolak sampai hari berikutnya + `log_audit`.
+Berlaku sama untuk `LOGIN_ADMIN`.
 
 **`sesi`** — sesi pembeli & admin.
 
@@ -351,6 +391,7 @@ Indeks: `(hp_hmac, dibuat_pada DESC)`. Rate limit OTP memakai indeks ini.
 | id_hash | bytea | PK (hash ID sesi; cookie memegang ID asli) |
 | akun_id / admin_id | uuid | FK, `CHECK (num_nonnulls(akun_id, admin_id) = 1)` |
 | faktor_kedua_pada | timestamptz | wajib terisi untuk sesi admin sebelum akses panel (H9) |
+| reauth_pada | timestamptz | step-up OTP terakhir; aksi sensitif (pencairan, tambah tujuan pencairan, ganti HP) wajib `reauth_pada` dalam jendela konfigurasi |
 | kedaluwarsa_pada, dicabut_pada | timestamptz | sesi admin lebih pendek (konfigurasi) |
 
 **`alamat`** — alamat antar rumah.
@@ -384,7 +425,7 @@ Guard (domain + query): ikut/membuat grup ditolak bila akun belum menyetujui ver
 | id | uuid | PK |
 | nama | text | **[PII]** |
 | nomor_hp_e164 | text | **[PII]** `UK`. Faktor pertama (OTP WA) |
-| totp_rahasia_enc | bytea | **[RAHASIA]** terenkripsi AES-GCM di aplikasi, kunci dari env (bukan di DB). NN setelah aktivasi |
+| totp_rahasia_enc | bytea | **[RAHASIA]** terenkripsi AES-GCM di aplikasi dengan **AAD = `admin_id`** (ciphertext tidak bisa dipindah ke admin lain), kunci dari env (bukan di DB), + `kunci_versi`. NN setelah aktivasi |
 | totp_aktif_pada | timestamptz | NULL = belum aktivasi → tidak bisa masuk panel |
 | totp_langkah_terakhir | bigint | cegah pemakaian ulang kode TOTP yang sama |
 | gagal_beruntun, dikunci_sampai | smallint, timestamptz | penguncian setelah gagal berulang |
@@ -401,16 +442,20 @@ Guard (domain + query): ikut/membuat grup ditolak bila akun belum menyetujui ver
 | `produk.ubah`, `stok.ubah`, `grup.kelola` (tahan/lepas/batal), `pesanan.kelola`, `ongkir.ubah`, `cod.kelola`, `tinjauan.tangani` | ✓ | ✓ |
 | `saldo.koreksi`, `pencairan.proses` | ✓ | ✓ (dengan alasan wajib) |
 | `pii.lihat` (nomor HP & alamat tanpa samaran) | ✓ | ✓ (hanya per pesanan yang dibuka, tercatat di `log_admin`) |
-| `admin.kelola`, `laporan.keuangan`, `konfigurasi.ubah` (PPN, TTL, biaya admin, ambang) | ✓ | — |
+| `admin.kelola`, `admin.reset_totp`, `laporan.keuangan`, `konfigurasi.ubah` (PPN, TTL, biaya admin, ambang), `saldo.setujui` (four-eyes) | ✓ | — |
 
 H7: minimal 2 admin aktif ber-TOTP — dicek job harian, bukan constraint.
+
+**Reset TOTP**: hanya owner lain (`admin.reset_totp`, tidak bisa untuk diri sendiri: `CHECK` di domain + `log_admin`), alasan wajib; reset menghapus `totp_rahasia_enc` & kode pemulihan, mencabut semua sesi admin itu, dan admin wajib aktivasi ulang sebelum masuk panel. Semua langkah tercatat di `log_admin`.
+
+**Four-eyes**: koreksi saldo kredit di atas ambang `saldo.ambang_four_eyes_rp` (konfigurasi, kosong = semua koreksi kredit butuh persetujuan) lewat `persetujuan_koreksi_saldo` (§3.11): pengaju ≠ penyetuju.
 
 ### 3.4 Lokasi: gudang, zona, drop point, slot kirim
 
 **`gudang`**: `id` PK; `kode_konfig` text `UK` (entri `config/lokasi.json`); `nama`; `jenis` (`PUSAT`, `CABANG`; F-20 cabang penerima); `aktif`.
 Tidak ada kolom koordinat (M7).
 
-**`zona`**: `id` PK; `kode_konfig` `UK`; `nama_kelurahan`; `drop_point_pusat_id` FK (radius dihitung dari titik drop point, keputusan §5;
+**`zona`**: `id` PK; `kode_konfig` `UK`; `nama_kelurahan`; `drop_point_pusat_id` FK **nullable, `DEFERRABLE INITIALLY DEFERRED`** (FK melingkar dengan `drop_point.zona_id`: zona & drop point pertama dibuat dalam satu transaksi; zona `aktif = true` wajib punya drop point, `CHECK (NOT aktif OR drop_point_pusat_id IS NOT NULL)`) (radius dihitung dari titik drop point, keputusan §5;
 nilai radius di config); `gudang_id` FK (cabang penerima pesanan default); `aktif`.
 
 **`drop_point`**: `id` PK; `kode_konfig` `UK`; `zona_id` FK; `gudang_id` FK; `nama`, `alamat_publik` (bukan PII, tempat usaha); `jam_ambil` text; `aktif`.
@@ -448,7 +493,7 @@ Tidak ada kategori rokok/bir di seed Fase 1 (keputusan §7). Daftar kode terlara
 | tinjauan_kategori | text | `TIDAK_PERLU`, `MENUNGGU`, `DISETUJUI` (engine-harga §8.3) |
 | aktif | boolean | penanda admin; tayang ditentukan per satuan jual |
 
-**`sku`**: `id` PK; `produk_id` FK; `kode_sku` `UK`; `barcode` (indeks); `nama_varian`; `satuan_dasar` (`pcs`, `kg`, `liter`); `aktif_di_sumber` boolean.
+**`sku`**: `id` PK; `produk_id` FK; `kode_sku` `UK`; `barcode` (indeks); `nama_varian`; `satuan_dasar` (`pcs`, `gram`, `ml`) — kg/liter dari sumber dikonversi ke gram/ml saat sinkron agar stok & isi tetap integer; `aktif_di_sumber` boolean.
 **`pemetaan_sku_sumber`**: `sku_id` PK/FK, `sku_sumber_id` text `UK` (Gudang). SKU sumber tanpa pemetaan → antrean `SKU_BELUM_DIPETAKAN`.
 
 **`satuan_jual`** — unit yang dibeli pengguna (P-03).
@@ -471,7 +516,7 @@ konfigurasi `katalog.mode_stok_habis` — **menunggu K-20**.
 
 ### 3.6 Stok & reservasi
 
-**`stok_lokasi`**: `UK (sku_id, gudang_id)`; `tersedia` integer `CHECK (>= 0)` (satuan dasar); `data_pada`, `disinkron_pada` timestamptz (P-10 umur data; H14 tahan checkout).
+**`stok_lokasi`**: `UK (sku_id, gudang_id)`; `tersedia` bigint `CHECK (>= 0)` (satuan dasar: pcs / gram / ml); `data_pada`, `disinkron_pada` timestamptz (P-10 umur data; H14 tahan checkout).
 
 **`reservasi_stok`** — dibuat saat **invoice diterbitkan** (barang di keranjang tidak memotong stok, P-08).
 
@@ -508,7 +553,7 @@ Modal pecahan dari CSV/Gudang **tidak** disimpan di `modal_rp` (M1): nilai menta
 | satuan_jual_id | uuid | FK NN |
 | modal_rp | bigint | NN `CHECK (> 0)` |
 | catatan | text | NN (alasan wajib) |
-| kedaluwarsa_pada | date | **opsional**. Bukan pencabutan otomatis: saat tercapai, job harian membuat `antrean_tinjauan` jenis `TIMPAAN_KEDALUWARSA` + notifikasi admin berisi barang & catatan (K-03; tafsiran lihat Q-05) |
+| kedaluwarsa_pada | date | **opsional**. Bukan pencabutan otomatis: saat tercapai, job harian membuat `antrean_tinjauan` jenis `TIMPAAN_KEDALUWARSA` + notifikasi admin berisi barang & catatan (K-03: hanya pengingat, timpaan tetap berlaku sampai dicabut admin) |
 | notifikasi_dikirim_pada | timestamptz | idempotensi notifikasi kedaluwarsa |
 | dibuat_oleh, dicabut_oleh | uuid | FK `admin` |
 | dicabut_pada | timestamptz | NULL = aktif |
@@ -522,15 +567,17 @@ Modal efektif = timpaan aktif, bila tidak ada = `modal_satuan_jual.modal_rp`.
 |---|---|---|
 | id | uuid | PK |
 | satuan_jual_id | uuid | FK NN |
-| level | text | `CHECK IN ('INDIVIDU','MITRA_GROSIR','FRANCHISE')`. `UK (satuan_jual_id, level)` |
+| level | text | `CHECK IN ('SATUAN','MITRA_GROSIR','FRANCHISE')`. `UK (satuan_jual_id, level)` |
 | mode | text | `PERSEN` atau `RUPIAH` (P-01) |
 | margin_persen | numeric(9,4) | NULL = kosong. `CHECK (margin_persen IS NULL OR margin_persen > 0)` (P-16: margin 0 dilarang) |
 | harga_jual_rp | bigint | NULL = kosong. `CHECK (harga_jual_rp IS NULL OR harga_jual_rp > 0)` |
 | — | | `CHECK ((mode='PERSEN' AND harga_jual_rp IS NULL) OR (mode='RUPIAH' AND margin_persen IS NULL))` |
 
-Arti level (keputusan §11–§12): `INDIVIDU` = harga satuan (beli sendiri, grup < minimum belanja grup K-18, grup gagal); `MITRA_GROSIR` = harga
-**grup individu** (K-14) **dan** harga Mitra drop point bila syarat `moq_mitra_grosir` terpenuhi (P-05, K-08); `FRANCHISE` = disiapkan, tidak dipakai
-checkout Fase 1. `MITRA_GROSIR` kosong tidak menahan tayang (P-06), tetapi satuan jual itu tidak mendapat harga grup.
+Arti level (keputusan §11–§12). Nama `SATUAN` dipakai (bukan "individu") agar tidak tertukar dengan "harga grup individu":
+- `SATUAN` = harga satuan (grup < minimum belanja grup K-18, grup gagal). Wajib terisi agar tayang.
+- `MITRA_GROSIR` = **harga grup individu** (K-14) **dan** harga Mitra drop point bila syarat `moq_mitra_grosir` terpenuhi (P-05, K-08).
+  Kosong tidak menahan tayang (P-06); satuan jual itu **tidak punya harga grup** dan selalu memakai `SATUAN` — **menunggu K-27**.
+- `FRANCHISE` = disiapkan, tidak dipakai checkout Fase 1.
 
 **`harga_terhitung`** — hasil engine (ditulis hanya use case harga, M9).
 
@@ -542,13 +589,16 @@ checkout Fase 1. `MITRA_GROSIR` kosong tidak menahan tayang (P-06), tetapi satua
 | versi_harga | text | NN |
 | dihitung_pada | timestamptz | |
 
-Pagar `INDIVIDU ≥ MITRA_GROSIR ≥ FRANCHISE` (CLAUDE.md, K-08) ditegakkan domain sebelum tulis; tidak bisa `CHECK` lintas baris.
-Bila hasil persen tidak integer → baris tidak ditulis, alasan `HARGA_PECAHAN` (Q-01).
+Pagar `SATUAN ≥ MITRA_GROSIR ≥ FRANCHISE` (CLAUDE.md "grup individu ≥ Mitra Grosir ≥ Franchise", K-08, K-14) ditegakkan domain sebelum tulis; tidak bisa `CHECK` lintas baris.
+Bila hasil persen tidak integer → baris tidak ditulis, alasan `HARGA_PECAHAN` (menunggu K-28).
 
 ### 3.8 Keranjang & grup (G-01: grup per keranjang, campur produk)
 
-**`keranjang`**: `id` PK; `akun_id` FK NN; `grup_id` FK NULL (NULL = keranjang pribadi); `status` (`AKTIF`, `DIPAKAI_GRUP`, `DITINGGALKAN`).
-`UK (akun_id) WHERE grup_id IS NULL AND status='AKTIF'` (satu keranjang pribadi aktif); `UK (akun_id, grup_id) WHERE grup_id IS NOT NULL`.
+**`keranjang`**: `id` PK; `akun_id` FK NN; `grup_id` FK NULL (NULL = keranjang pribadi sebelum masuk grup); `status` (`AKTIF`, `DIPAKAI_GRUP`, `DITINGGALKAN`).
+`UK (akun_id) WHERE grup_id IS NULL AND status='AKTIF'` (satu keranjang pribadi aktif); `UK (akun_id, grup_id) WHERE grup_id IS NOT NULL AND status <> 'DITINGGALKAN'`;
+`UK (id, akun_id, grup_id)` (target FK komposit dari `peserta_grup`).
+Ikut lagi setelah `DIKELUARKAN`/`BATAL`: keranjang lama → `DITINGGALKAN`, dibuat **peserta & keranjang baru** (riwayat utuh). Boleh/tidaknya ikut lagi
+dan syaratnya **menunggu K-30** (bawaan sementara: boleh selama grup `DIBUKA`/`AKTIF`).
 
 **`item_keranjang`**: `id` PK; `keranjang_id` FK (`ON DELETE CASCADE` — satu-satunya cascade, data belum transaksi); `satuan_jual_id` FK;
 `qty` integer `CHECK (> 0)`; `UK (keranjang_id, satuan_jual_id)`. Tanpa harga (harga dihitung server, ADR §5.3); tidak memotong stok.
@@ -565,6 +615,7 @@ Bila hasil persen tidak integer → baris tidak ditulis, alasan `HARGA_PECAHAN` 
 | status | text | §4.1 |
 | alasan_status | text | mis. `AKUN_LUNAS_KURANG_DARI_3` (K-12), `DI_BAWAH_MODAL` (P-09/P-26), `STOK_TIDAK_TERKONFIRMASI` |
 | cara_bayar | text | `SENDIRI` (bawaan, G-07) atau `HOST` (dipilih host saat invoice tersedia; K-17 → invoice gabungan) |
+| min_akun | smallint | NN snapshot konfigurasi `grup.min_akun`; `CHECK (min_akun >= 3)` (keputusan §3 tidak bisa dilonggarkan lewat konfigurasi) |
 | akun_menambah_barang | integer | cache hitungan akun berbeda yang punya item (K-17), dihitung ulang di transaksi |
 | akun_lunas | integer | cache hitungan akun lunas (K-12) |
 | total_belanja_rp | bigint | cache total grup untuk syarat minimum belanja grup (F-30, K-09, K-18; nilai minimum di konfigurasi) |
@@ -582,13 +633,13 @@ Tidak ada `UK (produk, zona, slot)` lagi (ADR §3.2 M-10 usang karena G-01).
 |---|---|---|
 | id | uuid | PK |
 | grup_id, akun_id | uuid | FK NN. `UK (grup_id, akun_id) WHERE status NOT IN ('DIKELUARKAN','BATAL','DIREFUND')` |
-| keranjang_id | uuid | FK `UK` |
+| keranjang_id | uuid | NN `UK`; **FK komposit** `(keranjang_id, akun_id, grup_id) → keranjang(id, akun_id, grup_id)` agar keranjang pasti milik akun & grup yang sama |
 | peran | text | `HOST`, `ANGGOTA` |
 | status | text | §4.2 |
 | cara_kirim | text | `ANTAR_RUMAH`, `DROP_POINT` (F-12: campur dalam satu grup) |
 | alamat_id / drop_point_id | uuid | FK; `CHECK ((cara_kirim='ANTAR_RUMAH' AND alamat_id IS NOT NULL) OR (cara_kirim='DROP_POINT' AND drop_point_id IS NOT NULL))` |
 | alamat_snapshot | jsonb | **[PII]** salinan alamat saat invoice (untuk daftar antar) |
-| level_harga | text | `INDIVIDU` / `MITRA_GROSIR` hasil evaluasi |
+| level_harga | text | `SATUAN` / `MITRA_GROSIR` hasil evaluasi |
 | pilihan_saat_gagal | text | `BELUM_MEMILIH`, `LANJUT_SATUAN`, `BATAL_KE_SALDO` — **menunggu K-11** |
 | dana_ditahan | boolean | NN bawaan `false` (F-10) |
 | kredit_tertahan_rp | bigint | kredit cut-off yang tidak ditulis karena dana ditahan |
@@ -597,7 +648,7 @@ Tidak ada `UK (produk, zona, slot)` lagi (ADR §3.2 M-10 usang karena G-01).
 
 ### 3.9 Invoice (TTL, snapshot, ongkir final, biaya admin, PPN, host bayar)
 
-**`invoice`**
+**`invoice`** — Fase 1 **hanya lewat grup**: `grup_id` NN. Konsisten dengan K-18 (grup di bawah minimum belanja tetap lewat grup, memakai harga `SATUAN`). Jalur beli biasa di luar grup (F-27, terbuka) cukup migrasi expand `grup_id` → nullable.
 
 | Kolom | Tipe | Catatan |
 |---|---|---|
@@ -610,9 +661,10 @@ Tidak ada `UK (produk, zona, slot)` lagi (ADR §3.2 M-10 usang karena G-01).
 | status | text | `DITERBITKAN`, `LUNAS`, `KEDALUWARSA`, `DIBATALKAN` (stok habis, P-08), `DIGANTI` (diganti invoice gabungan) |
 | diterbitkan_pada | timestamptz | NN — awal hitung TTL (K-07) |
 | ttl_menit | smallint | NN, snapshot konfigurasi (F-26) |
-| kedaluwarsa_pada | timestamptz | NN, diisi domain = `diterbitkan_pada` + `ttl_menit`; `CHECK (kedaluwarsa_pada > diterbitkan_pada)` |
+| kedaluwarsa_pada | timestamptz | NN, diisi domain = `diterbitkan_pada` + `ttl_menit`; `CHECK (kedaluwarsa_pada > diterbitkan_pada)`. Invoice gabungan host: = `kedaluwarsa_pada` **tertua** dari invoice yang digantikan (tidak memperpanjang TTL; **default, menunggu K-37**) |
+| menggantikan_invoice_ids | uuid[] | untuk invoice gabungan; invoice lama → `DIGANTI` di transaksi yang sama |
 | subtotal_barang_rp, potongan_rp, biaya_admin_rp, ongkir_rp, subsidi_ongkir_rp | bigint | NN `CHECK (>= 0)`, jumlah dari `baris_invoice` |
-| ppn_rp, dpp_rp | bigint | rincian PPN (G-04; harga tampil sudah termasuk PPN). Cara hitung **menunggu Q-01** |
+| ppn_rp, dpp_rp | bigint | rincian PPN (G-04; harga tampil sudah termasuk PPN). Cara hitung **menunggu K-28** |
 | konfigurasi_ppn_id | uuid | FK `konfigurasi_ppn` (snapshot versi) |
 | total_rp | bigint | NN `CHECK (total_rp = subtotal_barang_rp - potongan_rp + biaya_admin_rp + ongkir_rp - subsidi_ongkir_rp AND total_rp >= 0)` |
 | saldo_dipakai_rp | bigint | NN `CHECK (>= 0 AND <= total_rp)` (G-03: poin = saldo, digabung metode lain) |
@@ -622,7 +674,9 @@ Tidak ada `UK (produk, zona, slot)` lagi (ADR §3.2 M-10 usang karena G-01).
 Indeks: `(status, kedaluwarsa_pada) WHERE status='DITERBITKAN'` (job kedaluwarsa K-12), `(grup_id, jenis)`, `(pembayar_akun_id, diterbitkan_pada DESC)`.
 
 **`invoice_peserta`**: `invoice_id` FK, `peserta_id` FK, `jenis` (salinan), `aktif` boolean. `UK (peserta_id, jenis) WHERE aktif` — satu invoice aktif
-per peserta per jenis; peralihan ke invoice gabungan menonaktifkan yang lama (`DIGANTI`) dalam satu transaksi.
+per peserta per jenis. Peralihan ke invoice gabungan (K-17), **satu transaksi**: invoice lama → `DIGANTI`, `invoice_peserta` lama `aktif=false`,
+semua `baris_invoice` lama (termasuk `BIAYA_ADMIN`) `dibatalkan=true`, baris disalin ke invoice gabungan, pembayaran Xendit lama dibatalkan
+(di luar transaksi, lewat outbox), reservasi stok dipindah ke baris baru.
 
 **`baris_invoice`** — snapshot per baris saat invoice (K-15).
 
@@ -630,15 +684,15 @@ per peserta per jenis; peralihan ke invoice gabungan menonaktifkan yang lama (`D
 |---|---|---|
 | id | uuid | PK |
 | invoice_id, peserta_id | uuid | FK NN |
-| jenis | text | `BARANG`, `BIAYA_ADMIN` (G-05/K-06), `BIAYA_ADMIN_PAGAR` (kekurangan pagar modal sebagai biaya admin, P-16/P-23), `ONGKIR`, `SUBSIDI_ONGKIR`, `DISKON` |
+| jenis | text | `BARANG`, `BIAYA_ADMIN` (G-05/K-06; di invoice `BARANG` atau `FINAL` dan perlakuan saat host bayar **menunggu K-26**), `BIAYA_ADMIN_PAGAR` (kekurangan pagar modal sebagai biaya admin, P-16/P-23), `ONGKIR`, `SUBSIDI_ONGKIR`, `DISKON` |
 | satuan_jual_id | uuid | FK, wajib untuk `BARANG` |
 | nama_snapshot | text | nama produk + satuan saat invoice |
 | qty | integer | `CHECK (qty > 0)` |
-| level_harga | text | `INDIVIDU` / `MITRA_GROSIR` |
+| level_harga | text | `SATUAN` / `MITRA_GROSIR` |
 | harga_dibayar_rp | bigint | harga per satuan jual saat invoice |
 | modal_snapshot_rp | bigint | modal efektif saat invoice; `CHECK (jenis <> 'BARANG' OR (modal_snapshot_rp > 0 AND harga_dibayar_rp > modal_snapshot_rp))` |
 | versi_harga | text | |
-| potongan_baris_rp, subsidi_ongkir_baris_rp | bigint | `CHECK (>= 0)`; PG-4: `harga_dibayar_rp*qty - potongan_baris_rp - subsidi_ongkir_baris_rp >= modal_snapshot_rp*qty` (alokasi subsidi **menunggu P-20**) |
+| potongan_baris_rp, subsidi_ongkir_baris_rp | bigint | `CHECK (>= 0)`; lantai keras DB: `harga_dibayar_rp*qty - potongan_baris_rp - subsidi_ongkir_baris_rp > modal_snapshot_rp*qty` bila ada promo; batas promo `≥ modal × (1+β)` di domain (§5) (alokasi subsidi **menunggu P-20**) |
 | bebas_ppn | boolean | snapshot `produk.bebas_ppn` |
 | ppn_baris_rp, dpp_baris_rp | bigint | NULL bila bebas PPN |
 | nilai_rp | bigint | NN; nilai baris (negatif hanya untuk `DISKON`/`SUBSIDI_ONGKIR`) |
@@ -648,6 +702,7 @@ per peserta per jenis; peralihan ke invoice gabungan menonaktifkan yang lama (`D
 | dibatalkan | boolean | NN bawaan `false` |
 
 `UK (peserta_id) WHERE jenis='BIAYA_ADMIN' AND NOT dibatalkan` — biaya admin flat satu kali per akun per grup (K-06; nilai dari `konfigurasi.biaya_admin_rp`, kosong bawaan).
+Invoice final yang tidak dilunasi (ongkir, K-10): status & tindak lanjut **menunggu K-25** (bawaan sementara: invoice `KEDALUWARSA` + `antrean_tinjauan` jenis `INVOICE_FINAL_BELUM_LUNAS`, barang tidak dikirim otomatis).
 Indeks `(invoice_id)`, `(peserta_id)`, `(satuan_jual_id)`.
 
 **`konfigurasi_ppn`** (versi, append-only): `id`, `tarif_persen` numeric(9,4) NULL, `dpp_pembilang`/`dpp_penyebut` integer NULL, `berlaku_mulai`, `dibuat_oleh`.
@@ -661,7 +716,7 @@ Semua NULL bawaan; diisi owner (G-04). Tidak ada nilai di dokumen/kode.
 |---|---|---|
 | id | uuid | PK = `external_id` ke Xendit (M-06: retry tidak membuat invoice ganda) |
 | invoice_id | uuid | FK NN |
-| metode | text | `QRIS`, `VA`, `EWALLET` (keputusan §9) |
+| metode | text | `CHECK IN ('QRIS','VA')` untuk invoice grup (F-01: grup dilunasi via VA/QRIS). Nilai `EWALLET` (keputusan §9) disiapkan di kode tetapi **tidak** diizinkan constraint untuk grup — **menunggu K-36** |
 | kanal | text | kode bank VA / e-wallet |
 | jumlah_rp | bigint | NN `CHECK (> 0)`, harus = `invoice.sisa_bayar_rp` saat dibuat |
 | xendit_ref | text | `UK` (id invoice/QR/VA di Xendit) |
@@ -672,8 +727,10 @@ Semua NULL bawaan; diisi owner (G-04). Tidak ada nilai di dokumen/kode.
 
 `UK (invoice_id) WHERE status IN ('MENUNGGU','LUNAS')` — satu pembayaran hidup per invoice. Indeks `(status, dibuat_pada)` untuk rekonsiliasi.
 
-**`webhook_event`** (append-only): `id` PK; `gateway` text; `external_id`; `status`; `event_id_gateway`; `diterima_pada`; `diproses_pada`; `payload_redaksi` jsonb
-(nama/HP/email pembayar dihapus sebelum simpan). `UK (gateway, external_id, status)` = dedup idempoten. Event "yatim" → `antrean_tinjauan`.
+**`webhook_event`** (append-only): `id` PK; `gateway` text NN; `event_id_gateway` text **NN**; `external_id` NN; `status` NN; `pembayaran_id` FK `pembayaran` (NULL = event yatim → `antrean_tinjauan`);
+`diterima_pada` NN. Dedup: `UK (gateway, event_id_gateway)` **dan** `UK (gateway, external_id, status)`.
+**`webhook_proses`**: `webhook_event_id` PK/FK; `diproses_pada`; `hasil` (`DIPROSES`, `DUPLIKAT`, `YATIM`, `NOMINAL_TIDAK_COCOK`, `TERLAMBAT`). Ditulis di transaksi pemrosesan (M5).
+**`webhook_payload`**: `webhook_event_id` PK/FK; `payload_redaksi` jsonb (nama/HP/email pembayar dihapus sebelum simpan). Dipangkas oleh `pangkas_webhook_payload` (M5, §6.3).
 
 ### 3.11 Saldo = loyalty point (K-13, G-06)
 
@@ -689,28 +746,51 @@ Semua NULL bawaan; diisi owner (G-04). Tidak ada nilai di dokumen/kode.
 | jumlah_rp | bigint | NN `CHECK (jumlah_rp <> 0)`; + kredit, − debit |
 | jenis | text | `SELISIH_HARGA`, `REFUND`, `REFUND_ONGKIR`, `BAYAR_TERLAMBAT`, `PAKAI_CHECKOUT`, `SALDO_BALIK`, `KOREKSI_ADMIN`, `PENCAIRAN`, `PENCAIRAN_BATAL` |
 | referensi_jenis, referensi_id | text, uuid | grup/peserta/invoice/pembayaran/pencairan |
-| kunci_idempotensi | text | NN `UK` (mis. `selisih:{grup_id}:{peserta_id}`, `refund:{peserta_id}`, `debit:{invoice_id}`, `cair:{pencairan_id}`) |
+| kunci_idempotensi | text | NN `UK` (mis. `selisih:{grup_id}:{peserta_id}`, `refund:{peserta_id}:{alasan}:{seq}` — `seq` urut per peserta agar refund parsial berulang tetap unik, `debit:{invoice_id}`, `cair:{pencairan_id}`, `koreksi:{persetujuan_id}`) |
 | alasan | text | wajib untuk `KOREKSI_ADMIN` (`CHECK`) |
-| dibuat_oleh_admin_id | uuid | FK, untuk koreksi/pencairan |
-| saldo_sesudah_rp | bigint | `CHECK (>= 0)`; memudahkan riwayat & rekonsiliasi |
+| dibuat_oleh_admin_id | uuid | FK, pengaju koreksi |
+| disetujui_oleh_admin_id | uuid | FK; wajib untuk `KOREKSI_ADMIN` kredit di atas ambang four-eyes; `CHECK (disetujui_oleh_admin_id IS NULL OR disetujui_oleh_admin_id <> dibuat_oleh_admin_id)` |
+| dapat_dicairkan_sejak | timestamptz | masa tahan sebelum kredit boleh dicairkan: untuk kredit dari pembayaran baru (`REFUND`, `SELISIH_HARGA`, `BAYAR_TERLAMBAT`) & `KOREKSI_ADMIN`; lama tahan dari konfigurasi (kosong) — **menunggu K-34** |
+| saldo_sesudah_rp | bigint | **NN** `CHECK (>= 0)`; memudahkan riwayat & rekonsiliasi |
 
 Indeks `(akun_id, id DESC)` (riwayat saldo). Invarian dites + job harian: `akun_saldo.saldo_rp = SUM(ledger_saldo.jumlah_rp)`.
 
-**`pencairan_saldo`** — G-06d (fitur dikunci konfigurasi sampai tinjauan hukum H5).
+**`persetujuan_koreksi_saldo`** (four-eyes): `id`; `akun_id` FK; `jumlah_rp` bigint `<> 0`; `alasan` NN; `diajukan_oleh` FK `admin` NN; `disetujui_oleh` FK `admin`;
+`status` (`DIAJUKAN`, `DISETUJUI`, `DITOLAK`); `CHECK (disetujui_oleh IS NULL OR disetujui_oleh <> diajukan_oleh)`. Ledger `KOREKSI_ADMIN` baru ditulis saat `DISETUJUI`.
+
+**`tujuan_pencairan_terverifikasi`** — tujuan pencairan yang lolos validasi.
+
+| Kolom | Tipe | Catatan |
+|---|---|---|
+| id | uuid | PK |
+| akun_id | uuid | FK NN |
+| tujuan_jenis, tujuan_kode | text | `BANK`, `VA`, `EWALLET` + kode bank/e-wallet |
+| nomor_tujuan_enc | bytea | **[PII][RAHASIA]** AES-GCM, AAD = `akun_id`, + `kunci_versi` |
+| nomor_tujuan_akhir | text | 4 digit terakhir untuk tampilan |
+| nama_hasil_validasi | text | **[PII]** nama pemilik dari validasi akun Xendit |
+| nama_cocok | boolean | NN; hasil *name-match* dengan pemilik akun NEKAT; `false` → tidak bisa dipakai |
+| xendit_validasi_ref | text | |
+| divalidasi_pada | timestamptz | NN |
+| boleh_dipakai_sejak | timestamptz | NN = `divalidasi_pada` + jeda tujuan baru (konfigurasi, kosong) |
+| dinonaktifkan_pada | timestamptz | |
+
+**`pencairan_saldo`** — G-06d (fitur dikunci `pencairan.aktif=false` sampai tinjauan hukum H5).
 
 | Kolom | Tipe | Catatan |
 |---|---|---|
 | id | uuid | PK |
 | akun_id | uuid | FK NN |
 | jumlah_rp | bigint | `CHECK (> 0)`; debit ledger `PENCAIRAN` saat diajukan, `PENCAIRAN_BATAL` bila gagal |
-| tujuan_jenis | text | `BANK`, `VA`, `EWALLET` |
-| tujuan_kode | text | kode bank / e-wallet |
-| nomor_tujuan_enc | bytea | **[PII][RAHASIA]** nomor rekening/e-wallet terenkripsi aplikasi; tampil hanya 4 digit terakhir (`nomor_tujuan_akhir`) |
-| nama_pemilik | text | **[PII]** |
-| status | text | `DIAJUKAN`, `DIPROSES`, `BERHASIL`, `GAGAL`, `DITOLAK` |
+| tujuan_id | uuid | FK `tujuan_pencairan_terverifikasi` NN (`nama_cocok = true`, `sekarang ≥ boleh_dipakai_sejak`) |
+| reauth_sesi_pada | timestamptz | NN, salinan `sesi.reauth_pada` (step-up OTP) saat pengajuan |
+| status | text | `DIAJUKAN`, `DISETUJUI`, `DIPROSES`, `BERHASIL`, `GAGAL`, `DITOLAK` |
 | xendit_disbursement_ref | text | `UK` |
 | kunci_idempotensi | text | `UK` |
-| diproses_oleh | uuid | FK `admin` |
+| disetujui_oleh, diproses_oleh | uuid | FK `admin`; di atas ambang four-eyes `CHECK (disetujui_oleh <> diproses_oleh)` |
+
+Guard pengajuan (domain, dalam transaksi berkunci `akun_saldo`) — **semua wajib sebelum `pencairan.aktif = true`**; nilai & aturan bisnisnya **menunggu K-34** (konfigurasi kosong):
+akun `AKTIF` (bukan `DIBEKUKAN`) dan tidak ada peserta `dana_ditahan`; step-up OTP baru; jeda setelah tujuan baru **dan** setelah `akun.hp_diganti_pada`;
+limit harian `pencairan.limit_harian_rp` (indeks `(akun_id, dibuat_pada)`); jumlah ≤ saldo yang `dapat_dicairkan_sejak ≤ sekarang`.
 
 ### 3.12 Armada, tarif, ongkir (K-05, P-12)
 
@@ -738,15 +818,16 @@ ikut adapter, P-12); `sumber_adapter`, `ref_eksternal`; `berlaku_sampai`; `dipak
 | cara_hitung | text | `TOTAL_PROPORSIONAL`, `PER_BARANG` — **menunggu K-21** (tidak menumpuk, P-15) |
 | berlaku_mulai, berlaku_sampai | timestamptz | `CHECK (berlaku_sampai > berlaku_mulai)` |
 | kuota, terpakai | integer | `CHECK (terpakai >= 0 AND (kuota IS NULL OR terpakai <= kuota))` |
+| maks_per_akun | integer | NULL = tanpa batas; `CHECK (IS NULL OR > 0)`; dicek di transaksi checkout (cegah penimbunan, CWE-770) |
 | aktif | boolean | |
 
 **`aturan_gratis_ongkir`**: `id`; `minimal_belanja_rp` bigint NULL (dihitung **sesudah** diskon, P-13); `zona_id`, `level`, periode; `subsidi_jenis` (`PENUH`, `MAKS`);
-`subsidi_maks_rp` bigint NULL; `kuota`, `terpakai`; `aktif`.
+`subsidi_maks_rp` bigint NULL; `kuota`, `terpakai`, `maks_per_akun`; `aktif`.
 
 **`pemakaian_promo`**: `id`; `aturan_diskon_id` / `aturan_gratis_ongkir_id` (tepat satu, `CHECK num_nonnulls = 1`); `invoice_id` FK; `akun_id` FK; `status`
-(`DIRESERVASI`, `TERPAKAI`, `DILEPAS`); `alasan_tidak_memenuhi` text (P-27: tampilkan "tidak memenuhi syarat" + alasan + saran). `UK (aturan_*, invoice_id)`.
+(`DIRESERVASI`, `TERPAKAI`, `DILEPAS`); `alasan_tidak_memenuhi` text (P-27: tampilkan "tidak memenuhi syarat" + alasan + saran). `UK (aturan_*, invoice_id)`. Indeks `(aturan_*, akun_id) WHERE status <> 'DILEPAS'` untuk `maks_per_akun`.
 
-Batas bawah margin promo & gratis ongkir (P-07, K-16) dari konfigurasi `promo.batas_bawah_margin_persen` (nilai tidak ditulis di sini); dicek domain per baris.
+Batas bawah promo & gratis ongkir (P-07, K-16): nilai bersih per baris `≥ modal × (1+β)`, β = konfigurasi `promo.batas_bawah_margin` (nilai tidak ditulis di sini); dicek domain per baris.
 
 ### 3.14 COD: KPI mingguan (keputusan §2)
 
@@ -773,7 +854,7 @@ sebelum/sesudah saldo menunggu P-18.
 | Kolom | Tipe | Catatan |
 |---|---|---|
 | id | uuid | PK |
-| jenis | text | `MODAL_PECAHAN` (K-01), `HARGA_PECAHAN` (Q-01), `KATEGORI`, `SKU_BELUM_DIPETAKAN`, `TIMPAAN_KEDALUWARSA` (K-03), `GRUP_DITAHAN` (P-09/P-26), `DANA_DITAHAN` (F-10), `PEMBAYARAN_YATIM`, `NOMINAL_TIDAK_COCOK`, `PICKING_GAGAL`, `KONFLIK_IDEMPOTENSI` |
+| jenis | text | `MODAL_PECAHAN` (K-01), `HARGA_PECAHAN` (K-28), `INVOICE_FINAL_BELUM_LUNAS` (K-25), `KATEGORI`, `SKU_BELUM_DIPETAKAN`, `TIMPAAN_KEDALUWARSA` (K-03), `GRUP_DITAHAN` (P-09/P-26), `DANA_DITAHAN` (F-10), `PEMBAYARAN_YATIM`, `NOMINAL_TIDAK_COCOK`, `PICKING_GAGAL`, `KONFLIK_IDEMPOTENSI` |
 | entitas_jenis, entitas_id | text, uuid | NN |
 | data | jsonb | nilai mentah (mis. modal pecahan apa adanya sebagai teks), tanpa PII |
 | status | text | `TERBUKA`, `SELESAI`, `DIABAIKAN` |
@@ -781,11 +862,11 @@ sebelum/sesudah saldo menunggu P-18.
 
 `UK (jenis, entitas_jenis, entitas_id) WHERE status='TERBUKA'` (tidak dobel). Indeks `(status, jenis, dibuat_pada)`.
 
-**`outbox`**: `id`; `jenis` (`WA`, `PICKING`); `kunci_idempotensi` `UK`; `payload` jsonb (hanya id; PICKING tanpa nama/HP/alamat, T-009 §2); `status`, `percobaan`,
+**`outbox`**: `id`; `grup_id` FK NULL (picking & notifikasi grup); `jenis` (`WA`, `PICKING`, `BATAL_PEMBAYARAN_XENDIT`); `kunci_idempotensi` `UK`; `payload` jsonb (hanya id; PICKING tanpa nama/HP/alamat, T-009 §2); `status`, `percobaan`,
 `kirim_setelah`, `kedaluwarsa_pesan`. **Ledger tidak pernah lewat outbox.** **`job_run`**: `kunci` PK (mis. `cutoff:{slot_id}`), `status`, `lease_sampai`.
 
 **`konfigurasi`**: `kunci` PK, `nilai` jsonb, `diubah_oleh`, `diubah_pada` (riwayat via `log_admin`). Kunci contoh: `invoice.ttl_menit`, `biaya_admin_rp` (NULL),
-`grup.minimum_belanja_rp`, `grup.min_akun`, `promo.batas_bawah_margin_persen`, `katalog.mode_stok_habis` (K-20), `pencairan.aktif` (H5). Tidak ada rahasia.
+`grup.minimum_belanja_rp`, `grup.min_akun` (≥ 3), `promo.batas_bawah_margin`, `saldo.ambang_four_eyes_rp`, `pencairan.limit_harian_rp`, `otp.batas_gagal_harian`, `katalog.mode_stok_habis` (K-20), `pencairan.aktif` (H5). Tidak ada rahasia.
 
 ---
 
@@ -819,12 +900,14 @@ Cabang: `DIKELUARKAN` (tidak lunas dalam TTL, K-12), `BATAL`, `DIREFUND`, `DANA_
 
 | Aturan | Penegakan |
 |---|---|
-| Tidak ada harga di bawah modal (CLAUDE.md, P-16 margin > 0) | `CHECK` di `harga_terhitung`, `baris_invoice` (BARANG), `harga_level`; domain untuk pagar promo/ongkir (PG-4, K-16) |
-| Pagar individu ≥ Mitra Grosir ≥ Franchise | domain (lintas baris); hanya use case harga boleh tulis `harga_terhitung` |
+| Harga > modal (CLAUDE.md + P-16: margin 0 dilarang) | `CHECK (harga > modal)` di `harga_terhitung` & `baris_invoice` (BARANG); `CHECK (> 0)` di `harga_level` |
+| Promo & gratis ongkir: nilai bersih ≥ modal × (1+β) (P-07, K-16) | domain per baris (β dari konfigurasi); DB menjaga lantai keras nilai bersih > modal × qty |
+| Pagar `SATUAN ≥ MITRA_GROSIR ≥ FRANCHISE` (harga grup individu = `MITRA_GROSIR`, K-14) | domain (lintas baris); hanya use case harga boleh tulis `harga_terhitung` |
+| Kode satuan kanonik | `PCS_1`, `PCS_3`, `LUSIN`, `DUS`, `KOLI` (`CHECK` di `satuan_jual.jenis`); CSV/Gudang dipetakan ke kode ini |
 | Harga kartu = detail | satu sumber `harga_terhitung` + `versi_harga`; promo dari `aturan_diskon`, tidak menimpa harga |
-| Grup ≥ 3 akun berbeda | `UK` parsial peserta aktif per `(grup_id, akun_id)` + `akun` unik per HP + hitung ulang di transaksi berkunci |
+| Grup ≥ 3 akun berbeda | `CHECK (grup.min_akun >= 3)` + `UK` parsial peserta aktif per `(grup_id, akun_id)` + `akun` unik per HP + hitung ulang di transaksi berkunci |
 | TTL invoice | `invoice.kedaluwarsa_pada` + indeks job; webhook memakai `paid_at_gateway` (F-11) |
-| Idempotensi uang | `UK` `ledger_saldo.kunci_idempotensi`, `pembayaran.kunci_idempotensi`, `webhook_event (gateway, external_id, status)`, `pencairan_saldo.kunci_idempotensi`, `outbox.kunci_idempotensi` |
+| Idempotensi uang | `UK` `ledger_saldo.kunci_idempotensi`, `pembayaran.kunci_idempotensi`, `webhook_event (gateway, event_id_gateway)` & `(gateway, external_id, status)`, `pencairan_saldo.kunci_idempotensi`, `outbox.kunci_idempotensi` |
 | Saldo tidak negatif | `CHECK` `akun_saldo.saldo_rp >= 0` + `ledger_saldo.saldo_sesudah_rp >= 0` |
 | Urutan kunci | `grup` (urut id) → `stok_lokasi` (urut sku) → `peserta_grup` → `invoice` → `akun_saldo` (ADR §3.2; `pesanan` diganti `invoice`) |
 
@@ -840,9 +923,9 @@ Cabang: `DIKELUARKAN` (tidak lunas dalam TTL, K-12), `BATAL`, `DIREFUND`, `DANA_
 | `alamat` | alamat_teks, patokan, catatan_kurir, lat, lng | hanya untuk antar rumah; drop point tidak perlu alamat |
 | `peserta_grup` | alamat_snapshot | hanya peserta `ANTAR_RUMAH` |
 | `admin` | nama, nomor_hp_e164 | |
-| `pencairan_saldo` | nomor_tujuan_enc, nama_pemilik | terenkripsi aplikasi, tampil 4 digit terakhir |
-| `persetujuan_legal`, `otp_permintaan`, `log_admin` | ip_hmac, user_agent_ringkas | IP tidak pernah disimpan mentah |
-| Rahasia | `admin.totp_rahasia_enc`, `kode_pemulihan_totp.kode_hash`, `otp_permintaan.kode_hash`, `sesi.id_hash` | kunci enkripsi/HMAC hanya di env/secret store (CLAUDE.md #6) |
+| `tujuan_pencairan_terverifikasi` | nomor_tujuan_enc, nama_hasil_validasi | terenkripsi aplikasi, tampil 4 digit terakhir |
+| `persetujuan_legal`, `otp_permintaan`, `log_admin` | ip_hmac, user_agent_ringkas | IP tidak pernah disimpan mentah; dianonimkan lewat `anonimkan_akun` (M5) |
+| Rahasia | `admin.totp_rahasia_enc`, `kode_pemulihan_totp.kode_hash`, `otp_permintaan.kode_hmac`, `sesi.id_hash` | kunci enkripsi/HMAC hanya di env/secret store (CLAUDE.md #6) |
 
 ### 6.2 Siapa boleh membaca
 
@@ -856,7 +939,7 @@ Cabang: `DIKELUARKAN` (tidak lunas dalam TTL, K-12), `BATAL`, `DIREFUND`, `DANA_
 | Gudang | barang, qty, slot, drop point (T-009) | PII apa pun |
 | Error tracking / log | data teredaksi (H8, pino `redact`) | PII, OTP, token |
 
-Peran DB: `app_rw` (tanpa DDL; tanpa UPDATE/DELETE pada tabel append-only), `migrasi` (DDL), `laporan_ro` (hanya view tanpa PII).
+Peran DB: `app_rw` (tanpa DDL; tanpa UPDATE/DELETE pada tabel append-only), `migrasi` (DDL), `laporan_ro` (hanya view tanpa PII), `retensi` (hanya `EXECUTE` fungsi `SECURITY DEFINER` M5).
 
 ### 6.3 Retensi (usulan, mengikuti draf `docs/legal/kebijakan-privasi.md`)
 
@@ -864,10 +947,10 @@ Peran DB: `app_rw` (tanpa DDL; tanpa UPDATE/DELETE pada tabel append-only), `mig
 |---|---|
 | `otp_permintaan` | hapus fisik setelah kedaluwarsa + jendela rate limit (usulan teknis: ≤ 24 jam) |
 | `sesi` | hapus saat logout / kedaluwarsa |
-| `webhook_event.payload_redaksi` | dipangkas setelah rekonsiliasi (usulan teknis: 90 hari); baris dedup disimpan |
+| `webhook_payload` | dihapus oleh `pangkas_webhook_payload` setelah rekonsiliasi (usulan teknis: 90 hari); `webhook_event` (dedup) tetap |
 | `alamat`, `peserta_grup.alamat_snapshot` | selama akun aktif; snapshot dianonimkan setelah pesanan selesai + masa komplain (F-24 terbuka) |
 | Transaksi (`invoice`, `baris_invoice`, `pembayaran`, `ledger_saldo`, `pencairan_saldo`) | akun aktif + "[5] tahun" (isian kurung siku kebijakan privasi, menunggu #5/hukum), lalu dianonimkan |
-| Hapus akun | PII di-NULL-kan / dihapus, `akun.status = DIHAPUS`, `hp_hmac` disimpan untuk cegah banyak akun; transaksi tetap (lihat Q-06) |
+| Hapus akun | PII di-NULL-kan / dihapus, `akun.status = DIHAPUS`, `hp_hmac` disimpan untuk cegah banyak akun; transaksi tetap. Saldo > 0 saat hapus & daftar ulang nomor yang sama **menunggu K-35** |
 | Lokasi penyimpanan | menunggu H12 |
 
 ---
@@ -886,27 +969,40 @@ Peran DB: `app_rw` (tanpa DDL; tanpa UPDATE/DELETE pada tabel append-only), `mig
 | F-23 persetujuan ulang | `dokumen_legal.wajib_setuju_ulang` | `true` |
 | F-28 barang tidak diambil | status peserta `TIDAK_DIAMBIL` | belum dipakai |
 | H5 pencairan | `konfigurasi.pencairan.aktif` | `false` |
+| K-25 invoice final tidak lunas | status invoice `KEDALUWARSA` + antrean `INVOICE_FINAL_BELUM_LUNAS` | barang tidak dikirim otomatis |
+| K-26 biaya admin: invoice awal/final & host bayar | `baris_invoice.jenis = BIAYA_ADMIN` di invoice mana pun; `UK` per peserta | invoice `BARANG`, per akun peserta |
+| K-27 `MITRA_GROSIR` kosong | `harga_level` level `MITRA_GROSIR` NULL | tidak ada harga grup, pakai `SATUAN` |
+| K-28 rupiah pecahan (margin %, diskon %, PPN) | alasan `HARGA_PECAHAN`, `invoice.ppn_rp/dpp_rp` | tidak tayang / tidak diterapkan + antrean |
+| K-30 ikut lagi setelah keluar | peserta & keranjang baru, keranjang lama `DITINGGALKAN` | boleh selama `DIBUKA`/`AKTIF` |
+| K-34 aturan pencairan | `tujuan_pencairan_terverifikasi`, `ledger_saldo.dapat_dicairkan_sejak`, konfigurasi limit/jeda | nilai kosong; `pencairan.aktif=false` |
+| K-35 hapus akun & daftar ulang | `akun.hp_hmac` `UK` penuh | daftar ulang ditolak |
+| K-36 e-wallet di grup | `pembayaran.metode` `CHECK IN ('QRIS','VA')` | e-wallet tidak tersedia untuk grup |
+| K-37 TTL invoice gabungan | `invoice.kedaluwarsa_pada` | = kedaluwarsa tertua yang digantikan |
 
 ---
 
-## 8. Pertanyaan keputusan baru (dari T-004)
+## 8. Keputusan terbuka yang berasal dari T-004
+
+Dicatat koordinator di `project-specs/keputusan-terbuka.md`; model di atas memakai bawaan sementara di §7.
 
 | # | Pertanyaan | Rekomendasi | Pemilik |
 |---|---|---|---|
-| Q-01 | H6 tanpa pembulatan, tetapi margin %, diskon %, dan rincian PPN bisa menghasilkan rupiah pecahan. Apa perlakuannya? | Margin/diskon: hasil pecahan → sel tidak tayang / diskon tidak diterapkan + antrean "perlu ditinjau" (sama dengan K-01), admin ganti persen atau isi harga rupiah. PPN: total tetap = harga tampil; cara membagi rincian PPN/DPP ditetapkan konsultan pajak | Efan (+ konsultan pajak) |
-| Q-02 | Host membayar semua (invoice gabungan, K-17): biaya admin flat dihitung per akun peserta atau sekali per invoice? | Per akun peserta (konsisten K-06), tampil per baris | Efan |
-| Q-03 | Biaya admin ditagih di invoice awal (barang) atau invoice final (bersama ongkir, K-10)? | Invoice awal, agar invoice final hanya ongkir & penyesuaian | Efan |
-| Q-04 | Invoice final (ongkir, K-10) tidak dilunasi: apa akibatnya, sementara barang sudah dikunci/dipicking? | Potong otomatis dari kredit selisih/saldo dulu; sisa ditagih dengan TTL yang sama; tidak lunas → barang ditahan di drop point + antrean admin | Randy + Efan |
-| Q-05 | K-03: saat tanggal kedaluwarsa timpaan modal tercapai, timpaan tetap berlaku (hanya pemberitahuan) atau otomatis dicabut? | Tetap berlaku sampai dicabut admin; tanggal = pengingat (sesuai teks K-03) | Efan + Joseph |
-| Q-06 | Hapus akun dengan saldo > 0, dan nomor HP yang sama mendaftar lagi | Saldo wajib dicairkan/diselesaikan sebelum hapus; HMAC nomor HP disimpan agar pendaftaran ulang terdeteksi | Randy (+ hukum) |
-| Q-07 | Persen disimpan `numeric(9,4)` (model ini) vs basis poin integer (engine-harga §3.1) | `numeric(9,4)` di DB; engine memetakan, tolak presisi di luar batas | Joseph |
+| K-28 | H6 tanpa pembulatan, tetapi margin %, diskon %, dan rincian PPN bisa menghasilkan rupiah pecahan | Margin/diskon: hasil pecahan → tidak tayang / diskon tidak diterapkan + antrean (seperti K-01); PPN: total = harga tampil, pembagian rincian PPN/DPP oleh konsultan pajak | Efan (+ konsultan pajak) |
+| K-26 | Biaya admin: ditagih di invoice awal atau final, dan saat host bayar (gabungan) dihitung per akun peserta atau sekali? | Invoice awal; per akun peserta (K-06) | Efan |
+| K-25 | Invoice final (ongkir, K-10) tidak dilunasi | Potong dari kredit/saldo dulu; sisa ditagih dengan TTL sama; tidak lunas → barang ditahan di drop point + antrean admin | Randy + Efan |
+| K-35 | Hapus akun dengan saldo > 0, dan nomor HP yang sama mendaftar lagi | Saldo wajib diselesaikan sebelum hapus; `hp_hmac` disimpan, daftar ulang ditinjau | Randy (+ hukum) |
+
+Persen `numeric(9,4)` vs basis poin bukan keputusan bisnis: diputuskan teknis di M2.
 
 ---
 
 ## 9. Selisih dengan dokumen lain (untuk diselaraskan di T-047)
 
 - Flow T-002 & ADR §3.2 masih memakai grup **per produk × zona × slot** dan `UNIQUE(produk_id, zona_id, slot_id)`; model ini mengikuti G-01 (grup per keranjang).
-- Engine-harga memakai tier `SATUAN/G0/G1/G2` dan level `MITRA`; model ini memakai satuan jual P-03 + level `INDIVIDU / MITRA_GROSIR / FRANCHISE` (K-08, K-14), tanpa tabel `definisi_tier`.
+- Engine-harga memakai tier `SATUAN/G0/G1/G2` dan level `INDIVIDU/MITRA`; model ini memakai satuan jual P-03 + level harga `SATUAN / MITRA_GROSIR / FRANCHISE` (K-08, K-14), tanpa tabel `definisi_tier`. Catatan: `SATUAN` di sini = level harga, bukan tier engine.
+- Status grup beda dengan T-002 §3: `BELUM_AKTIF` dihapus (cukup `DIBUKA` < 3 akun menambah barang, K-17), `GAGAL_LANJUT_SATUAN` → `LANJUT_SATUAN`, `DIBATALKAN` → `BATAL` (F-29, K-12, termasuk batal karena akun lunas < 3). Status peserta tambah `DIKELUARKAN` (K-12), `AKTIF` (menambah barang sebelum invoice).
+- T-009 `satuanDasar` memakai `kg`/`liter`; model ini menyimpan `gram`/`ml` (integer) dan mengonversi saat sinkron.
+- F-26/K-07 TTL dihitung sejak invoice diterbitkan; flow B-11 masih `min(TTL, cut-off)`.
 - Engine-harga & T-009 menyebut modal dibagi dari karton (`bagiAtas`) dan snapshot saat grup dibuka (F-08); model ini: modal per satuan jual (K-01) dan snapshot saat invoice (K-15).
 - Engine-harga `margin_nol` bawaan mengizinkan sebagian sel; P-16 melarang margin 0 → `CHECK (harga > modal)`.
 - `pesanan` di ADR diganti `invoice` + `peserta_grup` (satu peserta = satu akun per grup).
