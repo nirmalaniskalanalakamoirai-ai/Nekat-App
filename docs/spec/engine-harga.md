@@ -42,7 +42,7 @@ Dokumen ini menetapkan **perilaku wajib** engine harga agar T-020 bisa dibangun 
 | **Harga final (F)** | Harga per unit yang dikunci saat cut-off (§5.4). `F ≤ D` (**DEFAULT SEMENTARA P-19**). |
 | **PPN** | Tarif & DPP dari konfigurasi, flag `bebas_ppn` per produk, harga tampil sudah termasuk PPN (G-04). |
 | **Faktor PPN (φ)** | Bilangan rasional `φ = φ_pembilang / φ_penyebut` dari konfigurasi (= 1 + tarif × DPP); `φ = 1` untuk produk bebas PPN. Dipakai hanya lewat perkalian silang integer (§3.5). |
-| **Batas bawah promo (β)** | `β = batas_bawah_promo` (basis poin dari modal) di konfigurasi (K-16): nilai bersih setelah promo/gratis ongkir ≥ modal × (1 + β). |
+| **Batas bawah promo (β)** | `β = promo.batas_bawah_bp` (basis poin dari modal, konfigurasi K-16; faktor = `1 + β/10000`, dihitung dengan perkalian silang integer tanpa pembagian): nilai bersih setelah promo/gratis ongkir ≥ modal × (1 + β/10000). |
 | **Promo** | Diskon atau gratis ongkir dari aturan admin (T-032); selalu tampil **terpisah** dari harga. |
 | **Versi harga** | `id_versi_harga`: penanda deterministik atas input yang menghasilkan tabel harga. |
 | **Tayang** | Boleh tampil & dibeli (PG-5 + syarat stok T-025 / K-20). |
@@ -148,19 +148,19 @@ Langkah 4–5 mengumpulkan **semua** pelanggaran.
 
 ## 4. Pagar (invarian)
 
-Notasi: `H(s, L)` harga sel; `M` modal (snapshot invoice: `Mi`; terkini saat cut-off: `Mc`); `q` qty pesan; `a` qty teralokasi; `P` potongan baris; `S` subsidi ongkir baris; `φ` faktor PPN baris; `β` batas bawah promo. `nilai ≥ₚ modal` berarti `nilai × φ_penyebut ≥ modal × φ_pembilang`; `>ₚ` versi ketatnya (§3.5). Karena margin 0 ditolak (P-16), pagar modal selalu **ketat** (`>`).
+Notasi: `H(s, L)` harga sel; `M` modal (snapshot invoice: `Mi`; terkini saat cut-off: `Mc`); `q` qty pesan; `a` qty teralokasi; `P` potongan baris; `S` subsidi ongkir baris; `φ` faktor PPN baris; `β` batas bawah promo. `nilai ≥ₚ modal` berarti `nilai × φ_penyebut ≥ modal × φ_pembilang`; `>ₚ` versi ketatnya (§3.5). **Pembedaan:** harga sel / harga jual per unit (H, D, F) wajib **> modal** karena margin 0 ditolak (P-16); **nilai bersih** setelah potongan saat cut-off & kredit (PG-4, PG-8, L) cukup **≥ modal** (P-23, P-26 "bersih ≥ modal"); nilai bersih setelah promo/gratis ongkir ≥ modal × (1 + β/10000) (PG-3, K-16).
 
 ### 4.1 Pernyataan formal
 | ID | Invarian | Pernyataan |
 |---|---|---|
 | PG-1 | Harga > modal (margin 0 ditolak, P-16) | `∀ sel terisi: H > M` dan `H >ₚ M`; baris invoice: `D >ₚ Mi`; `F` (bila tidak null) `>ₚ Mc` |
 | PG-2 | Harga grup individu ≥ Mitra Grosir ≥ Franchise | Per satuan jual: `H(s,INDIVIDU) ≥ H(s,MITRA_GROSIR) ≥ H(s,FRANCHISE)` untuk sel yang terisi (KETAT, P-22). Sama besar diizinkan (K-14). Pelanggaran yang melibatkan FRANCHISE (nonaktif Fase 1) = peringatan `PAGAR_LEVEL_NONAKTIF` |
-| PG-3 | Batas bawah promo | Saat invoice: `(D × q − P) ≥ₚ Mi × q × (1 + β)`. Saat invoice ongkir: `(D × a − P_a − S) ≥ₚ Mc × a × (1 + β)`. Pelanggaran → promo **dibatasi** sampai batas (P-07) / gratis ongkir tidak memenuhi syarat (P-27) |
-| PG-4 | Syarat lolos cut-off (satu-satunya aturan DITAHAN karena modal) | `a = 0 ∨ (D × a − P_a) >ₚ Mc × a`; gagal → grup DITAHAN (P-09, P-26). Subsidi ongkir belum ada saat cut-off (K-10), jadi tidak masuk syarat ini |
+| PG-3 | Batas bawah promo | Saat invoice: `(D × q − P) ≥ₚ Mi × q × (1 + β/10000)`. Saat invoice ongkir: `(D × a − P_a − S) ≥ₚ Mc × a × (1 + β/10000)`. Pelanggaran → promo **dibatasi** sampai batas (P-07) / gratis ongkir tidak memenuhi syarat (P-27) |
+| PG-4 | Syarat lolos cut-off (satu-satunya aturan DITAHAN karena modal) | `a = 0 ∨ (D × a − P_a) ≥ₚ Mc × a` (bersih ≥ modal, P-26); gagal → grup DITAHAN (P-09, P-26). Subsidi ongkir belum ada saat cut-off (K-10), jadi tidak masuk syarat ini |
 | PG-5 | Produk tanpa harga lengkap tidak tayang | Satuan jual tayang ⇔ modal valid ∧ kategori diizinkan ∧ tidak menunggu tinjauan ∧ sel (s, INDIVIDU) berharga & valid ∧ PG-1 & PG-2 lolos untuk level aktif ∧ PPN terkonfigurasi bila kena PPN ∧ (`mitra_wajib_untuk_tayang` ⇒ sel MITRA_GROSIR berharga). Sel MITRA_GROSIR yang tidak valid tidak menahan tayang (P-06), tetapi baris itu tidak bisa memakai harga grup (K-27) |
 | PG-6 | Harga kartu = detail = halaman grup; promo terpisah | `tampilanHarga` satu-satunya penghasil harga tampil; hasil identik untuk `id_versi_harga` & konteks sama; `promo` field terpisah, tidak menimpa harga |
 | PG-7 | Harga dibayar tidak naik — **DEFAULT SEMENTARA P-19** | `F ≤ D`. Bila P-19 diputuskan lain, PG-7, constraint `harga_final <= harga_dibayar` (§4.2), dan TC-HE-27/TC-HE-47 harus diubah |
-| PG-8 | Kredit tidak menembus modal | `T' >ₚ Mc × a` bila `a > 0` (P-23) |
+| PG-8 | Kredit tidak menembus modal | `T' ≥ₚ Mc × a` bila `a > 0` (bersih ≥ modal, P-23) |
 
 ### 4.2 Titik penegakan
 | ID | Domain | DB (constraint) | Panel (T-037) | CSV (T-038) | Runtime | Kode |
@@ -246,7 +246,7 @@ H_c   = harga sel untuk jenis harga yang sama dengan snapshot (GRUP/GROSIR_MOQ �
 F     = (a = 0) ? null : min(D, H_c)        // H_c tidak valid → F = D + peringatan admin
 ```
 - `F ≤ D` (PG-7, **DEFAULT SEMENTARA P-19**). Bila `H_c > D` (modal/margin naik) tetap `F = D`, tidak ada tagihan tambahan — **menunggu P-19** (DEFAULT SEMENTARA: NEKAT menanggung selama lolos PG-4).
-- **Syarat lolos (PG-4)** untuk setiap baris dengan `a > 0`: `(D × a − P_a) >ₚ Mc × a`. Gagal satu baris → seluruh grup **DITAHAN** (P-09, P-26). Penyelesaian admin wajib menjalankan ulang `hitungHargaFinal` atas input terkoreksi; tidak ada parameter override di bawah modal.
+- **Syarat lolos (PG-4)** untuk setiap baris dengan `a > 0`: `(D × a − P_a) ≥ₚ Mc × a` (nilai bersih ≥ modal; harga per unit F tetap > modal). Gagal satu baris → seluruh grup **DITAHAN** (P-09, P-26). Penyelesaian admin wajib menjalankan ulang `hitungHargaFinal` atas input terkoreksi; tidak ada parameter override di bawah modal.
 - Tabel cut-off tidak bisa dihitung sama sekali (modal kosong/kedaluwarsa) → DITAHAN `HARGA_TIDAK_TERSEDIA`.
 
 ### 5.5 Kredit cut-off & refund (rumus integer)
@@ -254,7 +254,7 @@ F     = (a = 0) ? null : min(D, H_c)        // H_c tidak valid → F = D + perin
 B    = D × q − P                         // nilai barang bersih yang dibayar
 P_a  = bagian P untuk unit teralokasi    // §3.6 (DEFAULT SEMENTARA: bagiBawah(P × a, q))
 T    = F × a − P_a                        // kewajiban setelah harga final
-L    = nilai integer terkecil yang memenuhi L >ₚ Mc × a       // batas pagar modal (ketat, P-16)
+L    = nilai integer terkecil yang memenuhi L ≥ₚ Mc × a       // batas pagar modal untuk nilai bersih (P-23)
 T'   = max(T, L)                          // P-23: kredit dibatasi
 K    = B − T'                             // kredit ke saldo akun PEMBAYAR (G-06b)
 ditahan = T' − T  → bila > 0: info SELISIH_DIBATASI_PAGAR, tampil "biaya admin (penyesuaian pagar modal)" (P-23)
@@ -281,7 +281,7 @@ a = 0:  F = null, T' = 0, K = B          // refund stok penuh, tidak pernah DITA
 1. Kumpulkan aturan diskon yang berlaku (produk / kategori / level / periode / zona / kuota, keputusan #4).
 2. **Tidak menumpuk** (P-15): pilih **satu** aturan untuk invoice akun, yaitu yang memberi potongan terbesar setelah pembatasan langkah 4.
 3. Cakupan **menunggu K-21**. DEFAULT SEMENTARA (`TOTAL_INVOICE`): potongan dihitung atas total baris yang masuk cakupan aturan, lalu dibagi ke baris proporsional nilai `D × q` (metode sisa terbesar, §3.6).
-4. Per baris cek PG-3 `(D × q − P_i) ≥ₚ Mi × q × (1 + β)`; gagal → `P_i` dikurangi sampai potongan terbesar yang lolos (`PROMO_DIBATASI`, P-07, K-16). Sisa tidak dipindah ke baris lain.
+4. Per baris cek PG-3 `(D × q − P_i) ≥ₚ Mi × q × (1 + β/10000)`; gagal → `P_i` dikurangi sampai potongan terbesar yang lolos (`PROMO_DIBATASI`, P-07, K-16). Sisa tidak dipindah ke baris lain.
 5. Mode host: diskon dihitung per akun (bagian akun dalam invoice gabungan), agar kuota dan pagar per baris tetap sama dengan mode sendiri.
 6. Kuota diskon direservasi di transaksi penerbitan invoice; dilepas saat invoice kedaluwarsa/dibatalkan (akun dikeluarkan, K-12).
 
@@ -294,7 +294,7 @@ a = 0:  F = null, T' = 0, K = B          // refund stok penuh, tidak pernah DITA
 1. Ongkir jadi per pengiriman dari adapter eksternal (K-05, P-12). Drop point = 0.
 2. Syarat minimal belanja memakai nilai **sesudah diskon** `Σ(D × a − P_a)` (P-13).
 3. Subsidi `S_total` (`PENUH` / `MAKS`) dialokasikan ke baris (**menunggu P-20**; DEFAULT SEMENTARA `PROPORSIONAL_NILAI`, sisa terbesar, `ΣS_i = S_total`).
-4. Per baris cek PG-3 `(D × a − P_a − S_i) ≥ₚ Mc × a × (1 + β)` (K-16). Ada baris gagal → gratis ongkir **tidak memenuhi syarat**, pesanan **tidak dibatalkan** (P-27): hasil membawa `alasan` (baris & pagar yang gagal) dan `jalanKeluar[]` (mis. `AMBIL_DI_DROP_POINT`, `BAYAR_ONGKIR_NORMAL`); ongkir normal ditagih bila pengguna tidak memilih jalan keluar lain.
+4. Per baris cek PG-3 `(D × a − P_a − S_i) ≥ₚ Mc × a × (1 + β/10000)` (K-16). Ada baris gagal → gratis ongkir **tidak memenuhi syarat**, pesanan **tidak dibatalkan** (P-27): hasil membawa `alasan` (baris & pagar yang gagal) dan `jalanKeluar[]` (mis. `AMBIL_DI_DROP_POINT`, `BAYAR_ONGKIR_NORMAL`); ongkir normal ditagih bila pengguna tidak memilih jalan keluar lain.
 5. Total invoice ongkir = `ongkir − S_total`, bisa dipotong saldo.
 
 ### 6.4 Validasi aturan promo saat disimpan (T-032)
@@ -459,20 +459,20 @@ Konvensi: semua nilai **simbolik**. `M` modal satuan jual; `Hi = H(s,INDIVIDU)`;
 | TC-HE-20 | Syarat grup terpenuhi, baris 1 pcs | `jenis = GRUP`, harga `Hg` (K-09) |
 | TC-HE-21 | Invoice: modal & sel diubah setelah invoice terbit | Snapshot `D`, `Mi` tidak berubah (K-15) |
 | TC-HE-22 | Dua aturan diskon berlaku | Hanya satu (potongan terbesar setelah pembatasan) (P-15) |
-| TC-HE-23 | Diskon membuat `(D × q − P) <ₚ Mi × q × (1 + β)` | `P` dikurangi sampai batas; `PROMO_DIBATASI` (P-07, K-16) |
+| TC-HE-23 | Diskon membuat `(D × q − P) <ₚ Mi × q × (1 + β/10000)` | `P` dikurangi sampai batas; `PROMO_DIBATASI` (P-07, K-16) |
 | TC-HE-24 | Diskon total dibagi ke 3 baris bobot sama | Σ bagian = total persis (sisa terbesar, seri → id baris) |
 | TC-HE-25 | Biaya admin konfigurasi kosong / terisi `Ba`, mode host 4 akun | 0 / `4 × Ba` di invoice gabungan (K-06) |
 | TC-HE-26 | Cut-off `Hc < D`, `a = q`, tanpa promo | `F = Hc`, `K = (D − Hc) × a` |
 | TC-HE-27 | Cut-off `Hc > D` | `F = D`, `K = 0` bila `a = q`; tidak ada tagihan (DEFAULT SEMENTARA P-19; berubah bila P-19 diputuskan lain) |
 | TC-HE-28 | Cut-off `D ≤ₚ Mc` | `DITAHAN` `DI_BAWAH_MODAL` (P-09) |
-| TC-HE-29 | Cut-off `D >ₚ Mc` tetapi `(D × a − P_a) ≤ₚ Mc × a` | `DITAHAN` (P-26) |
+| TC-HE-29 | Cut-off `D >ₚ Mc` tetapi `(D × a − P_a) <ₚ Mc × a` | `DITAHAN` (P-26) |
 | TC-HE-30 | Cut-off dengan promo, `T <ₚ Mc × a`, syarat lolos terpenuhi | `T' = L`, `K = B − L`, `ditahanPagar = L − T` berlabel biaya admin (P-23) |
 | TC-HE-31 | Alokasi parsial `0 < a < q` | `K = B − T'` mencakup refund unit tak teralokasi |
 | TC-HE-32 | `a = 0` dengan `D <ₚ Mc` | `TERKUNCI`, `hargaFinal = null`, `K = B`; tidak DITAHAN |
 | TC-HE-33 | `danaDitahan = true` | `K` dihitung, `tulisKreditKeLedger = false` |
 | TC-HE-34 | Refund grup BATAL | `Σ(D × q) − P_total + biaya admin` (K-26 default) |
 | TC-HE-35 | Invoice ongkir: minimal belanja vs nilai sesudah diskon | Sesuai nilai sesudah diskon (P-13) |
-| TC-HE-36 | Gratis ongkir, satu baris gagal `≥ₚ Mc × a × (1 + β)` | `TIDAK_MEMENUHI_SYARAT` + `alasan` + `jalanKeluar` berisi `AMBIL_DI_DROP_POINT`; pesanan tidak dibatalkan (P-27) |
+| TC-HE-36 | Gratis ongkir, satu baris gagal `≥ₚ Mc × a × (1 + β/10000)` | `TIDAK_MEMENUHI_SYARAT` + `alasan` + `jalanKeluar` berisi `AMBIL_DI_DROP_POINT`; pesanan tidak dibatalkan (P-27) |
 | TC-HE-37 | Alokasi subsidi `S_total` ke baris | `ΣS_i = S_total` (P-20 default) |
 | TC-HE-38 | `tampilanHarga` status DITAHAN / BATAL / HARGA_TERKUNCI tanpa `hargaFinal` | `hargaAktif = null` + teks / teks / `HARGA_TIDAK_TERSEDIA` |
 | TC-HE-39 | Modal kedaluwarsa (> batas P-10) saat `tampilanHarga` / invoice / cut-off | `MODAL_KEDALUWARSA` / invoice ditolak / DITAHAN `HARGA_TIDAK_TERSEDIA` |
