@@ -1,0 +1,652 @@
+/* =====================================================================
+   NEKAT — Design token & fondasi CSS (T-007)
+   Status : salinan dari docs/spec/T-007-tokens.css (T-014). Ubah di
+            sini; docs/ hanya arsip spesifikasi.
+   Aturan : mobile first; semua warna lewat token; tema terang/gelap/
+            ikuti HP; target sentuh >= 44px; kontras teks AA (>= 4.5:1),
+            komponen UI & ikon >= 3:1. Rasio kontras dicek di
+            docs/spec/T-007-ux-halaman.md §8.2.
+   Larangan: tidak ada angka harga/tarif di file ini. Warna bukan warna
+            khas Shopee/Grab (referensi README).
+   ===================================================================== */
+
+/* ---------- 1. Token dasar (tidak bergantung tema) ---------- */
+:root {
+  /* Tipografi: font sistem (tanpa unduhan font -> cepat di HP murah) */
+  --font-sans:
+    system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+  /* Skala ukuran (rem; ikut pengaturan ukuran huruf HP). Teks isi min 16px. */
+  --text-xs: 0.8125rem; /* 13px — hanya label kecil non-esensial (mis. "WIB") */
+  --text-sm: 0.875rem; /* 14px — keterangan, metadata */
+  --text-base: 1rem; /* 16px — teks isi, input (cegah zoom iOS) */
+  --text-lg: 1.125rem; /* 18px — harga di kartu, judul kartu */
+  --text-xl: 1.25rem; /* 20px — judul blok */
+  --text-2xl: 1.5rem; /* 24px — judul halaman, harga di detail */
+  --text-3xl: 1.875rem; /* 30px — angka hitung mundur, total bayar */
+
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* Spasi: grid 4px */
+  --space-0: 0;
+  --space-1: 0.25rem; /* 4  */
+  --space-2: 0.5rem; /* 8  */
+  --space-3: 0.75rem; /* 12 */
+  --space-4: 1rem; /* 16 — gutter samping mobile */
+  --space-5: 1.25rem; /* 20 */
+  --space-6: 1.5rem; /* 24 */
+  --space-8: 2rem; /* 32 */
+  --space-10: 2.5rem; /* 40 */
+  --space-12: 3rem; /* 48 */
+  --space-16: 4rem; /* 64 */
+
+  /* Radius */
+  --radius-sm: 6px; /* chip, badge */
+  --radius-md: 10px; /* input, tombol */
+  --radius-lg: 14px; /* kartu */
+  --radius-xl: 20px; /* lembar bawah (bottom sheet) */
+  --radius-full: 999px;
+
+  /* Target sentuh */
+  --tap-min: 44px; /* wajib minimum */
+  --tap-comfort: 48px; /* tombol utama, tombol + cepat */
+  --tap-gap: 8px; /* jarak antar target */
+
+  /* Tata letak */
+  --gutter: var(--space-4);
+  --container-shop: 40rem; /* 640px — PWA pembeli tetap satu kolom */
+  --container-admin: 80rem; /* 1280px — panel admin */
+  --appbar-h: 56px;
+  --bottomnav-h: 64px;
+  --cta-bar-h: 72px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  /* Lapisan */
+  --z-sticky: 10;
+  --z-appbar: 20;
+  --z-bottomnav: 20;
+  --z-banner: 30;
+  --z-sheet: 40;
+  --z-toast: 50;
+  --z-dialog: 60;
+
+  /* Gerak */
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Fokus */
+  --focus-width: 3px;
+  --focus-offset: 2px;
+}
+
+/* Breakpoint (mobile first; dipakai di @media min-width).
+   Custom property tidak bisa dipakai di @media, jadi nilainya dicatat di sini:
+   --bp-sm: 360px  HP standar (basis desain: 320–359px tetap harus rapi)
+   --bp-md: 600px  HP besar / lipat / tablet kecil -> grid kartu 3 kolom
+   --bp-lg: 900px  tablet / laptop -> PWA tetap max 640px di tengah; admin pakai sidebar
+   --bp-xl: 1200px desktop admin -> tabel lebar */
+
+/* ---------- 2. Warna — tema TERANG (bawaan) ---------- */
+:root {
+  color-scheme: light;
+
+  /* Permukaan */
+  --color-bg: #f6f7f5; /* latar halaman */
+  --color-surface: #ffffff; /* kartu, lembar */
+  --color-surface-2: #eef0ec; /* blok sekunder, skeleton dasar */
+  --color-overlay: rgb(16 21 23 / 0.5);
+
+  /* Teks */
+  --color-text: #1a1d1f; /* 16.9:1 di surface */
+  --color-text-muted: #4a5357; /* 7.9:1 */
+  --color-text-subtle: #646d71; /* 5.3:1 di surface, 4.6:1 di surface-2 — teks sekunder */
+  --color-text-on-primary: #ffffff;
+  --color-text-on-danger: #ffffff;
+
+  /* Garis */
+  --color-border: #d5d9d6; /* pemisah dekoratif */
+  --color-border-strong: #7a8285; /* batas input & kontrol: 3.9:1 surface, 3.4:1 surface-2 */
+
+  /* Merek / aksi utama (hijau-teal tua, bukan hijau Grab) */
+  --color-primary: #0b6b5f; /* tombol utama; putih di atasnya 6.4:1 */
+  --color-primary-hover: #095a50;
+  --color-primary-pressed: #074a42;
+  --color-primary-soft: #e3f3ef; /* latar chip/progres; teks primary 5.6:1 */
+
+  /* Semantik */
+  --color-success: #1b6b3a; /* "Lunas", syarat terpenuhi */
+  --color-success-soft: #e6f4ea;
+  --color-warning: #8a4b00; /* hitung mundur <= 10 menit, "kurang N" */
+  --color-warning-soft: #fff4e0;
+  --color-danger: #a1231b; /* error, batal, hitung mundur <= 2 menit */
+  --color-danger-soft: #fdecea;
+  --color-info: #1f5fa8; /* tautan, info netral */
+  --color-info-soft: #e7f0fb;
+
+  /* Peran khusus NEKAT */
+  --color-price: var(--color-text); /* harga aktif = teks utama (bukan merah) */
+  --color-price-group: var(--color-primary); /* label harga Belanja Bareng */
+  --color-price-strike: var(--color-text-muted); /* harga coret (menunggu P-17) */
+  --color-promo: #7a2e8c; /* chip promo (terpisah dari harga); 6.9:1 di promo-soft */
+  --color-promo-soft: #f5e9f8;
+  --color-saldo: #1b6b3a; /* saldo / loyalty point masuk */
+  --color-focus: #1f5fa8;
+  --color-skeleton: var(--color-surface-2);
+
+  /* Bayangan (halus; HP layar terang) */
+  --shadow-1: 0 1px 2px rgb(16 21 23 / 0.08);
+  --shadow-2: 0 2px 8px rgb(16 21 23 / 0.1);
+  --shadow-3: 0 8px 24px rgb(16 21 23 / 0.16); /* lembar bawah, dialog */
+  --shadow-top: 0 -2px 8px rgb(16 21 23 / 0.08); /* bilah CTA lengket */
+}
+
+/* ---------- 3. Warna — tema GELAP ---------- */
+/* (a) Ikuti HP: berlaku bila pengguna tidak memaksa tema terang */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --color-bg: #101517;
+    --color-surface: #182024;
+    --color-surface-2: #212b30;
+    --color-overlay: rgb(0 0 0 / 0.6);
+    --color-text: #e8edee;
+    --color-text-muted: #aeb8bc;
+    --color-text-subtle: #8e999d;
+    --color-text-on-primary: #062823;
+    --color-text-on-danger: #2a0d0a;
+    --color-border: #2e3a3f;
+    --color-border-strong: #73838a;
+    --color-primary: #3ccfb4;
+    --color-primary-hover: #5ed8c1;
+    --color-primary-pressed: #2fb39b;
+    --color-primary-soft: #12302b;
+    --color-success: #7fd69b;
+    --color-success-soft: #13261a;
+    --color-warning: #f5b65c;
+    --color-warning-soft: #2a2112;
+    --color-danger: #ff8a80;
+    --color-danger-soft: #2c1715;
+    --color-info: #8ab8f0;
+    --color-info-soft: #15253a;
+    --color-promo: #d9a6ea;
+    --color-promo-soft: #2a1a30;
+    --color-saldo: #7fd69b;
+    --color-focus: #8ab8f0;
+    --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-2: 0 2px 8px rgb(0 0 0 / 0.45);
+    --shadow-3: 0 8px 24px rgb(0 0 0 / 0.55);
+    --shadow-top: 0 -2px 8px rgb(0 0 0 / 0.4);
+  }
+}
+
+/* (b) Dipaksa gelap lewat pengaturan Akun > Tampilan */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg: #101517;
+  --color-surface: #182024;
+  --color-surface-2: #212b30;
+  --color-overlay: rgb(0 0 0 / 0.6);
+  --color-text: #e8edee;
+  --color-text-muted: #aeb8bc;
+  --color-text-subtle: #8e999d;
+  --color-text-on-primary: #062823;
+  --color-text-on-danger: #2a0d0a;
+  --color-border: #2e3a3f;
+  --color-border-strong: #73838a;
+  --color-primary: #3ccfb4;
+  --color-primary-hover: #5ed8c1;
+  --color-primary-pressed: #2fb39b;
+  --color-primary-soft: #12302b;
+  --color-success: #7fd69b;
+  --color-success-soft: #13261a;
+  --color-warning: #f5b65c;
+  --color-warning-soft: #2a2112;
+  --color-danger: #ff8a80;
+  --color-danger-soft: #2c1715;
+  --color-info: #8ab8f0;
+  --color-info-soft: #15253a;
+  --color-promo: #d9a6ea;
+  --color-promo-soft: #2a1a30;
+  --color-saldo: #7fd69b;
+  --color-focus: #8ab8f0;
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-2: 0 2px 8px rgb(0 0 0 / 0.45);
+  --shadow-3: 0 8px 24px rgb(0 0 0 / 0.55);
+  --shadow-top: 0 -2px 8px rgb(0 0 0 / 0.4);
+}
+
+/* (c) Mode kontras tinggi Windows / forced colors */
+@media (forced-colors: active) {
+  :root {
+    --color-focus: Highlight;
+    --color-border-strong: CanvasText;
+  }
+}
+
+/* ---------- 4. Dasar ---------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh; /* cadangan browser lama */
+  min-height: 100dvh;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  -webkit-font-smoothing: antialiased;
+}
+
+img,
+svg,
+video {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+input,
+select,
+textarea {
+  font-size: max(16px, var(--text-base));
+} /* cegah zoom otomatis iOS */
+
+a {
+  color: var(--color-info);
+  text-underline-offset: 2px;
+}
+
+:focus-visible {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--focus-offset);
+}
+
+/* Angka (harga, hitung mundur, jumlah) tidak "goyang" lebarnya */
+.num,
+[data-num] {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------- 5. Primitif tata letak ---------- */
+/* Kontainer pembeli: satu kolom, max 640px, gutter 16px, tanpa scroll horizontal */
+.l-container {
+  width: 100%;
+  max-width: var(--container-shop);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+.l-container--admin {
+  max-width: var(--container-admin);
+}
+
+/* Tumpukan vertikal dengan jarak seragam */
+.l-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--stack-gap, var(--space-4));
+}
+.l-stack--sm {
+  --stack-gap: var(--space-2);
+}
+.l-stack--lg {
+  --stack-gap: var(--space-6);
+}
+
+/* Deret horizontal yang boleh turun baris (chip, tombol kecil) */
+.l-cluster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cluster-gap, var(--space-2));
+}
+
+/* Grid kartu produk: 2 kolom di HP, 3 kolom >= 600px (tetap dalam 640px) */
+.l-grid-products {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+@media (min-width: 600px) {
+  .l-grid-products {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Deret tab yang digulir horizontal di DALAM dirinya (bukan halaman) */
+.l-scroll-x {
+  display: flex;
+  gap: var(--space-2);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  padding-inline: var(--gutter);
+  margin-inline: calc(var(--gutter) * -1);
+}
+.l-scroll-x::-webkit-scrollbar {
+  display: none;
+}
+.l-scroll-x > * {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+
+/* Kerangka halaman pembeli: app bar atas, isi, bottom nav */
+.l-app {
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding-top: calc(var(--appbar-h) + var(--safe-top));
+  padding-bottom: calc(var(--bottomnav-h) + var(--safe-bottom));
+}
+/* Halaman ber-CTA yang tetap punya navigasi bawah (H-03, H-04, H-05) */
+.l-app--with-cta {
+  padding-bottom: calc(var(--bottomnav-h) + var(--cta-bar-h) + var(--safe-bottom) + var(--space-4));
+}
+/* Halaman ber-CTA tanpa navigasi bawah (H-07–H-10: navigasi disembunyikan) */
+.l-app--cta-only {
+  padding-bottom: calc(var(--cta-bar-h) + var(--safe-bottom) + var(--space-4));
+}
+
+.l-appbar {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: var(--z-appbar);
+  height: calc(var(--appbar-h) + var(--safe-top));
+  padding-top: var(--safe-top);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.l-bottomnav {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: var(--z-bottomnav);
+  height: calc(var(--bottomnav-h) + var(--safe-bottom));
+  padding-bottom: var(--safe-bottom);
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+}
+
+/* Bilah aksi lengket bawah (Tambah ke keranjang, Bayar, Buat Grup).
+   Bawaan: di dasar layar (halaman tanpa navigasi bawah).
+   Bila navigasi bawah tampil: tambah .l-cta-bar--above-nav. */
+.l-cta-bar {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: var(--z-sticky);
+  padding: var(--space-3) var(--gutter) calc(var(--space-3) + var(--safe-bottom));
+  background: var(--color-surface);
+  box-shadow: var(--shadow-top);
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+.l-cta-bar--above-nav {
+  bottom: calc(var(--bottomnav-h) + var(--safe-bottom));
+  padding-bottom: var(--space-3);
+}
+
+/* Panel admin: sidebar >= 900px, drawer di bawahnya */
+.l-admin {
+  display: grid;
+  grid-template-columns: 1fr;
+  min-height: 100dvh;
+}
+@media (min-width: 900px) {
+  .l-admin {
+    grid-template-columns: 16rem minmax(0, 1fr);
+  }
+}
+
+/* ---------- 6. Primitif komponen dasar (detail di T-008) ---------- */
+.tap {
+  min-height: var(--tap-min);
+  min-width: var(--tap-min);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--tap-comfort);
+  padding: 0 var(--space-5);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-standard);
+}
+.btn--primary {
+  background: var(--color-primary);
+  color: var(--color-text-on-primary);
+}
+.btn--primary:hover {
+  background: var(--color-primary-hover);
+}
+.btn--primary:active {
+  background: var(--color-primary-pressed);
+}
+.btn--secondary {
+  background: var(--color-surface);
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+.btn--ghost {
+  background: transparent;
+  color: var(--color-primary);
+}
+.btn--danger {
+  background: var(--color-danger);
+  color: var(--color-text-on-danger);
+}
+.btn--block {
+  width: 100%;
+}
+.btn[disabled],
+.btn[aria-disabled="true"] {
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+  border-color: var(--color-border);
+  cursor: not-allowed;
+}
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+  padding: var(--space-4);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 28px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+.chip--group {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+.chip--promo {
+  background: var(--color-promo-soft);
+  color: var(--color-promo);
+}
+.chip--warning {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+.chip--danger {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+.chip--success {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+/* Chip yang bisa diketuk (filter, pilihan) wajib target sentuh penuh */
+button.chip,
+a.chip,
+.chip--interactive {
+  min-height: var(--tap-min);
+  padding: 0 var(--space-3);
+  cursor: pointer;
+}
+
+/* Tab kategori: chip-tab yang bisa disentuh (>= 44px tinggi area sentuh) */
+.tab {
+  min-height: var(--tap-min);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+.tab[aria-selected="true"] {
+  background: var(--color-primary);
+  color: var(--color-text-on-primary);
+  border-color: var(--color-primary);
+}
+
+.input {
+  width: 100%;
+  min-height: var(--tap-comfort);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+.input[aria-invalid="true"] {
+  border-color: var(--color-danger);
+  border-width: 2px;
+}
+
+/* Harga */
+.price {
+  font-weight: var(--weight-bold);
+  color: var(--color-price);
+  font-variant-numeric: tabular-nums;
+}
+.price--card {
+  font-size: var(--text-lg);
+}
+.price--detail {
+  font-size: var(--text-2xl);
+}
+.price--strike {
+  font-weight: var(--weight-regular);
+  color: var(--color-price-strike);
+  text-decoration: line-through;
+  font-size: var(--text-sm);
+}
+
+/* Hitung mundur: warna + teks (jangan andalkan warna saja) */
+.countdown {
+  font-size: var(--text-3xl);
+  font-weight: var(--weight-bold);
+  font-variant-numeric: tabular-nums;
+}
+.countdown[data-level="warning"] {
+  color: var(--color-warning);
+}
+.countdown[data-level="danger"] {
+  color: var(--color-danger);
+}
+
+/* Progres syarat grup */
+.progress {
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-2);
+  overflow: hidden;
+}
+.progress > span {
+  display: block;
+  height: 100%;
+  background: var(--color-primary);
+}
+
+/* Skeleton memuat (dimatikan animasinya oleh prefers-reduced-motion) */
+.skeleton {
+  background: var(--color-skeleton);
+  border-radius: var(--radius-sm);
+  animation: nekat-pulse 1.4s ease-in-out infinite;
+}
+@keyframes nekat-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* Teks hanya untuk pembaca layar */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Lewati ke isi */
+.skip-link {
+  position: absolute;
+  left: var(--space-2);
+  top: -100px;
+  z-index: var(--z-dialog);
+}
+.skip-link:focus {
+  top: var(--space-2);
+}

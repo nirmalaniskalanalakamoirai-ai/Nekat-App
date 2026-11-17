@@ -1,16 +1,54 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { createBrowserRouter, RouterProvider } from "react-router";
-import { Beranda } from "./Beranda";
+import { createBrowserRouter, RouterProvider, type RouteObject } from "react-router";
+import { Beranda } from "./halaman/Beranda";
+import { Segera, TidakDitemukan } from "./halaman/Segera";
+import { AppShell } from "./layout/AppShell";
+import { RUTE_PEMBELI, atributTema, type PilihanTema } from "./rute";
+import "./styles/tokens.css";
+
+function terapkanTema() {
+  let pilihan: PilihanTema = "ikuti-hp";
+  try {
+    const simpan = localStorage.getItem("nekat:tema");
+    if (simpan === "terang" || simpan === "gelap") pilihan = simpan;
+  } catch {
+    // Penyimpanan tidak tersedia: ikuti HP.
+  }
+  const attr = atributTema(pilihan);
+  if (attr) document.documentElement.setAttribute("data-theme", attr);
+}
+
+terapkanTema();
 
 const akar = document.getElementById("root");
 if (!akar) {
   throw new Error("Elemen #root tidak ditemukan");
 }
 
+const anak: RouteObject[] = RUTE_PEMBELI.map((r) =>
+  r.path === "/"
+    ? { index: true, element: <Beranda />, handle: { judul: r.judul } }
+    : {
+        path: r.path,
+        element: <Segera judul={r.judul} kodeHalaman={r.kodeHalaman} />,
+        handle: { judul: r.judul },
+      },
+);
+
+const router = createBrowserRouter([
+  {
+    path: "/",
+    element: <AppShell />,
+    children: [
+      ...anak,
+      { path: "*", element: <TidakDitemukan />, handle: { judul: "Tidak ditemukan" } },
+    ],
+  },
+]);
+
 const queryClient = new QueryClient();
-const router = createBrowserRouter([{ path: "/", element: <Beranda /> }]);
 
 createRoot(akar).render(
   <StrictMode>
