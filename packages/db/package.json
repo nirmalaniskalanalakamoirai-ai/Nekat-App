@@ -12,10 +12,23 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "migrasi": "node dist/cli.js migrasi",
+    "seed": "node dist/cli.js seed",
+    "migrasi:buat": "drizzle-kit generate"
   },
   "dependencies": {
     "@nekat/domain": "workspace:*",
-    "@nekat/shared": "workspace:*"
-  }
+    "@nekat/shared": "workspace:*",
+    "drizzle-orm": "0.45.4",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1",
+    "drizzle-kit": "0.31.11"
+  },
+  "files": [
+    "dist",
+    "migrasi"
+  ]
 }

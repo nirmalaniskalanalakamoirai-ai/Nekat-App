@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1794894200552,
+      "tag": "0000_fungsi_dasar",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794894212697,
+      "tag": "0001_skema_inti",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794894218322,
+      "tag": "0002_aturan_tambahan",
+      "breakpoints": true
+    }
+  ]
+}
