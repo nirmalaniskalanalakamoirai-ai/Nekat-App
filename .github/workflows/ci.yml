@@ -3,7 +3,6 @@
 # audit dependensi produksi, dan pindai rahasia (gitleaks).
 # Semua action dipin ke commit SHA penuh; Dependabot (.github/dependabot.yml) memperbaruinya.
 # Belum ada di sini (menyusul):
-#   - Tes integrasi PostgreSQL (service container)  → T-013
 #   - E2E Playwright                                → T-043/T-044
 #   - Sisa T-045: deploy staging, backup DB, naik ke Node Active LTS,
 #     pin image gitleaks per digest, branch protection
@@ -29,6 +28,21 @@ jobs:
     name: Lint, typecheck, test, build
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      # Database sekali pakai untuk tes integrasi skema (T-013). Pin per digest menyusul di T-045.
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: nekat
+          POSTGRES_PASSWORD: nekat_tes
+          POSTGRES_DB: nekat_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nekat -d nekat_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -55,9 +69,11 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Unit test
+      - name: Unit & integrasi test
         run: pnpm test
-        # Tes integrasi PostgreSQL (service container postgres:17) ditambahkan di T-013.
+        env:
+          # Kredensial khusus container tes sekali pakai, bukan rahasia.
+          DATABASE_URL_TEST: postgres://nekat:nekat_tes@localhost:5432/nekat_test # gitleaks:allow
 
       - name: Build semua app & paket
         run: pnpm build
