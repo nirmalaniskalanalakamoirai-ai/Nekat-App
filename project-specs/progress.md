@@ -1,5 +1,7 @@
 # Progress
 
+**Update 17 Nov 12.30 WIB (sesi manual):** PR #15–#17 sudah di-merge 16 Nov → T-004, T-007, T-047 done (backlog diperbarui). **T-014 fondasi PWA → PR #18**: kerangka aplikasi, rute, navigasi bawah, design token, manifest + service worker; lint/typecheck/29 tes/build lulus, dicek visual terang & gelap. Siap berikutnya: T-013 (database), T-005, T-006, T-008, T-048. Butuh manusia: review & merge #18.
+
 **Update 15 Nov WIB (sesi Build, mode hemat):**
 - Langkah 0: tidak ada jawaban baru di issue #5–#7 (semua komentar manusia sudah "Dicatat"). PR #2, #3, #4, #9, #10 sudah di-merge 14 Nov malam → T-002, T-003, T-009 done.
 - **T-047 → PR #15** (Workflow Architect): flow grup v0.6, engine harga v0.6, T-009 v0.3, ADR H9. Code Reviewer 3 putaran + Security Auditor LULUS. Default sementara bertanda: K-30 (batal sebelum cut-off), K-31 (tanpa COD di grup), P-19.
