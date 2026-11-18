@@ -3,7 +3,6 @@
 # audit dependensi produksi, dan pindai rahasia (gitleaks).
 # Semua action dipin ke commit SHA penuh; Dependabot (.github/dependabot.yml) memperbaruinya.
 # Belum ada di sini (menyusul):
-#   - Tes integrasi PostgreSQL (service container)  → T-013
 #   - E2E Playwright                                → T-043/T-044
 #   - Sisa T-045: deploy staging, backup DB, naik ke Node Active LTS,
 #     pin image gitleaks per digest, branch protection
@@ -29,6 +28,19 @@ jobs:
     name: Lint, typecheck, test, build
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # PostgreSQL nyata untuk tes integrasi skema (ADR-0001: tanpa mock DB untuk logika uang). T-013.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: uji
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -55,9 +67,11 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Unit test
+      - name: Unit & integrasi test
         run: pnpm test
-        # Tes integrasi PostgreSQL (service container postgres:17) ditambahkan di T-013.
+        env:
+          # Kredensial khusus container CI sekali pakai, bukan rahasia.
+          DATABASE_URL_TEST: postgresql://postgres:uji@localhost:5432/postgres
 
       - name: Build semua app & paket
         run: pnpm build
