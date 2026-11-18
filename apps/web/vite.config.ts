@@ -47,6 +47,13 @@ export default defineConfig({
     // Paket workspace @nekat/* dibaca langsung dari src/ (lihat "exports" di package.json-nya).
     conditions: ["@nekat/source", ...defaultClientConditions],
   },
+  server: {
+    // Dev: API Fastify di :3000, diakses same-origin lewat /api (produksi: reverse proxy).
+    proxy: { "/api": "http://localhost:3000" },
+  },
+  preview: {
+    proxy: { "/api": "http://localhost:3000" },
+  },
   build: {
     // "hidden": sourcemap dibuat (untuk error tracker) tapi tidak dirujuk dari bundle publik.
     sourcemap: "hidden",

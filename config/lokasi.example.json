@@ -1,18 +1,31 @@
 {
-  "$komentar": "Contoh STRUKTUR saja. Koordinat asli diisi Joseph di config/lokasi.json (keputusan #3, T-015). Nilai null/kosong = belum diisi. Bentuk final ditetapkan di T-015.",
+  "$komentar": "CONTOH format config/lokasi.json (T-015). Salin ke config/lokasi.json lalu isi koordinat ASLI gudang & drop point (keputusan #5). Koordinat di contoh ini fiktif. radiusMeter wajib 2000–3000. kode = kode_konfig di database (huruf kecil, angka, tanda minus).",
   "versi": 1,
-  "gudang": {
-    "nama": "",
-    "lat": null,
-    "lng": null
-  },
-  "dropPoint": [
+  "gudang": [
     {
-      "id": "",
-      "nama": "",
-      "lat": null,
-      "lng": null,
-      "radiusMeter": null
+      "kode": "gudang-pusat",
+      "nama": "Gudang & Toko Pusat",
+      "jenis": "PUSAT",
+      "lat": -6.2,
+      "lng": 106.6
+    }
+  ],
+  "zona": [
+    {
+      "kode": "zona-pilot",
+      "namaKelurahan": "Kelurahan Pilot",
+      "gudang": "gudang-pusat",
+      "dropPoint": [
+        {
+          "kode": "dp-pusat",
+          "nama": "Drop point Toko Pusat",
+          "alamatPublik": "Toko pusat NEKAT",
+          "jamAmbil": "08.00–20.00",
+          "lat": -6.2,
+          "lng": 106.6,
+          "radiusMeter": 2500
+        }
+      ]
     }
   ]
 }

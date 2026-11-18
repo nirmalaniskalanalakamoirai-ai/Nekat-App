@@ -1,6 +1,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { Link, NavLink, Outlet, useLocation, useMatches } from "react-router";
 import { NAVIGASI_BAWAH, tampilkanNavigasiBawah } from "../rute";
+import { bacaZona, langgananZona } from "../zona/simpanan";
 import { Ikon } from "./Ikon";
 import "./shell.css";
 
@@ -21,6 +22,15 @@ function useOnline(): boolean {
   );
 }
 
+// useSyncExternalStore butuh nilai stabil antar render: cache per isi JSON.
+let cacheZona: { kunci: string; nilai: ReturnType<typeof bacaZona> } = { kunci: "", nilai: null };
+function bacaZonaStabil() {
+  const nilai = bacaZona();
+  const kunci = JSON.stringify(nilai);
+  if (kunci !== cacheZona.kunci) cacheZona = { kunci, nilai };
+  return cacheZona.nilai;
+}
+
 interface HandleRute {
   judul?: string;
 }
@@ -29,6 +39,7 @@ interface HandleRute {
 export function AppShell() {
   const { pathname } = useLocation();
   const online = useOnline();
+  const zona = useSyncExternalStore(langgananZona, bacaZonaStabil, () => null);
   const denganNavigasi = tampilkanNavigasiBawah(pathname);
   const matches = useMatches();
   const judul = matches
@@ -51,10 +62,14 @@ export function AppShell() {
           <Link
             to="/zona"
             className="tap appbar__zona"
-            aria-label="Zona belum dipilih. Ketuk untuk pilih zona"
+            aria-label={
+              zona
+                ? `Zona ${zona.namaKelurahan}. Ketuk untuk ganti zona`
+                : "Zona belum dipilih. Ketuk untuk pilih zona"
+            }
           >
             <Ikon nama="lokasi" ukuran={20} />
-            <span className="appbar__zona-teks">Pilih zona</span>
+            <span className="appbar__zona-teks">{zona ? zona.namaKelurahan : "Pilih zona"}</span>
           </Link>
           <div className="l-cluster appbar__aksi">
             <Link to="/cari" className="tap appbar__ikon" aria-label="Cari produk">

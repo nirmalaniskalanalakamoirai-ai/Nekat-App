@@ -3,3 +3,4 @@
 // Tanpa DB/HTTP/framework/modul bawaan Node. Engine harga dibuat di T-020.
 
 export { tambahRupiah } from "./uang.js";
+export * from "./zona.js";
