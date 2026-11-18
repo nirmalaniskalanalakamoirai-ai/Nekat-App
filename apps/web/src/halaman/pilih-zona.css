@@ -1,0 +1,78 @@
+/* H-01 Pilih zona. Hanya membaca token dari styles/tokens.css. */
+
+.zona {
+  padding-block: var(--space-6);
+}
+
+.zona__kepala {
+  text-align: center;
+  align-items: center;
+}
+
+.zona__logo {
+  display: inline-grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-lg);
+  background: var(--color-primary);
+  color: var(--color-text-on-primary);
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+}
+
+.btn--block {
+  width: 100%;
+}
+
+.zona__status:empty {
+  display: none;
+}
+
+.zona__label {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.zona__daftar {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.zona__opsi {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.zona__opsi:hover {
+  border-color: var(--color-primary);
+}
+
+.zona__opsi-nama {
+  font-weight: var(--weight-semibold);
+}
+
+.zona__opsi-dp {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.zona__privasi {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}

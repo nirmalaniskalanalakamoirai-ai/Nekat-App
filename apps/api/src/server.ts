@@ -1,6 +1,7 @@
 // Entry proses API. Tidak diimpor oleh tes (tes memakai `buatApp` + `inject`).
 import { z } from "zod";
 import { buatApp } from "./app.js";
+import { muatKonfigLokasi } from "./lokasi.js";
 
 const skemaEnv = z.object({
   HOST: z.string().min(1).default("0.0.0.0"),
@@ -9,6 +10,8 @@ const skemaEnv = z.object({
     (v) => (v === "" ? undefined : v),
     z.coerce.number().int().min(1).max(65535).default(3000),
   ),
+  // Path config zona (T-015). File tidak ada = zona belum diatur (rute zona 503).
+  LOKASI_CONFIG: z.string().min(1).default("config/lokasi.json"),
 });
 
 const env = skemaEnv.safeParse(process.env);
@@ -19,7 +22,16 @@ if (!env.success) {
   process.exit(1);
 }
 
-const app = buatApp();
+let lokasi;
+try {
+  lokasi = await muatKonfigLokasi(env.data.LOKASI_CONFIG);
+} catch (err) {
+  console.error((err as Error).message);
+  process.exit(1);
+}
+
+const app = buatApp({ lokasi });
+if (!lokasi) app.log.warn("config/lokasi.json belum ada: rute zona menjawab 503");
 try {
   await app.listen({ host: env.data.HOST, port: env.data.PORT });
 } catch (err) {

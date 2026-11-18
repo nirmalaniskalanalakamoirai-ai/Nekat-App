@@ -1,6 +1,8 @@
+import { readFileSync } from "node:fs";
 import { Writable } from "node:stream";
 import { afterAll, describe, expect, it } from "vitest";
 import { buatApp } from "./app.js";
+import { bacaKonfigLokasi } from "./lokasi.js";
 
 describe("GET /health", () => {
   const app = buatApp({ logger: false });
@@ -53,5 +55,72 @@ describe("redaksi log", () => {
     await app.close();
     expect(res.headers["x-powered-by"]).toBeUndefined();
     expect(res.headers["content-type"]).toContain("application/json");
+  });
+});
+
+describe("zona (T-015)", () => {
+  const lokasi = bacaKonfigLokasi(
+    JSON.parse(
+      readFileSync(new URL("../../../config/lokasi.example.json", import.meta.url), "utf8"),
+    ) as unknown,
+  );
+
+  it("tanpa config: 503 ZONA_BELUM_DIATUR", async () => {
+    const app = buatApp({ logger: false });
+    const r = await app.inject({
+      method: "POST",
+      url: "/api/zona/cek",
+      payload: { lat: -6.2, lng: 106.6 },
+    });
+    expect(r.statusCode).toBe(503);
+    expect(r.json()).toMatchObject({ kode: "ZONA_BELUM_DIATUR" });
+  });
+
+  it("daftar zona tanpa koordinat", async () => {
+    const app = buatApp({ logger: false, lokasi });
+    const r = await app.inject({ method: "GET", url: "/api/zona" });
+    expect(r.statusCode).toBe(200);
+    expect(r.body).not.toContain("lat");
+    expect(r.json()).toMatchObject({
+      zona: [{ kode: "zona-pilot", dropPoint: [{ kode: "dp-pusat" }] }],
+    });
+  });
+
+  it("cek: dalam zona dan di luar zona", async () => {
+    const app = buatApp({ logger: false, lokasi });
+    const dalam = await app.inject({
+      method: "POST",
+      url: "/api/zona/cek",
+      payload: { lat: -6.205, lng: 106.6 },
+    });
+    expect(dalam.json()).toMatchObject({ status: "DALAM_ZONA", zonaKode: "zona-pilot" });
+    const luar = await app.inject({
+      method: "POST",
+      url: "/api/zona/cek",
+      payload: { lat: -6.5, lng: 107 },
+    });
+    expect(luar.json()).toEqual({ status: "DI_LUAR_ZONA" });
+  });
+
+  it("cek: koordinat tidak valid ditolak 400", async () => {
+    const app = buatApp({ logger: false, lokasi });
+    const r = await app.inject({
+      method: "POST",
+      url: "/api/zona/cek",
+      payload: { lat: 95, lng: 106.6 },
+    });
+    expect(r.statusCode).toBe(400);
+  });
+
+  it("config: radius di luar 2–3 km dan kode ganda ditolak", () => {
+    const salah = structuredClone(lokasi) as {
+      zona: { kode: string; dropPoint: { radiusMeter: number }[] }[];
+    };
+    const z0 = salah.zona[0];
+    if (z0?.dropPoint[0]) z0.dropPoint[0].radiusMeter = 5000;
+    expect(() => bacaKonfigLokasi(salah)).toThrow(/radiusMeter/);
+    const ganda = structuredClone(lokasi) as { zona: { kode: string }[] };
+    if (ganda.zona[0]) ganda.zona[0].kode = "gudang-pusat";
+    expect(() => bacaKonfigLokasi(ganda)).toThrow(/kode ganda/);
   });
 });

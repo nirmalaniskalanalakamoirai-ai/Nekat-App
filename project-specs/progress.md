@@ -1,5 +1,7 @@
 # Progress
 
+**Update 18 Nov 18.30 WIB (sesi manual):** PR #19 (T-013a) di-merge 18 Nov 17.41. **T-015 zona + halaman Pilih Zona → PR #21** (74/74 tes, E2E manual 5 skenario lulus). Fase 1: 11/49 done (±22%) + 1 review. Butuh manusia: merge #21; Joseph mengisi `config/lokasi.json` (koordinat asli gudang & drop point). Siap berikutnya: T-018 InventorySource, T-020 engine harga, T-013b, T-015b.
+
 **Update 17 Nov 13.30 WIB (sesi manual):** PR #18 (T-014) & Dependabot #12–#14 di-merge → T-014 done. T-013a dikerjakan dua sesi bersamaan: **#19** (sesi lain, 12.47) dan #20 (sesi manual). #19 lebih lengkap → dipakai; lockfile #19 diperbaiki, CI hijau, 56/56 tes lulus (27 integrasi PostgreSQL); #20 ditutup sebagai duplikat. Fase 1: 10/49 done (±20%). Butuh manusia: review & merge **#19**. Siap setelahnya: T-013b, T-015, T-018, T-020; non-kode T-005, T-006, T-008, T-048. Laporan: `laporan/2026-11-17-manual.md`.
 
 **Update 17 Nov 12.30 WIB (sesi manual):** PR #15–#17 sudah di-merge 16 Nov → T-004, T-007, T-047 done (backlog diperbarui). **T-014 fondasi PWA → PR #18**: kerangka aplikasi, rute, navigasi bawah, design token, manifest + service worker; lint/typecheck/29 tes/build lulus, dicek visual terang & gelap. Siap berikutnya: T-013 (database), T-005, T-006, T-008, T-048. Butuh manusia: review & merge #18.

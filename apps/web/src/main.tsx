@@ -1,8 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { StrictMode } from "react";
+import { StrictMode, type ReactElement } from "react";
 import { createRoot } from "react-dom/client";
 import { createBrowserRouter, RouterProvider, type RouteObject } from "react-router";
 import { Beranda } from "./halaman/Beranda";
+import { PilihZona } from "./halaman/PilihZona";
 import { Segera, TidakDitemukan } from "./halaman/Segera";
 import { AppShell } from "./layout/AppShell";
 import { RUTE_PEMBELI, atributTema, type PilihanTema } from "./rute";
@@ -27,12 +28,17 @@ if (!akar) {
   throw new Error("Elemen #root tidak ditemukan");
 }
 
+// Halaman yang sudah dibuat; sisanya "sedang disiapkan".
+const HALAMAN_JADI: Record<string, ReactElement> = {
+  "/zona": <PilihZona />,
+};
+
 const anak: RouteObject[] = RUTE_PEMBELI.map((r) =>
   r.path === "/"
     ? { index: true, element: <Beranda />, handle: { judul: r.judul } }
     : {
         path: r.path,
-        element: <Segera judul={r.judul} kodeHalaman={r.kodeHalaman} />,
+        element: HALAMAN_JADI[r.path] ?? <Segera judul={r.judul} kodeHalaman={r.kodeHalaman} />,
         handle: { judul: r.judul },
       },
 );
