@@ -1,5 +1,5 @@
 // T-004 §3.15 (bagian T-013a): log admin, log audit, antrean tinjauan, konfigurasi.
-// outbox & job_run menyusul di T-013b (bergantung tabel grup).
+// outbox, job_run, idempotensi_inventori: lihat operasional.ts (T-013b).
 import { sql } from "drizzle-orm";
 import {
   bigserial,
