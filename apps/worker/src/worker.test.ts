@@ -14,8 +14,16 @@ describe("konfigurasi worker", () => {
     );
   });
 
-  it("menerima URL postgres", () => {
-    expect(bacaKonfigurasi({ DATABASE_URL: URL_UJI }).databaseUrl).toBe(URL_UJI);
+  it("menerima URL postgres; inventory bawaan local", () => {
+    const k = bacaKonfigurasi({ DATABASE_URL: URL_UJI });
+    expect(k.databaseUrl).toBe(URL_UJI);
+    expect(k.inventory.sumber).toBe("local");
+  });
+
+  it("menolak INVENTORY_SOURCE tidak dikenal, menyebut nama variabel saja", () => {
+    expect(() =>
+      bacaKonfigurasi({ DATABASE_URL: "mysql://rahasia@x/y", INVENTORY_SOURCE: "rahasia-xyz" }),
+    ).toThrow(/^Konfigurasi worker tidak valid: DATABASE_URL, INVENTORY_SOURCE$/);
   });
 });
 

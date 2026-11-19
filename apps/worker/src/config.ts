@@ -1,3 +1,8 @@
+import {
+  bacaKonfigInventory,
+  KonfigInventoryTidakValidError,
+  type KonfigInventory,
+} from "@nekat/adapters";
 import { z } from "zod";
 
 const skemaKonfigurasi = z.object({
@@ -11,6 +16,8 @@ const skemaKonfigurasi = z.object({
 
 export interface KonfigurasiWorker {
   readonly databaseUrl: string;
+  /** Toggle InventorySource (T-018), dibaca sekali saat start. */
+  readonly inventory: KonfigInventory;
 }
 
 /**
@@ -19,9 +26,16 @@ export interface KonfigurasiWorker {
  */
 export function bacaKonfigurasi(env: NodeJS.ProcessEnv): KonfigurasiWorker {
   const hasil = skemaKonfigurasi.safeParse(env);
-  if (!hasil.success) {
-    const nama = [...new Set(hasil.error.issues.map((isu) => isu.path.join(".")))].join(", ");
-    throw new Error(`Konfigurasi worker tidak valid: ${nama}`);
+  const nama = hasil.success ? [] : hasil.error.issues.map((isu) => isu.path.join("."));
+  let inventory: KonfigInventory | null = null;
+  try {
+    inventory = bacaKonfigInventory(env);
+  } catch (e) {
+    if (!(e instanceof KonfigInventoryTidakValidError)) throw e;
+    nama.push(...e.variabel);
   }
-  return { databaseUrl: hasil.data.DATABASE_URL };
+  if (!hasil.success || inventory === null) {
+    throw new Error(`Konfigurasi worker tidak valid: ${[...new Set(nama)].join(", ")}`);
+  }
+  return { databaseUrl: hasil.data.DATABASE_URL, inventory };
 }
