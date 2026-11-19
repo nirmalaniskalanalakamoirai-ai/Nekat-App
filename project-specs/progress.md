@@ -1,5 +1,7 @@
 # Progress
 
+**Update 19 Nov 13.30 WIB:** PR #23 (T-018 InventorySource) di-merge → done. Fase 1: 14/49 (±29%). Tidak ada PR terbuka. Siap berikutnya: T-013b, T-015b, T-019, T-021, T-025.
+
 **Update 19 Nov 13.25 WIB:** PR #24 (T-020 engine harga) di-merge → done. Fase 1: 13/49 (±27%). PR #23 (T-018): konflik `packages/domain/src/index.ts` diselesaikan dengan merge main (165 tes lulus), menunggu CI & merge.
 
 **Update 19 Nov 13.25 WIB:** PR #24 (T-020 engine harga) di-merge → done. Fase 1: 13/49 (±27%). PR #23 (T-018) CI hijau, tanpa konflik, menunggu merge.
