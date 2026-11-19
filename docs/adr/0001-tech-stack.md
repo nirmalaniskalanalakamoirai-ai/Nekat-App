@@ -9,6 +9,10 @@ Semua task berjenis kode di `project-specs/backlog.md` menunggu ADR ini di-merge
 Revisi: **v0.4** (11 Nov 2026, sesi QA) — penyelarasan nama kolom `akun_id`, label default sementara H14 & F-11,
 aturan webhook/OTP/IDOR/sesi, baris ongkir & diskon di §5.3. **v0.5** (putaran 2): peta kunci batal seluruh pesanan /
 batalkan grup, izin aksi `harga.ubah` di §7, istilah `waktu_bayar` (= `paid_at` dari gateway). v0.3 = revisi setelah Evidence Collector & Code Reviewer.
+**v0.6** (19 Nov 2026, T-048) — penyelarasan dengan `keputusan.md`: tanpa pembulatan (H6, §5.1 & §9), Gudang tidak bisa
+dihubungi → tahan checkout (H14, §4.1 & §9), pencairan saldo diputuskan boleh setelah pendapat hukum (H5/G-06d/K-34,
+§4.2 & §9), data di region Indonesia (H12, §3 & §7 & §9), belum ada server staging (K-19, §3 & §3.4), tagihan hanya
+QRIS/VA dulu (K-36, §1.1 & §4.2). Default sementara agen yang digantikan ditandai "tidak berlaku".
 
 **Rujukan silang:** ID flow (A-xx, B-xx, M-xx, P-xx, R-xx, §6) merujuk `docs/flow/group-order.md` di **PR #2 (T-002,
 belum di-merge)**; aturan harga merujuk `docs/spec/engine-harga.md` di **PR #3 (T-003, belum di-merge)**.
@@ -32,7 +36,7 @@ Setiap kelas biaya yang disebut adalah perkiraan kasar yang wajib dicek ulang se
 - **Pilot kecil.** 1 zona (radius 2–3 km dari drop point), target 50 rumah tangga aktif, ≥1 grup tercapai per hari.
   Beban puncak diperkirakan puluhan permintaan per detik paling tinggi; skala bukan masalah utama di Fase 1.
 - **PWA mobile first**, Bahasa Indonesia. Aplikasi native baru di Fase 5.
-- **Uang nyata sejak hari pertama:** pembayaran Xendit (QRIS, VA, e-wallet), saldo pengguna, selisih harga ke saldo,
+- **Uang nyata sejak hari pertama:** pembayaran Xendit (QRIS & VA dulu; e-wallet menyusul, K-36), saldo pengguna, selisih harga ke saldo,
   refund, COD bersyarat (maks. Rp500.000 per pesanan).
 - **Integrasi:** Gudang (`InventorySource`), Xendit, gateway WhatsApp (OTP & notifikasi), n8n (otomasi tepi).
 - **Job terjadwal penting bisnis:** cut-off per slot kirim & kunci harga grup, daftar picking, daftar antar per slot,
@@ -122,7 +126,7 @@ ditulis eksplisit (ADR ini + aturan lint) dan panel admin dibuat sendiri.
 | Mock vendor | **MSW** atau server mock Fastify kecil | Mock Gudang (T-019), Xendit, WhatsApp |
 | Lint & format | ESLint (typescript-eslint) + Prettier | Aturan batas modul (`eslint-plugin-boundaries` atau setara) |
 | CI | **GitHub Actions** | Rincian di 3.4 |
-| Hosting | Container Docker; pilot di VPS/region dekat Indonesia (H3, H12) | Staging & production terpisah total |
+| Hosting | Container Docker; pilot di 1 VPS + PostgreSQL terkelola (H3) di **region Indonesia** (H12, diputuskan 19 Nov) | Staging & production terpisah total bila staging dibuat; saat ini belum ada server staging (K-19, §3.4) |
 
 Versi pustaka persis ditetapkan saat scaffold (T-012) sebagai versi stabil terbaru, dipin di lockfile.
 
@@ -216,9 +220,10 @@ Prinsip:
   bila gagal (branch protection di `main`).
 - **E2E Playwright**: berjalan di PR yang menyentuh `apps/web`, `apps/api`, atau `packages/domain`, terhadap stack
   lokal di runner (Docker Compose), Xendit diganti adapter palsu; suite terhadap Xendit sandbox berjalan terjadwal
-  di staging.
-- **Staging**: deploy otomatis dari `main` (T-045), data uji tanpa harga asli, Xendit mode test, WhatsApp mode
-  `sandbox`, domain sementara (#6).
+  di staging (setelah staging ada, K-19).
+- **Staging**: **untuk saat ini tanpa server staging** (K-19, diputuskan 19 Nov); preview dibuat di Claude dulu,
+  penyedia server menyusul. Rancangan saat staging dibuat: deploy otomatis dari `main` (T-045), data uji tanpa harga
+  asli, Xendit mode test, WhatsApp mode `sandbox`, domain sementara (#6).
 - **Production**: deploy manual dari tag rilis, hanya setelah Reality Checker lulus dan persetujuan pemilik squad
   (`CLAUDE.md` aturan 3). Gerbang ini memakai *environment protection* GitHub; ketersediaannya untuk repo privat
   bergantung pada paket GitHub (lihat H7, perlu dicek).
@@ -262,10 +267,11 @@ interface ReservasiStok {
 - **Toggle konfigurasi**: `INVENTORY_SOURCE=local|gudang` (dibaca saat start, divalidasi). Tidak dipilih per request.
 - **Sinkron**: tarikan berkala (job) + tarikan on-demand saat checkout untuk stok; hasil disimpan sebagai *snapshot*
   lokal dengan kolom `disinkron_pada`. Katalog dan engine harga **selalu** membaca snapshot lokal, sehingga
-  gangguan Gudang tidak menjatuhkan aplikasi. Batas usia data mengikuti P-10. Saat Gudang tidak bisa dihubungi:
-  **default teknis sementara sampai H14 diputuskan** — tetap jual dengan snapshot selama umurnya di bawah batas
-  (perilaku dibuat dapat dikonfigurasi agar bisa diganti menjadi "tahan checkout"); lewat batas → **ikut grup baru ditolak**
-  ("Coba lagi sebentar", flow M-03); saat cut-off tanpa konfirmasi stok → grup `DITAHAN`.
+  gangguan Gudang tidak menjatuhkan aplikasi. Batas usia data mengikuti P-10 (modal: 15 menit). Saat Gudang tidak bisa
+  dihubungi: **tahan checkout** (H14, diputuskan 12 Nov) — ikut grup/checkout baru ditolak ("Coba lagi sebentar", flow
+  M-03) sampai stok bisa dikonfirmasi lagi; snapshot lama tidak dipakai untuk menerima pesanan (katalog tetap tampil
+  dari snapshot); saat cut-off tanpa konfirmasi stok → grup `DITAHAN`. (Default sementara "tetap jual dengan snapshot"
+  tidak berlaku.)
 - **Harga modal masuk dari Gudang lalu divalidasi**: modal ≤ 0 atau kosong → produk otomatis tidak tayang
   (bukan harga nol).
 - **Arah balik**: **per grup, setelah harga dikunci & stok dialokasikan** (status `HARGA_TERKUNCI` atau
@@ -278,7 +284,8 @@ interface ReservasiStok {
 
 - Adapter `PaymentGateway` dengan implementasi `XenditGateway` dan `FakeGateway` (tes/E2E). Pemakaian SDK resmi
   atau HTTP langsung diputuskan di T-029; keduanya berada di balik port yang sama.
-- Metode: QRIS, Virtual Account, e-wallet. Mode test di dev/staging, mode live hanya di production; kunci dipilih
+- Metode: **QRIS dan Virtual Account dulu** (K-36, diputuskan 19 Nov); e-wallet menyusul bila kerja sama memungkinkan,
+  sebagai task baru di balik port yang sama. Mode test di dev/staging, mode live hanya di production; kunci dipilih
   dari environment variable, tidak pernah dari kode atau DB.
 - **Membuat pembayaran**: `external_id` = ID pembayaran NEKAT (Fase 1: **satu pembayaran per pesanan**, sehingga
   kunci idempotensi Xendit setara dengan ID pesanan seperti di flow M-06); header idempotensi dikirim bila didukung endpoint
@@ -303,8 +310,10 @@ interface ReservasiStok {
 - **Basis waktu bayar terlambat**: ikuti jawaban F-11; secara teknis kedua nilai (`waktu_bayar` = `paid_at` dari gateway, dan waktu
   webhook diterima) disimpan.
 - **Refund & selisih → saldo**: sesuai keputusan #9, selisih harga dan refund dikreditkan ke ledger saldo.
-  Refund ke metode bayar asal dan pencairan saldo **tidak dibangun di Fase 1** (H5/F-03); bila manusia memutuskan
-  lain, itu menjadi task baru.
+  Refund ke metode bayar asal **tidak dibangun**: semua refund & selisih masuk saldo (= loyalty point, F-03, K-13).
+  **Pencairan saldo** ke rekening bank, virtual account, atau e-wallet **diputuskan boleh** (G-06d) dengan aturan K-34
+  (OTP ulang, tujuan atas nama pemilik akun, jeda, saldo baru ditahan, limit harian; angka diisi pemilik), tetapi
+  fiturnya baru dibuka **setelah ada pendapat hukum** (H5, aturan uang elektronik BI). Dibangun sebagai task terpisah.
 - **Rekonsiliasi harian**: bandingkan transaksi Xendit dengan pembayaran & ledger NEKAT; selisih dilaporkan ke owner.
 - Biaya transaksi per metode tidak dicantumkan di sini; Finance Tracker mengambilnya dari kontrak/dashboard Xendit.
 
@@ -351,18 +360,19 @@ Workflow n8n diekspor ke folder `n8n/` (tanpa kredensial) dan di-review seperti 
   `real`, `double`, atau `numeric` berpecahan untuk uang.**
 - Di TypeScript: tipe bermerek `Rupiah` (integer, dicek `Number.isSafeInteger`); parser `pg` dikonfigurasi agar
   `bigint` dibaca aman. Operasi aritmetika uang hanya lewat helper di `packages/domain` (tambah, kurang, kali jumlah,
-  persen dengan pembulatan eksplisit).
+  persen yang menolak hasil pecahan, kecuali potongan diskon yang bagian pecahannya dibuang, K-28).
 - Persentase (margin, diskon) disimpan sebagai integer **basis poin** atau pecahan rasional, bukan float. Nilainya
   KOSONG sampai diisi pemilik (`keputusan.md` #6).
-- **Pembulatan**: mode final menunggu H6/P-02. Kendala teknis yang tidak bisa ditawar: hasil pembulatan harga jual
-  tidak pernah di bawah modal; sebelum H6 diputuskan, helper membulatkan **ke atas** ke rupiah penuh
-  (diberi label "sementara, menunggu H6" di kode).
+- **Tanpa pembulatan** (H6/P-02, diputuskan 12 Nov; rincian K-01 & K-28): helper uang tidak membulatkan harga atau modal.
+  Harga pecahan dari margin % → produk tidak tayang + antrean "perlu ditinjau"; modal pecahan → SKU tidak tayang +
+  "perlu ditinjau" (K-01); potongan diskon pecahan dibuang (K-28). Harga jual tetap tidak pernah di bawah modal.
+  (Default sementara "bulatkan ke atas" tidak berlaku.)
 - Format tampilan (contoh format: `Rp{nominal}` dengan pemisah ribuan titik) hanya di lapisan UI dengan `Intl.NumberFormat('id-ID')`.
 
 ### 5.2 Ledger saldo (append-only)
 
 - Tabel `ledger_saldo`: `id`, `akun_id`, `jumlah` (bigint bertanda: + kredit, − debit), `jenis`
-  (selisih_harga, refund, pakai_checkout, koreksi_admin, ...), `referensi_jenis`, `referensi_id`,
+  (selisih_harga, refund, pakai_checkout, koreksi_admin, pencairan setelah H5, ...), `referensi_jenis`, `referensi_id`,
   `kunci_idempotensi UNIQUE`, `dibuat_oleh`, `dibuat_pada`.
 - **Tidak ada UPDATE/DELETE**: dicabut hak aksesnya untuk peran DB aplikasi dan dijaga trigger. Koreksi = baris
   pembalik baru dengan alasan.
@@ -417,7 +427,8 @@ sehingga perubahan harga di kemudian hari tidak mengubah riwayat.
   penyedia. Enkripsi per kolom untuk nomor HP **tidak** diusulkan di Fase 1 (menyulitkan keunikan & pencarian);
   dapat ditambah kemudian dengan *blind index*.
 - Retensi data mengikuti kebijakan privasi; fitur hapus/anonimkan akun disiapkan di model data (T-004).
-- Lokasi penyimpanan data (isian "[lokasi]" di kebijakan privasi) diputuskan di H12.
+- Lokasi penyimpanan data: **region Indonesia** (H12, diputuskan 19 Nov); isian "[lokasi]" di kebijakan privasi
+  diisi sesuai penyedia yang dipilih.
 - Data KTP/verifikasi usia **tidak** ada di Fase 1 (rokok & bir di luar Fase 1, `keputusan.md` #7).
 
 **Akses & peran admin (RBAC).**
@@ -465,7 +476,7 @@ pembaruan dependensi otomatis (Renovate/Dependabot) dengan CI wajib hijau.
 | Job cut-off terlewat/ganda | Harga salah, selisih tidak terkredit | Cron tiap menit + `job_run` dengan lease (ambil alih bila mati), status grup hanya maju, kunci ledger unik, guard waktu di API, alert, tes dengan `Clock` palsu |
 | Webhook palsu / duplikat | Pesanan tertandai lunas tanpa bayar | Token + konfirmasi GET status ke Xendit, cek nominal, dedup dalam satu transaksi, rekonsiliasi harian |
 | Akun WhatsApp diblokir (terutama bila gateway tidak resmi) | OTP mati → tidak ada yang bisa checkout | H2: pakai jalur resmi; cadangan OTP (SMS) dinilai di H2 |
-| Gudang API lambat/mati | Katalog/stok salah | Snapshot lokal, batas usia data (P-10), perilaku H14, mode `local` sebagai fallback |
+| Gudang API lambat/mati | Katalog/stok salah | Snapshot lokal, batas usia data (P-10), perilaku H14 (tahan checkout), mode `local` sebagai fallback |
 | Satu server (VPS) mati | Layanan berhenti | Backup teruji, skrip deploy ulang dari nol, target pemulihan ditulis di T-045 |
 | Kebocoran PII lewat log/n8n | Pelanggaran UU PDP | Redact + tes, view tanpa PII untuk n8n, audit T-046 |
 | Rahasia ter-commit oleh agen | Kunci bocor | gitleaks di CI + pre-commit, rotasi kunci terdokumentasi, auditor AI-code |
@@ -500,16 +511,16 @@ atau berada di balik adapter/konfigurasi. Kolom "Harus diputuskan sebelum" menun
 | H2 | Gateway WhatsApp untuk OTP & notifikasi (Meta Cloud API / BSP resmi / tidak resmi), SMS cadangan? | Joseph + Randy | **Jalur resmi** (Meta Cloud API langsung atau BSP resmi); **hindari gateway tidak resmi** (risiko blokir nomor). Verifikasi bisnis Meta butuh data badan usaha (#5) — mulai urus sekarang karena bisa makan waktu. SMS cadangan: opsional, nilai biayanya lewat Finance Tracker. Biaya per percakapan/pesan harus dicek di situs penyedia | T-016 ke production; dev memakai mode `log` |
 | H3 | Penyedia hosting & PostgreSQL self-managed vs managed | Joseph (+ Finance) | Pilot: **1 VPS untuk app+worker per lingkungan + PostgreSQL terkelola** bila anggaran memungkinkan (backup/PITR otomatis mengurangi risiko terbesar); alternatif termurah: PostgreSQL di VPS yang sama + backup harian teruji. Kelas biaya keduanya perkiraan kecil–menengah per bulan, wajib dicek di harga penyedia | T-045 |
 | H4 | Peran n8n: laporan/tepi saja, atau juga memicu job; lokasi hosting n8n | Joseph | **Tepi saja** (tabel 4.4): baca view read-only tanpa PII, picu aksi hanya lewat endpoint internal idempoten. Host n8n di server staging/ops terpisah dari DB production, atau n8n cloud bila tidak menyimpan PII | T-041 |
-| H5 | Saldo bisa ditarik / refund ke metode asal atau tidak; tinjauan hukum (aturan uang elektronik BI) | Randy (+ hukum) | Fase 1: **saldo hanya untuk belanja, tidak bisa dicairkan; refund ke metode bayar asal tidak dibangun di Fase 1** (sama dengan §4.2) — sampai ada pendapat hukum. Sama dengan F-03; perlu selaras S&K §7.1 & §7.3 | Rilis pilot (T-046) |
-| H6 | Aturan pembulatan rupiah (termasuk modal per satuan hasil bagi karton), tidak pernah di bawah modal | Efan | Bulatkan **ke atas** ke kelipatan yang dipilih Efan (sama dengan P-02); modal per satuan hasil bagi karton juga dibulatkan ke atas. Kode memakai pembulatan ke atas ke rupiah penuh sampai diputuskan | T-020 selesai review |
+| H5 | Saldo bisa ditarik / refund ke metode asal atau tidak; tinjauan hukum (aturan uang elektronik BI) | Randy (+ hukum) | **DIPUTUSKAN 18 Nov (`keputusan.md` §14): minta pendapat hukum (aturan uang elektronik BI) sebelum fitur pencairan dibuka.** Saldo (= loyalty point) **bisa dicairkan** ke rekening bank, VA, atau e-wallet (G-06d, §12) dengan aturan K-34; semua refund & selisih masuk saldo, refund ke metode asal tidak dibangun (F-03). Lihat §4.2; perlu selaras S&K §7.1 & §7.3. (Usulan awal agen "saldo tidak bisa dicairkan" tidak berlaku.) | Rilis pilot (T-046) |
+| H6 | Aturan pembulatan rupiah (termasuk modal per satuan hasil bagi karton), tidak pernah di bawah modal | Efan | **DIPUTUSKAN 12 Nov (`keputusan.md` §11): tidak ada pembulatan rupiah** (= P-02). Rincian: modal diinput per satuan jual, modal pecahan → SKU tidak tayang (K-01); harga pecahan dari margin % → tidak tayang + "perlu ditinjau", potongan diskon pecahan dibuang (K-28). Lihat §5.1. (Usulan awal agen "bulatkan ke atas" tidak berlaku.) | T-020 selesai review |
 | H7 | Kepemilikan akun (GitHub org + paket GitHub untuk gerbang production, Xendit, hosting, domain, Meta Business, secret store), min. 2 admin | Joseph + Randy | Semua akun atas nama **badan usaha**, minimal 2 admin manusia dengan 2FA, kredensial di password manager tim; agen hanya mendapat token terbatas. Cek apakah paket GitHub saat ini mendukung *required reviewers* untuk environment repo privat | T-045 |
 | H8 | Error tracking & log: SaaS vs self-host (masking PII) | Joseph | **SaaS dengan paket gratis/kecil** untuk pilot (Sentry atau setara) dengan scrubbing PII aktif + pino redact; self-host hanya bila H12 mewajibkan data di Indonesia. Batas paket gratis perlu dicek | T-045 |
 | H9 | Login admin: wajib TOTP atau cukup OTP WA | Joseph | **DIPUTUSKAN 12 Nov malam (`keputusan.md` §11, menggantikan jawaban awal "cukup OTP WA" setelah temuan K-04): admin wajib faktor kedua TOTP** (aplikasi authenticator) selain OTP WA, untuk semua peran admin; OTP WA saja hanya untuk pembeli. Akun admin mengubah harga & saldo, jadi dilindungi faktor yang tidak bergantung pada WhatsApp | T-036 |
 | H10 | Terima ADR-0001 (merge PR T-001) — membuka semua task kode | Joseph | Merge setelah H1 disetujui; butir lain boleh menyusul | Gelombang 2 |
 | H11 | (Fase 5) Deferred deep link iOS: layanan pihak ketiga vs fallback kode manual | Randy + Joseph | Fase 1 PWA cukup: link `/g/:kode` membuka web + ajakan install (sesuai keputusan #3); struktur deferred deep link disiapkan di T-024 (base URL dari konfigurasi, kode grup dibawa lewat path). Untuk native: siapkan fallback kode grup yang bisa diketik + clipboard; nilai layanan pihak ketiga di Fase 5 | Fase 5 |
-| H12 | **Baru.** Lokasi penyimpanan data (server di Indonesia atau luar negeri) dan isian "[lokasi]" di kebijakan privasi | Randy + Joseph (+ hukum) | Pilih **region Indonesia** bila tersedia di penyedia H3 dengan biaya wajar; bila memakai region luar negeri, minta tinjauan hukum atas UU PDP & aturan transfer data lintas negara, lalu sebutkan jujur di kebijakan privasi | T-045 / rilis pilot |
+| H12 | **Baru.** Lokasi penyimpanan data (server di Indonesia atau luar negeri) dan isian "[lokasi]" di kebijakan privasi | Randy + Joseph (+ hukum) | **DIPUTUSKAN 19 Nov (Joseph, issue #7): region Indonesia.** Penyedia H3 dipilih yang punya region Indonesia; isian "[lokasi]" kebijakan privasi diisi sesuai penyedia (§7) | T-045 / rilis pilot |
 | H13 | **Baru.** Cara kurir lokal & drop point menerima data antar: akun kurir di aplikasi (akses terbatas per slot) vs daftar cetak/pesan WhatsApp dari admin | Randy (+ Operations) | Fase 1: **daftar antar per slot yang dibagikan admin** (cetak/PDF), tanpa akun kurir; berisi hanya data minimum (kebijakan privasi §4). Akun kurir dengan akses per slot dipertimbangkan setelah pilot | T-040 |
-| H14 | **Baru.** Saat `GudangApiInventory` aktif dan Gudang tidak bisa dihubungi: tetap menjual dengan snapshot stok terakhir (risiko oversell) atau menahan "Ikut grup"/checkout | Joseph + Efan | **Tetap jual dengan snapshot** (reservasi NEKAT di atas snapshot) selama umurnya di bawah batas P-10; lewat batas → **ikut grup baru ditolak** ("Coba lagi sebentar", flow M-03); saat cut-off tanpa konfirmasi stok → grup DITAHAN. Oversell ditangani flow B-09 (alokasi parsial, refund ke saldo) | T-019 |
+| H14 | **Baru.** Saat `GudangApiInventory` aktif dan Gudang tidak bisa dihubungi: tetap menjual dengan snapshot stok terakhir (risiko oversell) atau menahan "Ikut grup"/checkout | Joseph + Efan | **DIPUTUSKAN 12 Nov (`keputusan.md` §11): tahan checkout.** Gudang tidak bisa dihubungi → ikut grup/checkout baru ditolak ("Coba lagi sebentar", flow M-03); saat cut-off tanpa konfirmasi stok → grup DITAHAN (§4.1). (Usulan awal agen "tetap jual dengan snapshot" tidak berlaku.) | T-019 |
 
 Butir dari dokumen lain yang bersinggungan dengan arsitektur, tetapi **tidak** diberi ID baru di sini:
 F-01/P-04 (harga yang dibayar saat ikut grup — ledger mendukung kedua opsi), F-03 (= H5), F-11 (basis waktu bayar
