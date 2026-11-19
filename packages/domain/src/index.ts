@@ -4,3 +4,4 @@
 
 export { tambahRupiah } from "./uang.js";
 export * from "./zona.js";
+export * from "./inventori.js";

@@ -2,7 +2,10 @@
 import { bacaKonfigurasi } from "./config.js";
 import { buatWorker } from "./worker.js";
 
-const boss = buatWorker(bacaKonfigurasi(process.env));
+const konfigurasi = bacaKonfigurasi(process.env);
+const boss = buatWorker(konfigurasi);
+// Instans InventorySource dirangkai saat konsumen pertamanya ada (T-022/T-025/T-040).
+console.info(`[worker] sumber inventori: ${konfigurasi.inventory.sumber}`);
 
 boss.on("error", (galat: Error) => {
   // Hanya nama & pesan; jangan cetak objek mentah (bisa memuat connection string).

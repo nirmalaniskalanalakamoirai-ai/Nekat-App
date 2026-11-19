@@ -6,7 +6,7 @@ import type { KonfigurasiWorker } from "./config.js";
  * Pendaftaran job (cut-off, picking, laporan, outbox WA/Gudang) menyusul di task masing-masing
  * (ADR-0001 §3.3).
  */
-export function buatWorker(konfigurasi: KonfigurasiWorker): PgBoss {
+export function buatWorker(konfigurasi: Pick<KonfigurasiWorker, "databaseUrl">): PgBoss {
   return new PgBoss({
     connectionString: konfigurasi.databaseUrl,
     application_name: "nekat-worker",

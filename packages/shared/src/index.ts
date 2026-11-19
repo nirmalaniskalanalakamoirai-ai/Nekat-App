@@ -4,3 +4,4 @@
 export { isRupiah, keRupiah, rupiahSchema, RupiahTidakValidError, type Rupiah } from "./rupiah.js";
 
 export const NAMA_APLIKASI = "NEKAT";
+export * from "./inventori.js";

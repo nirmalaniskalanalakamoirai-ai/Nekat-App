@@ -1,4 +1,5 @@
 // Entry proses API. Tidak diimpor oleh tes (tes memakai `buatApp` + `inject`).
+import { bacaKonfigInventory } from "@nekat/adapters";
 import { z } from "zod";
 import { buatApp } from "./app.js";
 import { muatKonfigLokasi } from "./lokasi.js";
@@ -19,6 +20,14 @@ if (!env.success) {
   // Sebut nama variabel saja, bukan nilainya (ADR-0001 §6).
   const nama = [...new Set(env.error.issues.map((isu) => isu.path.join(".")))].join(", ");
   console.error(`Konfigurasi API tidak valid: ${nama}`);
+  process.exit(1);
+}
+
+// Toggle InventorySource (T-018): dibaca & divalidasi saat start; nilai salah → gagal start.
+try {
+  bacaKonfigInventory(process.env);
+} catch (err) {
+  console.error((err as Error).message);
   process.exit(1);
 }
 
