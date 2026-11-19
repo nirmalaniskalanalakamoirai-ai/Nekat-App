@@ -1,5 +1,7 @@
 # Progress
 
+**Update 19 Nov 13.25 WIB:** PR #24 (T-020 engine harga) di-merge → done. Fase 1: 13/49 (±27%). PR #23 (T-018) CI hijau, tanpa konflik, menunggu merge.
+
 **Update 19 Nov WIB (sesi Build, mode hemat):**
 - Langkah 0: **33 jawaban 16–19 Nov** dicatat dari issue #5/#6/#7 → keputusan-terbuka.md (`054b868`), tabel issue diperbarui, "Dicatat" dibalas. PR gabungan **#22** (keputusan.md §14) sudah di-merge. Catatan: K-25 menggantikan K-10 (ongkir satu tagihan); H12 dialihkan ke Joseph.
 - Keputusan baru: **K-39** (host tidak menekan "Terbitkan tagihan"), **K-40** (konflik K-30 vs F-07 soal batal setelah bayar) → issue #5; **K-41** (margin min 5% untuk harga dasar?), **K-42** (pagar dilanggar: tahan kedua harga?) → issue #6. Efan kini hanya punya K-41, K-42.
