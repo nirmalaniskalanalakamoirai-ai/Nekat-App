@@ -26,3 +26,11 @@ export function buatInventorySource(
       throw new SumberInventoryBelumDiimplementasiError(konfig.sumber);
   }
 }
+
+/**
+ * Penjaga start API/worker: `INVENTORY_SOURCE=gudang` ditolak sampai GudangApiInventory ada (T-019).
+ * T-019 menghapus cabang `gudang` di sini bersamaan dengan pabrik di atas.
+ */
+export function pastikanSumberInventoryTersedia(konfig: KonfigInventory): void {
+  if (konfig.sumber === "gudang") throw new SumberInventoryBelumDiimplementasiError(konfig.sumber);
+}

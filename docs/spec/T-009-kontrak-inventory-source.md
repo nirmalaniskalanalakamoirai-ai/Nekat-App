@@ -1,6 +1,6 @@
 # T-009 — Kontrak `InventorySource`
 
-Status: usulan v0.3 (15 Nov 2026, T-047: sinkron `keputusan.md` §11–§13 — snapshot saat invoice K-15/P-08, modal per satuan jual K-01, K-02, K-03; v0.2 12 Nov: keputusan PR #9 + temuan keamanan) · Squad: Build & QA (Joseph) · Dasar: `keputusan.md` #8, §11–§13, ADR-0001 §4.1
+Status: usulan v0.4 (19 Nov 2026, T-018: §2 disamakan dengan skema DB T-004 & kode; lihat Riwayat versi) · v0.3 (15 Nov 2026, T-047: sinkron `keputusan.md` §11–§13 — snapshot saat invoice K-15/P-08, modal per satuan jual K-01, K-02, K-03; v0.2 12 Nov: keputusan PR #9 + temuan keamanan) · Squad: Build & QA (Joseph) · Dasar: `keputusan.md` #8, §11–§13, ADR-0001 §4.1
 Tergantung: T-001 (selesai). Dipakai oleh: T-018 (`LocalInventory`), T-019 (`GudangApiInventory`), T-022, T-023, T-040.
 
 Inti: NEKAT membaca SKU, stok, dan harga modal dari satu antarmuka. Ada dua implementasi, `LocalInventory` (default) dan `GudangApiInventory`. Modul lain **hanya** membaca snapshot lokal dan tidak pernah memanggil Gudang langsung.
@@ -29,12 +29,17 @@ interface SkuSumber {
   skuSumberId: SkuSumberId | null;   // null untuk LocalInventory
   nama: string;                      // 1–200 karakter (Zod), di-escape saat tampil di panel admin
   kategori: string;                  // kode kategori sumber, dipakai filter rokok/bir (§7)
-  satuanDasar: 'pcs' | 'kg' | 'liter';
+  satuanDasar: 'pcs' | 'gram' | 'ml'; // sama dengan `sku.satuan_dasar` (T-004 §3.5). Sumber yang memakai kg/liter
+                                     // dikonversi adapter Gudang ke gram/ml (×1000) TANPA pembulatan; hasil bukan
+                                     // integer → baris ditolak (`DATA_TIDAK_VALID`)
   konversiSatuan: Array<{            // P-03: satuan kuantitas yang tersedia per produk
     satuan: 'PCS_3' | 'LUSIN' | 'DUS' | 'KOLI';   // kode kanonik P-03 (PCS_1 = satuanDasar)
     isi: number;                     // integer ≥ 1, dalam satuanDasar (mis. dus isi 24 pcs, koli isi 4 dus = 96)
+    beratGram: number | null;        // berat 1 satuan ini (gram, integer ≥ 0) bila sumber memberinya
+                                     // (LocalInventory: `satuan_jual.berat_gram`); null → pemakai menghitung isi × beratGram
   }>;                                // boleh kosong (produk hanya dijual 1 pcs); tiap satuan maks. sekali
-  beratGram: number;                 // integer ≥ 0, dipakai kalkulator ongkir (T-031)
+  beratGram: number | null;          // berat 1 satuanDasar (gram, integer ≥ 0), dipakai kalkulator ongkir (T-031).
+                                     // null = tidak diketahui (LocalInventory: SKU tanpa satuan jual PCS_1); tidak ditebak
   barcode: string | null;
   aktifDiSumber: boolean;            // false → produk tidak tayang
   diubahPada: string;                // waktu perubahan terakhir di sumber
@@ -160,7 +165,9 @@ Semua adapter melempar `InventoryError` dengan kode tetap:
 - Penurunan modal dibanding snapshot sebelumnya → **hanya dicatat** di log admin, tanpa ambang tahan (K-02, diputuskan 13 Nov).
 - Stok negatif dari sumber → dianggap 0, dicatat.
 - `konversiSatuan[].isi` < 1, satuan ganda, atau berat negatif → baris ditolak (`DATA_TIDAK_VALID`).
-- Kategori rokok/bir dari sumber (field `kategori`) → SKU tidak diimpor di Fase 1 (`keputusan.md` #7).
+- Kategori rokok/bir dari sumber (field `kategori`) → SKU tidak diimpor di Fase 1 (`keputusan.md` #7). Pada `listSku(sejak)` (sinkron inkremental), SKU yang **berubah** ke kategori terlarang tetap dikirim dengan `aktifDiSumber: false` agar snapshot menonaktifkannya; pada `listSku()` penuh SKU itu tidak muncul.
+- ID (`skuId`, `lokasiId`) dipakai persis seperti diminta, tanpa normalisasi. `LocalInventory`: ID wajib UUID kanonik huruf kecil; di `getStok`/`getHargaModal` ID lain = tidak dikenal (tidak muncul), di `konfirmasiStok`/`kirimPermintaanPicking` → `DATA_TIDAK_VALID` sebelum hasil disimpan di kunci idempotensi.
+- `KonfirmasiStok`/`PermintaanPicking`: segmen grup pada `kunciIdempotensi` wajib sama dengan `grupId`; `PermintaanPicking.baris` tidak boleh memuat pasangan (`anggotaId`, `skuId`) ganda → `DATA_TIDAK_VALID`.
 - **Snapshot harga & modal saat invoice (K-15, P-08; menggantikan F-08 "saat grup dibuka"):** tidak ada `modal_snapshot_grup`. Saat invoice barang terbit, setiap baris invoice menyimpan salinan modal (nilai, sumber `gudang`/`local`/`timpaan`, `dataPada`) dan harga dari tabel harga terkini, dengan syarat data modal ≤ batas usia (P-10). Perubahan modal sesudahnya tidak mengubah invoice itu. Barang yang hanya di keranjang memakai harga live dan tidak memotong stok. Bila stok habis sebelum invoice lunas, invoice dibatalkan (P-08; flow T-002 A5).
 - **Saat cut-off:** pagar ≥ modal memakai **modal terkini** dari snapshot lokal (≤ batas usia); modal terkini di atas harga dibayar → grup `DITAHAN` untuk admin (P-09/P-26, diputuskan 14 Nov).
 - **Timpaan modal saat mode Gudang (P-25):** admin dengan izin `harga.ubah` (login OTP + TOTP, H9) boleh menimpa modal per satuan jual lewat panel/CSV. Disimpan terpisah (`modal_timpaan`: nilai, alasan wajib, siapa, kapan, `kedaluwarsa_pada` opsional); nilai Gudang tetap disinkron untuk perbandingan. Selama timpaan aktif, timpaan dipakai dan panel menampilkan selisih terhadap nilai Gudang. Timpaan berlaku **sampai dicabut admin** (K-03); bila `kedaluwarsa_pada` diisi dan tercapai, sistem mengirim **pemberitahuan otomatis** ke admin untuk barang itu beserta catatannya (timpaan tidak dicabut otomatis). Timpaan wajib integer > 0 dan memicu pemeriksaan ulang pagar harga; setiap perubahan tercatat di log admin.
@@ -213,3 +220,11 @@ Satu set tes yang sama dijalankan terhadap `LocalInventory` dan `GudangApiInvent
 | I-02 | Apakah Gudang mendukung kunci idempotensi untuk picking? Bila tidak, NEKAT menyimpan `referensiSumber` dan mengecek dulu sebelum mengirim ulang | Joseph | NEKAT cek dulu sebelum kirim ulang |
 
 Sudah diputuskan dan diterapkan di dokumen ini: P-10 = 15 menit, H14 = tahan checkout, F-20 = cek stok di cabang, P-03 = satuan 1 pcs/3 pcs/lusin/dus/koli, P-25 = modal boleh ditimpa (12 Nov); K-01 = modal per satuan jual, pecahan → tidak tayang + tinjau; K-02 = penurunan modal hanya dicatat; K-03 = timpaan sampai dicabut + kedaluwarsa opsional dengan pemberitahuan; K-15/P-08 = snapshot harga & modal saat invoice, menggantikan F-08 (13 Nov); P-09/P-26 = DITAHAN (14 Nov). ADR-0001 §4.1/§9 H14 masih menyebut default "jual snapshot" — di luar cakupan T-047 (hanya H9), diusulkan sebagai task lanjutan.
+
+## Riwayat versi
+
+| Versi | Tanggal | Perubahan |
+|---|---|---|
+| v0.4 | 19 Nov 2026 | T-018: `satuanDasar` = `pcs`/`gram`/`ml` (selaras T-004; kg/liter dikonversi adapter tanpa pembulatan); `beratGram` nullable; field baru `konversiSatuan[].beratGram`; aturan `listSku(sejak)` untuk SKU yang pindah ke kategori terlarang; ID tanpa normalisasi; kunci idempotensi terikat `grupId`; baris picking ganda ditolak (§2, §7) |
+| v0.3 | 15 Nov 2026 | T-047: snapshot saat invoice (K-15/P-08), modal per satuan jual (K-01), K-02, K-03 |
+| v0.2 | 12 Nov 2026 | Keputusan PR #9 + temuan keamanan |

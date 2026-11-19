@@ -51,7 +51,11 @@ export interface OpsiLocalInventory {
   readonly kataKategoriTerlarang?: readonly string[];
 }
 
-const POLA_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/**
+ * UUID kanonik huruf kecil saja (format keluaran PostgreSQL). ID huruf besar/non-kanonik dianggap
+ * tidak dikenal, sehingga hasil selalu memakai ID persis seperti yang diminta.
+ */
+const POLA_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const PESAN_DB = "Database inventori lokal tidak bisa dibaca";
 
 export class LocalInventory implements InventorySource {
@@ -74,19 +78,23 @@ export class LocalInventory implements InventorySource {
     const baris = await this.#baca(() => this.#repo.daftarSku(sejak));
     const hasil: SkuSumber[] = [];
     for (const b of baris) {
-      if (
+      const terlarang =
         kodeKategoriTerlarang(b.kategoriKode, this.#kataTerlarang) ||
         (b.indukKategoriKode !== null &&
-          kodeKategoriTerlarang(b.indukKategoriKode, this.#kataTerlarang))
-      ) {
+          kodeKategoriTerlarang(b.indukKategoriKode, this.#kataTerlarang));
+      if (terlarang) {
         this.#catat({
           kode: "KATEGORI_TERLARANG",
           skuId: b.skuId,
           keterangan: "kategori rokok/bir tidak diimpor di Fase 1",
         });
-        continue;
+        // Sinkron penuh: tidak muncul. Sinkron inkremental (`sejak`): SKU yang baru pindah ke
+        // kategori terlarang dikirim dengan aktifDiSumber=false agar snapshot menonaktifkannya.
+        if (sejak === undefined) continue;
       }
-      const cek = skuSumberSchema.safeParse(keSkuSumber(b));
+      const cek = skuSumberSchema.safeParse(
+        terlarang ? { ...keSkuSumber(b), aktifDiSumber: false } : keSkuSumber(b),
+      );
       if (!cek.success) {
         this.#catatTidakValid(b.skuId, cek.error.issues);
         continue;
@@ -165,7 +173,9 @@ export class LocalInventory implements InventorySource {
 
   async konfirmasiStok(req: KonfirmasiStok): Promise<StokTerkonfirmasi> {
     const cek = konfirmasiStokSchema.safeParse(req);
-    if (!cek.success) {
+    // ID lokal wajib UUID kanonik: ID salah format ditolak SEBELUM hasil (stok 0) tersimpan
+    // permanen di bawah kunci idempotensi.
+    if (!cek.success || !POLA_UUID.test(cek.data.skuId) || !POLA_UUID.test(cek.data.lokasiId)) {
       throw new InventoryError("DATA_TIDAK_VALID", "Permintaan konfirmasi stok tidak valid");
     }
     const r = cek.data;
@@ -188,7 +198,11 @@ export class LocalInventory implements InventorySource {
 
   async kirimPermintaanPicking(req: PermintaanPicking): Promise<HasilPicking> {
     const cek = permintaanPickingSchema.safeParse(req);
-    if (!cek.success) {
+    if (
+      !cek.success ||
+      !POLA_UUID.test(cek.data.lokasiId) ||
+      !cek.data.baris.every((b) => POLA_UUID.test(b.skuId))
+    ) {
       // Termasuk field tambahan (nama, nomor HP, alamat, pesananId): skema ketat menolaknya.
       throw new InventoryError("DATA_TIDAK_VALID", "Permintaan picking tidak valid");
     }
@@ -229,7 +243,7 @@ export class LocalInventory implements InventorySource {
   }
 }
 
-function keSkuSumber(b: BarisSkuLokal): unknown {
+function keSkuSumber(b: BarisSkuLokal): Record<string, unknown> {
   const pcs1 = b.satuanJual.find((s) => s.jenis === "PCS_1");
   return {
     skuId: b.skuId,
@@ -254,7 +268,7 @@ function saringId(skuIds: readonly string[]): string[] {
       `skuIds maksimal ${BATAS_SKU_PER_PANGGILAN} per panggilan; pecah dengan pecahBatch`,
     );
   }
-  return [...new Set(skuIds)].filter((id) => POLA_UUID.test(id)).map((id) => id.toLowerCase());
+  return [...new Set(skuIds)].filter((id) => POLA_UUID.test(id));
 }
 
 function banding(a: string, b: string): number {

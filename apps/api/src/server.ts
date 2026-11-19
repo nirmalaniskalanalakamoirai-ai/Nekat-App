@@ -1,5 +1,5 @@
 // Entry proses API. Tidak diimpor oleh tes (tes memakai `buatApp` + `inject`).
-import { bacaKonfigInventory } from "@nekat/adapters";
+import { bacaKonfigInventory, pastikanSumberInventoryTersedia } from "@nekat/adapters";
 import { z } from "zod";
 import { buatApp } from "./app.js";
 import { muatKonfigLokasi } from "./lokasi.js";
@@ -25,7 +25,7 @@ if (!env.success) {
 
 // Toggle InventorySource (T-018): dibaca & divalidasi saat start; nilai salah → gagal start.
 try {
-  bacaKonfigInventory(process.env);
+  pastikanSumberInventoryTersedia(bacaKonfigInventory(process.env));
 } catch (err) {
   console.error((err as Error).message);
   process.exit(1);

@@ -70,13 +70,18 @@ export const modalSumberSchema = z.strictObject({
 });
 export type ModalSumber = z.infer<typeof modalSumberSchema>;
 
-export const konfirmasiStokSchema = z.strictObject({
-  grupId: idTeks,
-  skuId: idTeks,
-  lokasiId: idTeks,
-  qtyDibutuhkan: bulatPositif,
-  kunciIdempotensi: z.string().regex(/^konfirmasi:[^:\s]{1,100}:v[1-9]\d{0,8}$/),
-});
+export const konfirmasiStokSchema = z
+  .strictObject({
+    grupId: idTeks,
+    skuId: idTeks,
+    lokasiId: idTeks,
+    qtyDibutuhkan: bulatPositif,
+    kunciIdempotensi: z.string().regex(/^konfirmasi:[^:\s]{1,100}:v[1-9]\d{0,8}$/),
+  })
+  .refine((k) => k.kunciIdempotensi.split(":")[1] === k.grupId, {
+    message: "segmen grup kunci idempotensi harus sama dengan grupId",
+    path: ["kunciIdempotensi"],
+  });
 export type KonfirmasiStok = z.infer<typeof konfirmasiStokSchema>;
 
 export const stokTerkonfirmasiSchema = z.strictObject({
@@ -94,23 +99,37 @@ const jam = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
  * Permintaan picking per grup. Objek ketat: field tambahan (nama, nomor HP, alamat, `pesananId`)
  * DITOLAK (T-009 §2, tes kontrak 8 & 13).
  */
-export const permintaanPickingSchema = z.strictObject({
-  grupId: idTeks,
-  lokasiId: idTeks,
-  kunciIdempotensi: z.string().regex(/^picking:[^:\s]{1,100}:v[1-9]\d{0,8}$/),
-  slotKirim: z.strictObject({ tanggal, mulai: jam, selesai: jam }),
-  baris: z
-    .array(
-      z.strictObject({
-        anggotaId: idTeks,
-        skuId: idTeks,
-        qty: bulatPositif,
-        caraKirim: z.enum(["ANTAR_RUMAH", "DROP_POINT"]),
-        dropPointId: idTeks.nullable(),
-      }),
-    )
-    .min(1),
-});
+export const permintaanPickingSchema = z
+  .strictObject({
+    grupId: idTeks,
+    lokasiId: idTeks,
+    kunciIdempotensi: z.string().regex(/^picking:[^:\s]{1,100}:v[1-9]\d{0,8}$/),
+    slotKirim: z.strictObject({ tanggal, mulai: jam, selesai: jam }),
+    baris: z
+      .array(
+        z.strictObject({
+          anggotaId: idTeks,
+          skuId: idTeks,
+          qty: bulatPositif,
+          caraKirim: z.enum(["ANTAR_RUMAH", "DROP_POINT"]),
+          dropPointId: idTeks.nullable(),
+        }),
+      )
+      .min(1),
+  })
+  .superRefine((p, ctx) => {
+    if (p.kunciIdempotensi.split(":")[1] !== p.grupId) {
+      ctx.addIssue({
+        code: "custom",
+        message: "segmen grup kunci idempotensi harus sama dengan grupId",
+        path: ["kunciIdempotensi"],
+      });
+    }
+    const pasangan = p.baris.map((b) => `${b.anggotaId}\u0000${b.skuId}`);
+    if (new Set(pasangan).size !== pasangan.length) {
+      ctx.addIssue({ code: "custom", message: "pasangan anggotaId+skuId ganda", path: ["baris"] });
+    }
+  });
 export type PermintaanPicking = z.infer<typeof permintaanPickingSchema>;
 
 export const hasilPickingSchema = z.strictObject({

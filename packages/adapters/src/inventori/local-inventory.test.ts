@@ -179,6 +179,14 @@ describe("LocalInventory", () => {
       expect(p?.keterangan).not.toContain("xxxx");
     });
 
+    it("sinkron inkremental: SKU pindah ke kategori terlarang dikirim aktifDiSumber=false", async () => {
+      const { inv, log } = buat();
+      const hasil = await inv.listSku(new Date("2026-11-01T00:00:00Z"));
+      expect(hasil.find((s) => s.skuId === SKU_ROKOK)).toMatchObject({ aktifDiSumber: false });
+      expect(hasil.find((s) => s.skuId === SKU_A)).toMatchObject({ aktifDiSumber: true });
+      expect(log.map((l) => l.kode)).toContain("KATEGORI_TERLARANG");
+    });
+
     it("meneruskan `sejak`", async () => {
       const { inv } = buat();
       expect(await inv.listSku(new Date("2026-11-19T05:00:00Z"))).toEqual([]);
@@ -201,6 +209,18 @@ describe("LocalInventory", () => {
       ).toEqual([]);
       expect(repo.panggilan).toEqual([[SKU_TAK_DIKENAL]]);
       expect(await inv.getStok([SKU_A], "bukan-uuid")).toEqual([]);
+    });
+
+    it("UUID huruf besar (non-kanonik) dianggap tidak dikenal, tidak dinormalisasi diam-diam", async () => {
+      const repo = buatRepo();
+      const { inv } = buat(repo);
+      expect(await inv.getStok([SKU_A.toUpperCase()], GUDANG_1)).toEqual([]);
+      expect(await inv.getStok([SKU_A], GUDANG_1.toUpperCase())).toEqual([]);
+      expect(await inv.getHargaModal([SKU_A.toUpperCase()])).toEqual([]);
+      expect(repo.panggilan).toEqual([]);
+      // Hasil selalu memakai ID persis yang diminta.
+      const [stok] = await inv.getStok([SKU_A], GUDANG_1);
+      expect(stok).toMatchObject({ skuId: SKU_A, lokasiId: GUDANG_1 });
     });
 
     it("stok negatif → 0 dan dicatat", async () => {
@@ -299,8 +319,27 @@ describe("LocalInventory", () => {
     });
 
     it("permintaan tidak valid → DATA_TIDAK_VALID", async () => {
-      const e = await galat(buat().inv.konfirmasiStok({ ...req, kunciIdempotensi: "bebas" }));
-      expect(e.kode).toBe("DATA_TIDAK_VALID");
+      const { inv } = buat();
+      for (const ubah of [
+        { kunciIdempotensi: "bebas" },
+        { kunciIdempotensi: "konfirmasi:grup-lain:v1" },
+      ]) {
+        expect((await galat(inv.konfirmasiStok({ ...req, ...ubah }))).kode).toBe(
+          "DATA_TIDAK_VALID",
+        );
+      }
+    });
+
+    it("ID huruf besar ditolak sebelum hasil tersimpan di kunci idempotensi", async () => {
+      const { inv, idempotensi } = buat();
+      for (const ubah of [{ lokasiId: GUDANG_1.toUpperCase() }, { skuId: SKU_A.toUpperCase() }]) {
+        expect((await galat(inv.konfirmasiStok({ ...req, ...ubah }))).kode).toBe(
+          "DATA_TIDAK_VALID",
+        );
+      }
+      expect(idempotensi.jumlah("konfirmasi")).toBe(0);
+      // Kunci yang sama masih bisa dipakai dengan ID yang benar.
+      expect((await inv.konfirmasiStok(req)).qtyTersedia).toBe(30);
     });
   });
 
@@ -334,6 +373,17 @@ describe("LocalInventory", () => {
         ],
       });
       expect((await galat(inv.kirimPermintaanPicking(ubah))).kode).toBe("KONFLIK_IDEMPOTENSI");
+    });
+
+    it("pasangan anggotaId+skuId ganda / kunci beda grup → DATA_TIDAK_VALID", async () => {
+      const { inv } = buat();
+      const p = picking();
+      const ganda = { ...p, baris: [p.baris[0], p.baris[0]].filter((b) => b !== undefined) };
+      expect((await galat(inv.kirimPermintaanPicking(ganda))).kode).toBe("DATA_TIDAK_VALID");
+      const bedaGrup = picking({ kunciIdempotensi: "picking:grup-2:v1" });
+      expect((await galat(inv.kirimPermintaanPicking(bedaGrup))).kode).toBe("DATA_TIDAK_VALID");
+      const lokasiBesar = picking({ lokasiId: GUDANG_1.toUpperCase() });
+      expect((await galat(inv.kirimPermintaanPicking(lokasiBesar))).kode).toBe("DATA_TIDAK_VALID");
     });
 
     it("(8, 13) data pribadi / pesananId ditolak skema", async () => {

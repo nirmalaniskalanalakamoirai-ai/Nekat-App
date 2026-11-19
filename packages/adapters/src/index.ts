@@ -15,9 +15,9 @@ export {
   type OpsiLocalInventory,
   type PeristiwaInventori,
 } from "./inventori/local-inventory.js";
-export { PenyimpanIdempotensiMemori } from "./inventori/idempotensi-memori.js";
 export {
   buatInventorySource,
+  pastikanSumberInventoryTersedia,
   SumberInventoryBelumDiimplementasiError,
   type DependensiInventory,
 } from "./inventori/pabrik.js";
