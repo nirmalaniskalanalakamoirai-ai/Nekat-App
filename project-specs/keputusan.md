@@ -140,3 +140,43 @@ Sumber: komentar issue #5 & #6 (14 Nov malam). Status juga di `keputusan-terbuka
 - **P-23:** kredit selisih di cut-off **dibatasi** agar bersih ≥ modal, dengan keterangan sebagai biaya admin.
 - **P-27:** bila gratis ongkir gagal pagar modal, pesanan **tidak langsung dibatalkan**: tampilkan "tidak memenuhi syarat", alasannya, dan rekomendasi jalan keluar agar pembeli bisa meneruskan pesanan grup.
 - Catatan (bukan jawaban P-21): barang ber-rating usia tidak boleh masuk grup dengan akun yang tidak memenuhi syarat — relevan Fase 3.
+
+## 14. Jawaban issue keputusan — DIPUTUSKAN 16–19 Nov 2026
+
+Sumber: komentar manusia di issue #5 (Randy), #6 (Efan), #7 (Joseph) 16–19 Nov; dicatat di `keputusan-terbuka.md` 19 Nov. Bila satu ID dijawab dua kali, dipakai jawaban terakhir.
+
+**Alur grup & tagihan**
+- **K-22:** host menekan **"Terbitkan tagihan"** bila semua anggota memenuhi syarat dan sudah menekan **"Siap"** di keranjangnya; setelah tagihan terbit **tidak bisa** tambah anggota atau barang. (Bila host/anggota tidak aktif → K-39, terbuka.)
+- **F-05:** gabung lewat link undangan host → pilih pesanan; tagihan terbit bila ≥3 akun, tiap akun ≥1 barang, dan minimum qty atau total ≥ Rp100.000; tagihan sudah harga final termasuk biaya lain. Grup wajib bayar lewat aplikasi. Pesanan diproses bila semua akun lunas (bayar sendiri) atau host lunas (host bayar semua).
+- **K-31:** COD **tidak** berlaku di pesanan grup; COD hanya pesanan retail/individu sesuai syarat keputusan #2.
+- **2:** nilai KPI COD final = usulan di §2.
+- **K-36:** tagihan grup hanya **QRIS/VA**; e-wallet menyusul bila kerja sama memungkinkan.
+- **K-37:** host bayar semua → tagihan digabung (total semua anggota), batas waktu ikut tagihan paling awal.
+- **K-25** (menggantikan K-10): ongkir **masuk satu tagihan** bersama barang saat tagihan terbit; pembeli memilih diantar atau ambil di drop point dengan perbandingan harga; host bayar semua → satu ongkir, bayar sendiri → ongkir dibagi rata.
+- **K-26:** biaya admin flat per akun peserta, masuk tagihan barang, kembali ke saldo bila grup batal; yang ditampilkan hanya **total** biaya admin.
+- **K-23:** minimum Rp100.000 = jumlah harga grup termasuk PPN, sebelum diskon, tanpa biaya admin & ongkir.
+- **K-24:** akun tak lunas dikeluarkan, sisa ≥3 akun tapi total < Rp100.000 → harga grup yang sudah dibayar tetap berlaku tanpa tagihan tambahan, asal ≥ modal.
+- **F-07:** **tidak bisa batal setelah bayar** (pesanan sudah diproses). Bertentangan dengan jawaban K-30 → **K-40 terbuka**; S&K §7.1 menunggu K-40.
+- **K-11:** grup gagal → pengguna memilih; default = pesanan dibatalkan; yang sudah bayar → dana ke loyalty point/saldo, yang belum bayar → hanya dibatalkan.
+- **K-33:** host keluar sebelum tagihan terbit → peran host pindah ke anggota yang masuk grup paling awal setelah host.
+- **K-32:** anggota tidak melihat isi barang anggota lain; host melihat rincian (nama samaran, tanpa alamat/HP) hanya saat memilih bayar semua.
+- **F-03:** semua refund & selisih masuk saldo (= loyalty point, K-13).
+
+**Harga & stok**
+- **P-19:** pembeli hanya bisa bayar setelah harga final; tagihan = harga final + biaya + ongkir; perubahan harga saat tagihan terbit tidak memengaruhi tagihan itu; pembeli **tidak pernah ditagih tambahan** (selisih ditanggung NEKAT selama ≥ modal + ongkir).
+- **K-28:** tanpa pembulatan: harga pecahan dari margin % → tidak tayang + "perlu ditinjau"; potongan diskon pecahan dibuang; rincian PPN ikut konsultan pajak; cek modal memakai harga tanpa PPN.
+- **K-21:** satu diskon atas total belanja; dibagi ke tiap barang hanya untuk cek modal.
+- **P-20:** subsidi gratis ongkir dibagi ke baris menurut **harga barang**.
+- **P-21:** tier grup boleh dipilih per produk oleh admin; **harga satuan wajib**.
+- **P-14:** pagar harga antar kemasan (dus vs pcs) **perlu**.
+- **K-27:** satuan jual tanpa harga Mitra Grosir → di grup memakai harga satuan, ditandai di panel admin.
+- **K-38:** kartu & detail menampilkan "Harga Belanja Bareng"; kata "Mitra" & info drop point hanya di checkout.
+- **K-20:** produk stok habis tetap tampil dengan label "Stok habis, segera distok", tombol beli nonaktif, tidak bisa masuk keranjang/grup.
+- **K-29:** stok habis setelah tagihan terbit → hanya baris barang itu dibatalkan, nilainya ke saldo, notifikasi ke admin untuk stok ulang.
+
+**Saldo, akun, hukum, operasional**
+- **K-34:** pencairan saldo: OTP ulang, tujuan atas nama pemilik akun, jeda setelah tujuan baru/ganti HP, saldo baru ditahan, limit harian; angka diisi pemilik. **H5:** fitur pencairan dibuka setelah pendapat hukum (uang elektronik BI).
+- **K-35:** hapus akun → saldo wajib dicairkan dulu; hash nomor HP disimpan, masa simpan ditetapkan hukum.
+- **H13:** Fase 1 daftar antar per slot dibagikan admin, tanpa akun kurir; akun kurir nanti lewat integrasi pihak ketiga.
+- **H11:** deferred deep link iOS ditunda ke Fase 5. **G-02:** daftar grup/tetangga tersimpan → Fase 2.
+- **K-19:** untuk saat ini **tanpa server staging**; preview dibuat di Claude dulu; penyedia server menyusul.

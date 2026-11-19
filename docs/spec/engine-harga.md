@@ -3,7 +3,7 @@
 | Atribut | Nilai |
 |---|---|
 | Task | T-003 (spesifikasi), disinkronkan T-047 (`task/T-047-sinkron-keputusan`) |
-| Versi | 0.6 — Draf. **v0.6 (15 Nov 2026, T-047): ditulis ulang mengikuti `keputusan.md` §11–§13**: satuan jual 1 pcs/3 pcs/lusin/dus/koli (P-03), level Mitra Grosir (P-05, K-08), harga grup individu = Mitra Grosir (K-09, K-14), modal per satuan jual (K-01), margin persen **atau** harga rupiah (P-01), tanpa pembulatan (H6), margin 0 ditolak (P-16), batas bawah promo dari modal (P-07, K-16), diskon tidak menumpuk (P-15), snapshot saat invoice (K-15), DITAHAN (P-09, P-26), kredit dibatasi (P-23), PPN dari konfigurasi (G-04), ongkir di invoice setelah final (K-10). Tier `SATUAN/G0/G1/G2`, MOQ grup, pembulatan `bulatK`, dan bayar harga satuan di muka (v0.5) **tidak berlaku lagi** |
+| Versi | 0.7 — Draf. **v0.7 (19 Nov 2026, T-020):** diselaraskan dengan implementasi `packages/domain/src/harga` — nama level/mode mengikuti skema DB T-013a (`SATUAN`/`MITRA_GROSIR`/`FRANCHISE`, `PERSEN`/`RUPIAH`), P-14 menjadi pagar keras `PAGAR_KEMASAN_DILANGGAR`, kode masalah baru (§4.3), margin minimum sel menunggu K-41 (§2.3). **v0.6 (15 Nov 2026, T-047): ditulis ulang mengikuti `keputusan.md` §11–§13**: satuan jual 1 pcs/3 pcs/lusin/dus/koli (P-03), level Mitra Grosir (P-05, K-08), harga grup individu = Mitra Grosir (K-09, K-14), modal per satuan jual (K-01), margin persen **atau** harga rupiah (P-01), tanpa pembulatan (H6), margin 0 ditolak (P-16), batas bawah promo dari modal (P-07, K-16), diskon tidak menumpuk (P-15), snapshot saat invoice (K-15), DITAHAN (P-09, P-26), kredit dibatasi (P-23), PPN dari konfigurasi (G-04), ongkir di invoice setelah final (K-10). Tier `SATUAN/G0/G1/G2`, MOQ grup, pembulatan `bulatK`, dan bayar harga satuan di muka (v0.5) **tidak berlaku lagi** |
 | Tanggal | 10 Nov 2026 (rev. 15 Nov 2026) |
 | Penyusun | Pricing Analyst + Backend Architect (squad Harga & bisnis, pemilik: Efan) |
 | Sumber wajib | `CLAUDE.md` (Aturan harga), `project-specs/keputusan.md` (#3, #4, #6–#9, §11–§13), `project-specs/keputusan-terbuka.md` |
@@ -32,7 +32,8 @@ Dokumen ini menetapkan **perilaku wajib** engine harga agar T-020 bisa dibangun 
 |---|---|
 | **Satuan jual (s)** | Unit yang dijual: `PCS_1` (1 pcs), `PCS_3` (3 pcs), `LUSIN`, `DUS`, `KOLI` (P-03; kode kanonik di semua dokumen). Tiap produk memilih satuan yang tersedia; `isi` (pcs dasar) dari T-009 `konversiSatuan`. Harga selalu **per satuan jual**. |
 | **Modal (M)** | Modal **per satuan jual**, diinput manual / dari Gudang per satuan jual (K-01). Integer Rupiah > 0. Pecahan → tidak tayang + antrean "perlu ditinjau", tanpa pembulatan (K-01). |
-| **Level** | `INDIVIDU` ≥ `MITRA_GROSIR` ≥ `FRANCHISE` (pagar CLAUDE.md, K-08). Tingkat "grosir" (P-05) = `MITRA_GROSIR`. |
+| **Level** | `INDIVIDU` ≥ `MITRA_GROSIR` ≥ `FRANCHISE` (pagar CLAUDE.md, K-08). Tingkat "grosir" (P-05) = `MITRA_GROSIR`. **Nama di kode & DB (T-013a, T-020): `SATUAN` = `INDIVIDU`.** |
+| **Mode isi sel (kode)** | `PERSEN` (markup basis poin) dan `RUPIAH` (= `HARGA` di dokumen ini), mengikuti `harga_level.mode` T-013a. |
 | **Sel harga** | Kombinasi (satuan jual, level). Isi sel: **persen markup atas modal** atau **harga jual Rupiah** (P-01); kosong secara bawaan. |
 | **Harga satuan** | `H(s, INDIVIDU)`. |
 | **Harga Mitra Grosir / harga grup** | `H(s, MITRA_GROSIR)`. Dalam grup yang memenuhi syarat, setiap baris mendapat harga ini tanpa MOQ (K-09, K-14). |
@@ -87,6 +88,7 @@ Usulan bentuk data (skema final milik T-004):
 | `grup.min_total` | Rupiah | nilai F-30 (Rp100.000) | F-30; dasar hitung menunggu K-23 |
 | `ppn.faktor` | rasional (`pembilang`, `penyebut`) | **kosong** = belum dikonfigurasi → produk yang tidak `bebas_ppn` tidak tayang | G-04 |
 | `promo.batas_bawah_bp` | basis poin dari modal | nilai keputusan K-16 | P-07, K-16 |
+| `margin_minimum_sel_bp` (`marginMinimumBp`) | basis poin dari modal \| kosong | **kosong** (sel cukup PG-1: harga tanpa PPN > modal) | **menunggu K-41**: apakah batas 5 % K-16 (promo & gratis ongkir) juga berlaku untuk harga sel. Bila diisi: `H × φ_penyebut × 10000 ≥ M × φ_pembilang × (10000 + bp)` → gagal `MARGIN_DI_BAWAH_MINIMUM` |
 | `biaya_admin.per_akun_per_grup` | Rupiah \| kosong | kosong (= tidak ditagih) | G-05, K-06 |
 | `batas_usia_modal_menit` | integer \| kosong | 15 untuk `gudang`; kosong untuk `local` | P-10 |
 | `diskon_menumpuk` | boolean | `false` (tetap) | P-15 |
@@ -121,7 +123,7 @@ margin = H − M ;  margin < 0 → MARGIN_NEGATIF ;  margin = 0 → MARGIN_NOL (
 ### 3.3 Modal per satuan jual (K-01)
 - Modal diinput per satuan jual; tidak ada pembagian modal karton di engine.
 - Modal dari sumber yang bukan integer > 0 → satuan jual tidak tayang, alasan `MODAL_PECAHAN` (antrean "perlu ditinjau", T-009 §7).
-- Antar satuan jual produk yang sama tidak ada pagar wajib; hanya peringatan `HARGA_KEMASAN_TIDAK_WAJAR` bila harga per pcs dasar kemasan besar > kemasan kecil (perbandingan silang `H_besar × isi_kecil > H_kecil × isi_besar`, tanpa pembagian) — **menunggu P-14**.
+- **Pagar antar kemasan (P-14, diputuskan 16 Nov: perlu)**: pada level yang sama, harga per pcs dasar kemasan besar tidak boleh lebih mahal dari kemasan kecil. Pelanggaran bila `H_besar × isi_kecil > H_kecil × isi_besar` (perbandingan silang, tanpa pembagian); sama per pcs diizinkan. Hanya sel yang sudah valid (lolos PG-1, margin minimum, PG-2) yang dibandingkan. Pelanggaran → `PAGAR_KEMASAN_DILANGGAR` pada sel **kedua** satuan (engine tidak tahu harga mana yang salah): level `SATUAN` → kedua satuan tidak tayang; `MITRA_GROSIR` → harga grup kedua satuan tidak dipakai (K-27); level nonaktif → peringatan. Kemasan dengan isi sama tidak dibandingkan. Menggantikan peringatan `HARGA_KEMASAN_TIDAK_WAJAR`.
 
 ### 3.4 Urutan perhitungan (deterministik)
 1. Kategori (§8.3) → `KATEGORI_DILARANG`.
@@ -186,7 +188,12 @@ Notasi: `H(s, L)` harga sel; `M` modal (snapshot invoice: `Mi`; terkini saat cut
 | `MARKUP_DI_ATAS_BATAS` | peringatan | Penangkal salah ketik |
 | `HARGA_DI_BAWAH_MODAL` | error | PG-1 (termasuk dasar PPN) |
 | `PAGAR_LEVEL_DILANGGAR` / `PAGAR_LEVEL_NONAKTIF` | error / peringatan | PG-2 |
-| `HARGA_KEMASAN_TIDAK_WAJAR` | peringatan | P-14 |
+| `PAGAR_KEMASAN_DILANGGAR` | error (peringatan pada level nonaktif) | P-14, §3.3 (menggantikan `HARGA_KEMASAN_TIDAK_WAJAR`) |
+| `MARGIN_DI_BAWAH_MINIMUM` | error | Harga tanpa PPN < modal × (1 + `margin_minimum_sel_bp`); hanya bila konfigurasi diisi (menunggu K-41) |
+| `GRUP_TIDAK_DIAKTIFKAN` | info | P-21: tier grup dimatikan admin untuk satuan itu; dalam grup memakai harga satuan |
+| `MOQ_TIDAK_VALID` | peringatan | MOQ grosir bukan integer ≥ 1; dianggap kosong (grosir hanya lewat grup) |
+| `KONFIGURASI_TIDAK_VALID` | error konfigurasi | Nilai konfigurasi rusak (mis. φ bukan integer, penyebut 0, `mitra_wajib_untuk_tayang` tanpa level Mitra Grosir aktif) → semua satuan tidak tayang |
+| `TIDAK_TAYANG` / `QTY_TIDAK_VALID` | error runtime | `jenisHargaBaris` untuk satuan tidak tayang / qty bukan integer ≥ 1 |
 | `PPN_BELUM_DIKONFIGURASI` | status | `ppn.faktor` kosong untuk produk kena PPN |
 | `GROSIR_TIDAK_TERSEDIA` | info | Sel Mitra Grosir kosong/tidak valid; baris memakai harga satuan (K-27) |
 | `PROMO_DIBATASI` | info | Potongan dikurangi sampai batas bawah PG-3 (P-07) |
@@ -384,7 +391,7 @@ type Hasil<T> = { ok: true; nilai: T; peringatan: Masalah[] } | { ok: false; mas
 
 Aturan implementasi:
 - `hitungTabelHarga` menjalankan §3.4 lengkap (memanggil `validasiPagar` & `statusTayang`).
-- `idVersiHarga` = 16 hex pertama SHA-256 atas JSON kanonik dari: `idSatuanJual`, `kode`, `isi`, `moqGrosir`, `modal.nilai`, `kodeKategori`, `tinjauanKategori`, `bebasPpn`, `sel` (level, jenis, nilai), konfigurasi `jenis_isi_sel_diizinkan`, `batas_atas_markup_bp`, `mitra_wajib_untuk_tayang`, `ppn.faktor`, `levelAktif`, `kategori_terlarang`. Dikecualikan: `sekarang`, `waktuData`, nama produk, konfigurasi promo/ongkir/biaya admin/syarat grup. Kunci objek terurut, integer desimal, `null` eksplisit.
+- `idVersiHarga` = 16 hex pertama **HMAC-SHA256 dengan kunci server dari environment variable** (bukan SHA-256 biasa, agar modal tidak bisa ditebak ulang dari id; id tidak dikirim ke klien) atas JSON kanonik (`kunciVersiHarga`; NaN/Infinity diberi penanda tipe) dari: `idSatuanJual`, `kode`, `isi`, `moqGrosir`, `modal.nilai`, `kodeKategori`, `tinjauanKategori`, `bebasPpn`, `sel` (level, jenis, nilai), konfigurasi `jenis_isi_sel_diizinkan`, `batas_atas_markup_bp`, `mitra_wajib_untuk_tayang`, `ppn.faktor`, `levelAktif`, `kategori_terlarang`. Dikecualikan: `sekarang`, `waktuData`, nama produk, konfigurasi promo/ongkir/biaya admin/syarat grup. Kunci objek terurut, integer desimal, `null` eksplisit.
 - Harga, modal, potongan, ongkir dari klien diabaikan; server mengisi dari `harga_terhitung` & aturan tersimpan.
 - Hasil `hitungTabelHarga` disimpan ke `harga_terhitung` dalam transaksi yang sama dengan perubahan modal/sel; katalog membaca cache.
 
@@ -543,7 +550,8 @@ Catatan T-020: tidak ada angka modal/harga nyata di fixture; tes integrasi DB me
 | P-19 | Harga cut-off > D tetapi ≥ modal | NEKAT menanggung | `F = min(D, Hc)` | Efan + Randy |
 | P-20 | Alokasi subsidi gratis ongkir ke baris | Proporsional nilai bersih | `PROPORSIONAL_NILAI` | Efan + Joseph |
 | P-21 | Tier grup opsional per produk | Tidak perlu lagi: K-14 menetapkan harga grup = Mitra Grosir; tier grup tambahan harus ≥ Mitra Grosir (pagar), jadi tidak memberi harga lebih murah | Tidak ada tier grup terpisah | Efan |
-| P-14 | Pagar antar kemasan | Peringatan dulu | `HARGA_KEMASAN_TIDAK_WAJAR` | Efan |
+| ~~P-14~~ | Pagar antar kemasan | **DIPUTUSKAN 16 Nov: perlu** → pagar keras `PAGAR_KEMASAN_DILANGGAR` (§3.3) | — | Efan |
+| K-41 | Batas 5 % K-16 juga untuk harga sel (bukan hanya promo)? | — | `margin_minimum_sel_bp` kosong (cukup PG-1) | Efan |
 | P-17 | Harga coret = harga satuan riil | Riil | `HARGA_SATUAN_RIIL` | Randy + Efan |
 | P-18 | Batas COD sebelum/sesudah saldo | Sebelum saldo | Tidak relevan untuk grup selama DEFAULT SEMENTARA K-31 (COD tidak di grup, T-002 §12.1) | Randy + Joseph |
 | P-24 | Cakupan kategori terlarang | Semua tembakau/nikotin & alkohol | Daftar §2.3 | Randy |
@@ -560,6 +568,7 @@ Butir flow terkait: K-22–K-25, K-29, K-26 di `docs/flow/group-order.md` §12.2
 |---|---|
 | 0.3–0.5 | Model tier SATUAN/G0/G1/G2, pembulatan `bulatK`, bayar harga satuan di muka, sesi QA 11 Nov (riwayat di git) |
 | 0.6 | Sinkron keputusan 12–14 Nov (T-047): model satuan jual × level, harga grup = Mitra Grosir, snapshot invoice, PPN, biaya admin, invoice ongkir; kasus uji simbolik |
+| 0.7 | T-020: nama `SATUAN`/`RUPIAH` sesuai DB, P-14 pagar keras, kode masalah baru, `margin_minimum_sel_bp` (menunggu K-41), `SelHarga.harga` hanya terisi bila valid (`hargaTerhitung` untuk admin), `id_versi_harga` wajib HMAC-SHA256 kunci server |
 
 ## 13. Catatan Fase 3
 Barang ber-rating usia (rokok/bir, keputusan #7) tidak boleh masuk grup bersama akun yang tidak memenuhi syarat usia (catatan §13 `keputusan.md`, bukan jawaban P-21).
