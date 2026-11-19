@@ -34,9 +34,42 @@ export function jenisHargaBaris(
     return { ok: false, masalah: [buatMasalah("QTY_TIDAK_VALID", ktx)] };
   }
 
+  // Verifikasi ulang (pertahanan berlapis, CWE-602): TabelHarga bisa berasal dari cache/DB/objek
+  // yang diubah; jangan percaya flag `tayang`/`valid` saja. Pagar PPN penuh ada di
+  // `hitungHargaProduk`; di sini minimal harga > modal dan Satuan ≥ Mitra Grosir.
+  if (t.modal === null) {
+    return {
+      ok: false,
+      masalah: [buatMasalah("TIDAK_TAYANG", ktx), buatMasalah("MODAL_KOSONG", ktx)],
+    };
+  }
+  const modal = t.modal;
+  const hargaSatuan = t.sel.SATUAN.harga;
+  if (hargaSatuan <= modal) {
+    return {
+      ok: false,
+      masalah: [buatMasalah("HARGA_DI_BAWAH_MODAL", { ...ktx, level: "SATUAN" })],
+    };
+  }
+
   const mitra = t.sel.MITRA_GROSIR;
   const hargaMitra = mitra.valid && mitra.aktif ? mitra.harga : null;
-  const hargaSatuan = t.sel.SATUAN.harga;
+  if (hargaMitra !== null) {
+    const pakaiMitra =
+      (syaratGrupTerpenuhi && t.bolehGrup) || (t.moqGrosir !== null && qty >= t.moqGrosir);
+    if (pakaiMitra && hargaMitra <= modal) {
+      return {
+        ok: false,
+        masalah: [buatMasalah("HARGA_DI_BAWAH_MODAL", { ...ktx, level: "MITRA_GROSIR" })],
+      };
+    }
+    if (pakaiMitra && hargaMitra > hargaSatuan) {
+      return {
+        ok: false,
+        masalah: [buatMasalah("PAGAR_LEVEL_DILANGGAR", { ...ktx, level: "MITRA_GROSIR" })],
+      };
+    }
+  }
 
   if (syaratGrupTerpenuhi && t.bolehGrup && hargaMitra !== null) {
     return { ok: true, nilai: { jenis: "GRUP", harga: hargaMitra, info: [] } };

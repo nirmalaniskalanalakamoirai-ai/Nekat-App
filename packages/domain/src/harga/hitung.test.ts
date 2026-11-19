@@ -120,33 +120,38 @@ describe("tidak ada harga di bawah atau sama dengan modal (PG-1, P-16)", () => {
   });
 });
 
-describe("batas bawah margin dari modal (P-07/K-16, konfigurasi bawaan 5 %)", () => {
-  it("margin tepat 5 % lolos (rupiah dan persen)", () => {
-    expect(satu(satuanUji({ sel: { SATUAN: rupiah(10_500) } })).tayang).toBe(true);
-    expect(satu(satuanUji({ sel: { SATUAN: persen(500) } })).sel.SATUAN.harga).toBe(10_500);
-    expect(satu(satuanUji({ sel: { SATUAN: persen(500) } })).tayang).toBe(true);
-  });
+// Margin minimum sel: bawaan null (menunggu keputusan K-41); 5 % (contoh K-16) diset eksplisit.
+const K5 = kDengan({ marginMinimumBp: 500 });
 
-  it("margin di bawah 5 % (tetapi > 0) → MARGIN_DI_BAWAH_MINIMUM, tidak tayang", () => {
-    for (const isi of [rupiah(10_499), persen(499), rupiah(MODAL_FIKTIF + 1)]) {
-      const t = satu(satuanUji({ sel: { SATUAN: isi } }));
-      expect(kodeAlasan(t)).toEqual(["MARGIN_DI_BAWAH_MINIMUM"]);
-      expect(t.sel.SATUAN.harga).not.toBeNull(); // harga tetap ditampilkan ke admin
-    }
-  });
-
-  it("marginMinimumBp null → cukup harga > modal", () => {
-    const t = satu(
-      satuanUji({ sel: { SATUAN: rupiah(MODAL_FIKTIF + 1) } }),
-      kDengan({ marginMinimumBp: null }),
-    );
+describe("batas bawah margin dari modal (konfigurasi, menunggu K-41)", () => {
+  it("bawaan: margin minimum sel kosong → cukup harga > modal (PG-1)", () => {
+    expect(K.marginMinimumBp).toBeNull();
+    const t = satu(satuanUji({ sel: { SATUAN: rupiah(MODAL_FIKTIF + 1) } }));
     expect(t.tayang).toBe(true);
     expect(t.sel.SATUAN.margin).toBe(1);
+  });
+
+  it("margin minimum 5 %: margin tepat 5 % lolos (rupiah dan persen)", () => {
+    expect(satu(satuanUji({ sel: { SATUAN: rupiah(10_500) } }), K5).tayang).toBe(true);
+    const t = satu(satuanUji({ sel: { SATUAN: persen(500) } }), K5);
+    expect(t.sel.SATUAN.harga).toBe(10_500);
+    expect(t.tayang).toBe(true);
+  });
+
+  it("margin minimum 5 %: di bawah 5 % (tetapi > 0) → MARGIN_DI_BAWAH_MINIMUM, tidak tayang", () => {
+    for (const isi of [rupiah(10_499), persen(499), rupiah(MODAL_FIKTIF + 1)]) {
+      const t = satu(satuanUji({ sel: { SATUAN: isi } }), K5);
+      expect(kodeAlasan(t)).toEqual(["MARGIN_DI_BAWAH_MINIMUM"]);
+      expect(t.sel.SATUAN.harga).toBeNull(); // sel tidak valid tidak punya harga jual
+      expect(t.sel.SATUAN.hargaTerhitung).not.toBeNull(); // tetap ditampilkan ke admin
+      expect(t.sel.SATUAN.margin).toBeNull();
+    }
   });
 });
 
 describe("PPN: cek modal memakai harga tanpa PPN (K-28, G-04)", () => {
   const kPpn = kDengan({ ppnFaktor: PHI_FIKTIF });
+  const kPpn5 = kDengan({ ppnFaktor: PHI_FIKTIF, marginMinimumBp: 500 });
   const ppn = (h: number, k: KonfigurasiHarga = kPpn) =>
     satu(satuanUji({ sel: { SATUAN: rupiah(h) } }), k, false);
 
@@ -159,9 +164,10 @@ describe("PPN: cek modal memakai harga tanpa PPN (K-28, G-04)", () => {
 
   it("batas 5 % juga tanpa PPN: tepat 5 % lolos, kurang 1 rupiah ditolak", () => {
     // 11.655 / 1,11 = 10.500 = modal × 1,05 (fiktif).
-    expect(ppn(11_655).tayang).toBe(true);
-    expect(kodeAlasan(ppn(11_654))).toEqual(["MARGIN_DI_BAWAH_MINIMUM"]);
-    expect(kodeAlasan(ppn(11_101))).toEqual(["MARGIN_DI_BAWAH_MINIMUM"]);
+    expect(ppn(11_655, kPpn5).tayang).toBe(true);
+    expect(kodeAlasan(ppn(11_654, kPpn5))).toEqual(["MARGIN_DI_BAWAH_MINIMUM"]);
+    expect(kodeAlasan(ppn(11_101, kPpn5))).toEqual(["MARGIN_DI_BAWAH_MINIMUM"]);
+    expect(ppn(11_101).tayang).toBe(true); // tanpa margin minimum: cukup > modal tanpa PPN
   });
 
   it("TC-HE-13 PPN belum dikonfigurasi: produk kena PPN tidak tayang, produk bebas PPN tayang", () => {
@@ -292,7 +298,10 @@ describe("pagar level: Satuan ≥ Mitra Grosir ≥ Franchise (PG-2, P-22, K-14)"
   });
 
   it("pelanggaran pagar level + harga di bawah minimum dilaporkan sekaligus", () => {
-    const t = satu(satuanUji({ sel: { SATUAN: rupiah(10_400), MITRA_GROSIR: rupiah(11_000) } }));
+    const t = satu(
+      satuanUji({ sel: { SATUAN: rupiah(10_400), MITRA_GROSIR: rupiah(11_000) } }),
+      K5,
+    );
     expect(kodeAlasan(t)).toEqual(["MARGIN_DI_BAWAH_MINIMUM", "PAGAR_LEVEL_DILANGGAR"]);
   });
 });
@@ -452,7 +461,7 @@ describe("hitungHargaSel (pratinjau panel)", () => {
       valid: true,
     });
     expect(
-      hitungHargaSel(MODAL_FIKTIF, rupiah(10_499), "MITRA_GROSIR", true, K).masalah[0]?.kode,
+      hitungHargaSel(MODAL_FIKTIF, rupiah(10_499), "MITRA_GROSIR", true, K5).masalah[0]?.kode,
     ).toBe("MARGIN_DI_BAWAH_MINIMUM");
     expect(hitungHargaSel(10_000.5, persen(2_000), "SATUAN", true, K).masalah[0]?.kode).toBe(
       "MODAL_PECAHAN",
@@ -548,6 +557,10 @@ describe("properti acak (TC-HE-47, generator deterministik)", () => {
       for (const t of hasil.satuan) {
         for (const sel of Object.values(t.sel)) {
           if (sel.harga !== null) expect(Number.isSafeInteger(sel.harga)).toBe(true);
+          if (sel.hargaTerhitung !== null) {
+            expect(Number.isSafeInteger(sel.hargaTerhitung)).toBe(true);
+          }
+          expect(sel.harga !== null).toBe(sel.valid); // harga jual hanya dari sel valid
           if (sel.valid) {
             expect(sel.harga).not.toBeNull();
             expect(sel.harga ?? 0).toBeGreaterThan(t.modal ?? Infinity);
@@ -567,5 +580,78 @@ describe("properti acak (TC-HE-47, generator deterministik)", () => {
         }
       }
     }
+  });
+});
+
+describe("putaran perbaikan 1 (review + audit keamanan)", () => {
+  it("hitungHargaSel dengan konfigurasi rusak → sel tidak valid + KONFIGURASI_TIDAK_VALID, tanpa melempar", () => {
+    for (const ppnFaktor of [
+      { pembilang: 1.5, penyebut: 1 },
+      { pembilang: 111, penyebut: 0 },
+    ]) {
+      const k = kDengan({ ppnFaktor });
+      const sel = hitungHargaSel(MODAL_FIKTIF, rupiah(12_000), "SATUAN", false, k);
+      expect(sel).toMatchObject({ valid: false, harga: null, hargaTerhitung: null });
+      expect(sel.masalah.map((m) => m.kode)).toEqual(["KONFIGURASI_TIDAK_VALID"]);
+    }
+  });
+
+  it("sel tidak valid: harga = null, nilai terhitung hanya di hargaTerhitung", () => {
+    const t = satu(satuanUji({ sel: { SATUAN: rupiah(11_000), MITRA_GROSIR: rupiah(12_000) } }));
+    expect(t.sel.SATUAN).toMatchObject({ valid: false, harga: null, hargaTerhitung: 11_000 });
+    expect(t.sel.MITRA_GROSIR).toMatchObject({ valid: false, harga: null, hargaTerhitung: 12_000 });
+    const negatif = satu(satuanUji({ sel: { SATUAN: rupiah(MODAL_FIKTIF - 1) } }));
+    expect(negatif.sel.SATUAN).toMatchObject({ harga: null, hargaTerhitung: MODAL_FIKTIF - 1 });
+  });
+
+  it("kode kategori terlarang dinormalisasi (huruf besar, spasi, NFKC) di kedua sisi", () => {
+    for (const kodeKategori of ["Rokok", "  ROKOK ", "ｒｏｋｏｋ"]) {
+      const t = hitungHargaProduk(produkUji(undefined, { kodeKategori }), K).satuan[0];
+      expect(t && kodeAlasan(t)).toEqual(["KATEGORI_DILARANG"]);
+    }
+    const k = kDengan({ kategoriTerlarang: [" Minuman-Beralkohol "] });
+    const t = hitungHargaProduk(produkUji(undefined, { kodeKategori: "minuman-beralkohol" }), k)
+      .satuan[0];
+    expect(t && kodeAlasan(t)).toEqual(["KATEGORI_DILARANG"]);
+  });
+
+  it("pagar kemasan hanya membandingkan sel valid: 1 pcs di bawah modal tidak menjatuhkan lusin", () => {
+    const [pcs, lusin] = hitungHargaProduk(
+      produkUji([
+        satuanUji({ idSatuanJual: "pcs", sel: { SATUAN: rupiah(MODAL_FIKTIF - 1) } }),
+        satuanUji({
+          idSatuanJual: "lusin",
+          kode: "LUSIN",
+          isi: 12,
+          modal: 120_000,
+          sel: { SATUAN: rupiah(140_000) },
+        }),
+      ]),
+      K,
+    ).satuan;
+    expect(pcs && kodeAlasan(pcs)).toEqual(["MARGIN_NEGATIF"]);
+    expect(lusin?.tayang).toBe(true);
+  });
+
+  it("mitraWajibUntukTayang tanpa level MITRA_GROSIR aktif → konfigurasi tidak valid", () => {
+    const k = kDengan({ mitraWajibUntukTayang: true, levelAktif: ["SATUAN"] });
+    expect(validasiKonfigurasi(k).map((m) => m.kode)).toEqual(["KONFIGURASI_TIDAK_VALID"]);
+    expect(satu(satuanUji(), k).tayang).toBe(false);
+  });
+
+  it("modal bertanggal masa depan tidak dianggap segar", () => {
+    const t = satu();
+    const waktu = t.waktuDataModal?.getTime() ?? 0;
+    const r = cekKesegaranModal(t, kDengan({ batasUsiaModalMenit: 15 }), new Date(waktu - 1));
+    expect(r.map((m) => m.kode)).toEqual(["MODAL_KEDALUWARSA"]);
+  });
+
+  it("kunci versi: NaN/Infinity diberi penanda tipe, berbeda dari string atau null", () => {
+    const p = produkUji();
+    const kNaN = kunciVersiHarga(p, satuanUji({ modal: Number.NaN }), K);
+    const kInf = kunciVersiHarga(p, satuanUji({ modal: Number.POSITIVE_INFINITY }), K);
+    const kNull = kunciVersiHarga(p, satuanUji({ modal: null }), K);
+    expect(kNaN).toContain('"modal":{"$angka":"NaN"}');
+    expect(new Set([kNaN, kInf, kNull]).size).toBe(3);
   });
 });

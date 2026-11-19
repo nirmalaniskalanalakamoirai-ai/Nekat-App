@@ -1,7 +1,7 @@
 // Jenis harga baris (spesifikasi §5.2). Semua angka CONTOH FIKTIF.
 import { describe, expect, it } from "vitest";
 import { jenisHargaBaris } from "./baris.js";
-import { K, kDengan, produkUji, rupiah, satuanUji } from "./fixture.test-util.js";
+import { K, kDengan, MODAL_FIKTIF, produkUji, rupiah, satuanUji } from "./fixture.test-util.js";
 import { hitungHargaProduk } from "./hitung.js";
 import type { InputSatuanJual, KonfigurasiHarga, TabelHarga } from "./tipe.js";
 
@@ -45,9 +45,9 @@ describe("jenisHargaBaris", () => {
     expect(r.ok && r.nilai.info.map((m) => m.kode)).toEqual(["GROSIR_TIDAK_TERSEDIA"]);
   });
 
-  it("K-27 Harga Mitra Grosir tidak valid (di bawah minimum) → tidak dipakai, juga untuk MOQ", () => {
+  it("K-27 Harga Mitra Grosir tidak valid (di bawah modal) → tidak dipakai, juga untuk MOQ", () => {
     const t = tabel(
-      satuanUji({ moqGrosir: 2, sel: { SATUAN: rupiah(12_000), MITRA_GROSIR: rupiah(10_100) } }),
+      satuanUji({ moqGrosir: 2, sel: { SATUAN: rupiah(12_000), MITRA_GROSIR: rupiah(9_000) } }),
     );
     expect(jenisHargaBaris(t, 10, true)).toMatchObject({
       ok: true,
@@ -83,5 +83,51 @@ describe("jenisHargaBaris", () => {
       const r = jenisHargaBaris(tabel(), q, true);
       expect(!r.ok && r.masalah[0]?.kode).toBe("QTY_TIDAK_VALID");
     }
+  });
+});
+
+describe("jenisHargaBaris: verifikasi ulang TabelHarga (CWE-602)", () => {
+  // TabelHarga palsu/rusak (mis. cache diubah) yang flag-nya mengaku tayang & valid.
+  const asli = tabel(satuanUji({ moqGrosir: 6 }));
+  const palsu = (ubah: { modal?: number | null; satuan?: number; mitra?: number }): TabelHarga =>
+    ({
+      ...asli,
+      modal: ubah.modal === undefined ? asli.modal : ubah.modal,
+      sel: {
+        ...asli.sel,
+        SATUAN: { ...asli.sel.SATUAN, harga: ubah.satuan ?? asli.sel.SATUAN.harga },
+        MITRA_GROSIR: {
+          ...asli.sel.MITRA_GROSIR,
+          harga: ubah.mitra ?? asli.sel.MITRA_GROSIR.harga,
+        },
+      },
+    }) as TabelHarga;
+  const kode = (r: ReturnType<typeof jenisHargaBaris>) =>
+    r.ok ? [] : r.masalah.map((m) => m.kode);
+
+  it("modal null → ditolak", () => {
+    expect(kode(jenisHargaBaris(palsu({ modal: null }), 1, false))).toContain("MODAL_KOSONG");
+  });
+
+  it("harga satuan ≤ modal → ditolak", () => {
+    for (const satuan of [MODAL_FIKTIF, MODAL_FIKTIF - 1]) {
+      expect(kode(jenisHargaBaris(palsu({ satuan }), 1, false))).toEqual(["HARGA_DI_BAWAH_MODAL"]);
+    }
+  });
+
+  it("harga Mitra ≤ modal untuk GRUP / GROSIR_MOQ → ditolak", () => {
+    const t = palsu({ mitra: MODAL_FIKTIF });
+    expect(kode(jenisHargaBaris(t, 1, true))).toEqual(["HARGA_DI_BAWAH_MODAL"]);
+    expect(kode(jenisHargaBaris(t, 6, false))).toEqual(["HARGA_DI_BAWAH_MODAL"]);
+  });
+
+  it("harga Mitra > harga satuan untuk GRUP / GROSIR_MOQ → ditolak", () => {
+    const t = palsu({ mitra: 13_000 });
+    expect(kode(jenisHargaBaris(t, 1, true))).toEqual(["PAGAR_LEVEL_DILANGGAR"]);
+    expect(kode(jenisHargaBaris(t, 6, false))).toEqual(["PAGAR_LEVEL_DILANGGAR"]);
+  });
+
+  it("tabel asli tetap lolos", () => {
+    expect(jenisHargaBaris(asli, 1, true)).toMatchObject({ ok: true, nilai: { jenis: "GRUP" } });
   });
 });

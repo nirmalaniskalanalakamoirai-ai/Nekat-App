@@ -7,6 +7,7 @@ export {
   hitungHargaSel,
   KONFIGURASI_HARGA_BAWAAN,
   kunciVersiHarga,
+  normalisasiKodeKategori,
   validasiKonfigurasi,
 } from "./hitung.js";
 export { jenisHargaBaris, type HargaBaris } from "./baris.js";

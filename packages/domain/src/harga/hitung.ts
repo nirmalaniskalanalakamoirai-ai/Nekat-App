@@ -37,8 +37,8 @@ const PHI_BEBAS_PPN: Rasional = { pembilang: 1, penyebut: 1 };
 
 /**
  * Konfigurasi bawaan. Tidak berisi angka harga/margin produk.
- * `marginMinimumBp` = 500 bp (5 %) adalah nilai keputusan P-07/K-16 (batas bawah dari modal);
- * penerapannya ke harga sel (bukan hanya promo) adalah tafsiran konservatif agen — lihat laporan T-020.
+ * `marginMinimumBp` = null: sel cukup lolos PG-1 (harga tanpa PPN > modal). Batas 5 % K-16 hanya
+ * diputuskan untuk promo & gratis ongkir; apakah juga berlaku untuk harga sel menunggu keputusan K-41.
  * `ppnFaktor` sengaja kosong: produk kena PPN tidak tayang sampai Efan/konsultan pajak mengisinya.
  */
 export const KONFIGURASI_HARGA_BAWAAN: KonfigurasiHarga = {
@@ -46,7 +46,7 @@ export const KONFIGURASI_HARGA_BAWAAN: KonfigurasiHarga = {
   levelAktif: ["SATUAN", "MITRA_GROSIR"],
   mitraWajibUntukTayang: false,
   ppnFaktor: null,
-  marginMinimumBp: 500,
+  marginMinimumBp: null, // menunggu keputusan K-41
   batasAtasMarkupBp: null,
   kategoriTerlarang: [
     "rokok",
@@ -64,6 +64,11 @@ function bilanganBulatAman(n: unknown): n is number {
   return typeof n === "number" && Number.isSafeInteger(n);
 }
 
+/** Normalisasi kode kategori untuk pencocokan daftar terlarang (NFKC, trim, huruf kecil). */
+export function normalisasiKodeKategori(kode: string): string {
+  return kode.normalize("NFKC").trim().toLowerCase();
+}
+
 /** Memeriksa konfigurasi. Konfigurasi tidak valid → semua satuan jual tidak tayang. */
 export function validasiKonfigurasi(k: KonfigurasiHarga): Masalah[] {
   const salah: string[] = [];
@@ -78,6 +83,9 @@ export function validasiKonfigurasi(k: KonfigurasiHarga): Masalah[] {
     !k.levelAktif.every((l) => (LEVEL_HARGA as readonly string[]).includes(l))
   ) {
     salah.push("level aktif (Harga Satuan wajib aktif)");
+  }
+  if (k.mitraWajibUntukTayang && !k.levelAktif.includes("MITRA_GROSIR")) {
+    salah.push("Mitra Grosir diwajibkan untuk tayang tetapi levelnya tidak aktif");
   }
   if (k.ppnFaktor !== null) {
     const { pembilang, penyebut } = k.ppnFaktor;
@@ -120,7 +128,8 @@ export function validasiKonfigurasi(k: KonfigurasiHarga): Masalah[] {
 interface SelKerja {
   readonly level: LevelHarga;
   readonly isi: IsiSel | null;
-  harga: Rupiah | null;
+  /** Hasil hitung (bisa melanggar pagar); dipakai pagar & tampilan admin. */
+  hargaTerhitung: Rupiah | null;
   margin: Rupiah | null;
   valid: boolean;
   aktif: boolean;
@@ -152,7 +161,7 @@ function hitungSelKerja(
   const sel: SelKerja = {
     level: ktx.level,
     isi,
-    harga: null,
+    hargaTerhitung: null,
     margin: null,
     valid: false,
     aktif: k.levelAktif.includes(ktx.level),
@@ -217,7 +226,7 @@ function hitungSelKerja(
     tambah("ANGKA_OVERFLOW");
     return sel;
   }
-  sel.harga = keRupiahAtauNull(H);
+  sel.hargaTerhitung = keRupiahAtauNull(H);
 
   // PG-1 dasar: harga > modal (margin 0 ditolak, P-16).
   if (H < M) {
@@ -255,8 +264,10 @@ function bekukanSel(s: SelKerja): SelHarga {
   return {
     level: s.level,
     isi: s.isi,
-    harga: s.harga,
-    margin: s.margin,
+    // Harga yang boleh dipakai hanya dari sel valid; nilai terhitung tetap tersedia untuk admin.
+    harga: s.valid ? s.hargaTerhitung : null,
+    hargaTerhitung: s.hargaTerhitung,
+    margin: s.valid ? s.margin : null,
     valid: s.valid,
     aktif: s.aktif,
     masalah: [...s.masalah],
@@ -275,13 +286,15 @@ export function hitungHargaSel(
   bebasPpn: boolean,
   k: KonfigurasiHarga,
 ): SelHarga {
-  const masalahModal = periksaModal(modal, {});
+  const masalahKonfigurasi = validasiKonfigurasi(k);
+  const masalahModal = masalahKonfigurasi.length > 0 ? masalahKonfigurasi : periksaModal(modal, {});
   const phi = bebasPpn ? PHI_BEBAS_PPN : k.ppnFaktor;
   if (masalahModal.length > 0 || modal === null) {
     return {
       level,
       isi,
       harga: null,
+      hargaTerhitung: null,
       margin: null,
       valid: false,
       aktif: k.levelAktif.includes(level),
@@ -365,7 +378,13 @@ function terapkanPagarLevel(sel: SelPerLevel, ktx: { idSatuanJual: string; kodeS
     for (const levelBawah of LEVEL_HARGA.slice(i + 1)) {
       const atas = sel[levelAtas];
       const bawah = sel[levelBawah];
-      if (atas.harga === null || bawah.harga === null || atas.harga >= bawah.harga) continue;
+      if (
+        atas.hargaTerhitung === null ||
+        bawah.hargaTerhitung === null ||
+        atas.hargaTerhitung >= bawah.hargaTerhitung
+      ) {
+        continue;
+      }
       const rincian = `${LABEL_LEVEL[bawah.level]} lebih tinggi dari ${LABEL_LEVEL[atas.level]}.`;
       const keduanyaAktif = atas.aktif && bawah.aktif;
       for (const s of [atas, bawah]) {
@@ -401,16 +420,20 @@ interface SatuanKerja {
  * P-14: pada level yang sama, harga per pcs dasar kemasan besar tidak boleh lebih mahal dari
  * kemasan kecil: `H_besar × isi_kecil ≤ H_kecil × isi_besar` (perkalian silang, tanpa pembagian).
  * Sama per pcs diizinkan. Pelanggaran membuat sel di KEDUA satuan tidak valid (engine tidak tahu
- * harga mana yang salah). Kemasan dengan isi sama tidak dibandingkan.
+ * harga mana yang salah). Hanya sel yang sudah valid (lolos PG-1, margin minimum, PG-2) yang
+ * dibandingkan, agar sel yang sudah ditolak tidak ikut menjatuhkan kemasan lain.
+ * Kemasan dengan isi sama tidak dibandingkan.
  */
 function terapkanPagarKemasan(daftar: readonly SatuanKerja[]) {
   for (const level of LEVEL_HARGA) {
-    const kandidat = daftar.filter((s) => s.bisaDibandingkan && s.sel[level].harga !== null);
+    const kandidat = daftar.filter(
+      (s) => s.bisaDibandingkan && s.sel[level].valid && s.sel[level].hargaTerhitung !== null,
+    );
     for (const kecil of kandidat) {
       for (const besar of kandidat) {
         if (besar.input.isi <= kecil.input.isi) continue;
-        const hKecil = BigInt(kecil.sel[level].harga ?? 0);
-        const hBesar = BigInt(besar.sel[level].harga ?? 0);
+        const hKecil = BigInt(kecil.sel[level].hargaTerhitung ?? 0);
+        const hBesar = BigInt(besar.sel[level].hargaTerhitung ?? 0);
         if (hBesar * BigInt(kecil.input.isi) <= hKecil * BigInt(besar.input.isi)) continue;
         for (const [ini, lawan] of [
           [kecil, besar],
@@ -441,7 +464,7 @@ function selKosong(level: LevelHarga, isi: IsiSel | null, k: KonfigurasiHarga): 
   return {
     level,
     isi,
-    harga: null,
+    hargaTerhitung: null,
     margin: null,
     valid: false,
     aktif: k.levelAktif.includes(level),
@@ -461,6 +484,7 @@ export function hitungHargaProduk(p: InputProdukHarga, k: KonfigurasiHarga): Has
   for (const s of p.satuan) jumlahKode.set(s.kode, (jumlahKode.get(s.kode) ?? 0) + 1);
 
   const phi = p.bebasPpn ? PHI_BEBAS_PPN : konfigurasiOk ? k.ppnFaktor : null;
+  const terlarang = new Set(k.kategoriTerlarang.map(normalisasiKodeKategori));
 
   const kerja: SatuanKerja[] = p.satuan.map((s) => {
     const ktx = { idSatuanJual: s.idSatuanJual, kodeSatuan: s.kode };
@@ -470,7 +494,7 @@ export function hitungHargaProduk(p: InputProdukHarga, k: KonfigurasiHarga): Has
     }));
     const peringatan: Masalah[] = [];
 
-    if (k.kategoriTerlarang.includes(p.kodeKategori)) {
+    if (terlarang.has(normalisasiKodeKategori(p.kodeKategori))) {
       penghalang.push(buatMasalah("KATEGORI_DILARANG", ktx));
     }
     if (p.tinjauanKategori !== "TIDAK_PERLU" && p.tinjauanKategori !== "DISETUJUI") {
@@ -589,7 +613,8 @@ function selesaikan(w: SatuanKerja, k: KonfigurasiHarga): TabelHarga {
 /**
  * P-10: data modal lebih tua dari batas → `MODAL_KEDALUWARSA` (checkout ditahan, H14).
  * Dipisah dari `hitungHargaProduk` agar tabel harga tetap deterministik (waktu sebagai argumen).
- * Umur tepat sama dengan batas masih dianggap segar.
+ * Umur tepat sama dengan batas masih dianggap segar. Waktu data di masa depan (jam sumber salah)
+ * tidak dianggap segar.
  */
 export function cekKesegaranModal(t: TabelHarga, k: KonfigurasiHarga, sekarang: Date): Masalah[] {
   if (k.batasUsiaModalMenit === null) return [];
@@ -598,6 +623,11 @@ export function cekKesegaranModal(t: TabelHarga, k: KonfigurasiHarga, sekarang: 
     return [buatMasalah("MODAL_KEDALUWARSA", { ...ktx, rincian: "Waktu data modal kosong." })];
   }
   const umurMs = sekarang.getTime() - t.waktuDataModal.getTime();
+  if (umurMs < 0) {
+    return [
+      buatMasalah("MODAL_KEDALUWARSA", { ...ktx, rincian: "Waktu data modal di masa depan." }),
+    ];
+  }
   if (Number.isNaN(umurMs) || umurMs > k.batasUsiaModalMenit * 60_000) {
     return [buatMasalah("MODAL_KEDALUWARSA", ktx)];
   }
@@ -610,8 +640,10 @@ export function cekKesegaranModal(t: TabelHarga, k: KonfigurasiHarga, sekarang: 
 
 function kanonik(nilai: unknown): string {
   if (nilai === null || nilai === undefined) return "null";
-  if (typeof nilai === "number")
-    return Number.isFinite(nilai) ? JSON.stringify(nilai) : `"${String(nilai)}"`;
+  if (typeof nilai === "number") {
+    // NaN/Infinity diberi penanda tipe agar tidak bertabrakan dengan string "NaN" atau null.
+    return Number.isFinite(nilai) ? JSON.stringify(nilai) : `{"$angka":"${String(nilai)}"}`;
+  }
   if (typeof nilai === "string" || typeof nilai === "boolean") return JSON.stringify(nilai);
   if (Array.isArray(nilai)) return `[${nilai.map(kanonik).join(",")}]`;
   if (typeof nilai === "object") {
@@ -626,8 +658,13 @@ function kanonik(nilai: unknown): string {
 
 /**
  * JSON kanonik atas semua input yang memengaruhi harga satu satuan jual (spesifikasi §7).
- * `id_versi_harga` = 16 hex pertama SHA-256 dari string ini; hashing dilakukan lapisan use case
- * (domain tidak boleh memakai modul `node:crypto`). Tidak memuat `waktuDataModal` dan nama produk.
+ * Tidak memuat `waktuDataModal` dan nama produk.
+ *
+ * KEAMANAN: string ini memuat modal & isian margin. Lapisan use case WAJIB membentuk
+ * `id_versi_harga` dengan HMAC-SHA256 memakai kunci server dari environment variable (bukan
+ * SHA-256 biasa, yang bisa ditebak ulang untuk menebak modal), lalu memotongnya. String kanonik
+ * dan id versi tidak dikirim ke klien. Domain tidak boleh memakai `node:crypto`, jadi hashing
+ * dilakukan di luar paket ini.
  */
 export function kunciVersiHarga(
   p: InputProdukHarga,

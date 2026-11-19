@@ -142,9 +142,17 @@ export interface Masalah {
 export interface SelHarga {
   readonly level: LevelHarga;
   readonly isi: IsiSel | null;
-  /** Harga per satuan jual (termasuk PPN). `null` bila tidak bisa dihitung tanpa pembulatan. */
+  /**
+   * Harga per satuan jual (termasuk PPN) yang BOLEH dipakai: terisi hanya bila `valid`.
+   * Satu-satunya field harga yang boleh dibaca jalur checkout/katalog.
+   */
   readonly harga: Rupiah | null;
-  /** `harga − modal` bila keduanya ada dan harga > modal. */
+  /**
+   * Hasil hitung untuk panel admin, termasuk sel yang melanggar pagar (mis. di bawah modal).
+   * `null` bila tidak bisa dihitung tanpa pembulatan. JANGAN dipakai untuk menjual.
+   */
+  readonly hargaTerhitung: Rupiah | null;
+  /** `harga − modal`, hanya bila sel valid. */
   readonly margin: Rupiah | null;
   /** Harga boleh dipakai: terhitung, lolos PG-1, margin minimum, PG-2, pagar kemasan, PPN. */
   readonly valid: boolean;
@@ -155,6 +163,11 @@ export interface SelHarga {
 
 export type StatusTayang = "TAYANG" | "TIDAK_TAYANG" | "PERLU_DITINJAU";
 
+/**
+ * Tabel harga internal (server/admin). KEAMANAN: DTO untuk pembeli WAJIB membuang `modal`,
+ * `margin`, `hargaTerhitung`, `isi` sel, dan `alasanTidakTayang`/`peringatan` (memuat info admin);
+ * kirim hanya harga tampil dari sel yang valid.
+ */
 export interface TabelHarga {
   readonly idSatuanJual: string;
   /** `null` bila kode di luar P-03. */
