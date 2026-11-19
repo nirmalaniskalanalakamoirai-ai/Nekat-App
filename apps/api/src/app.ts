@@ -6,6 +6,8 @@ import {
 } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { tentukanZona } from "@nekat/domain";
+import type { LayananKatalog } from "./katalog/layanan.js";
+import { ruteKatalog } from "./katalog/rute.js";
 import { keZonaLayanan, type KonfigLokasi } from "./lokasi.js";
 
 /** Header yang tidak boleh pernah muncul di log (ADR-0001 §7). PII di body ditambah per rute. */
@@ -30,6 +32,8 @@ export interface OpsiApp {
   readonly logStream?: NodeJS.WritableStream;
   /** Isi config/lokasi.json; null/undefined = zona belum diatur (rute zona menjawab 503). */
   readonly lokasi?: KonfigLokasi | null;
+  /** Katalog (T-025); null/undefined = DB belum dikonfigurasi (rute katalog menjawab 503). */
+  readonly katalog?: LayananKatalog | null;
 }
 
 const skemaGalat = z.object({ kode: z.string(), pesan: z.string() });
@@ -130,6 +134,9 @@ export function buatApp(opsi: OpsiApp = {}) {
       return tentukanZona(req.body, daftarZona);
     },
   );
+
+  // T-025 katalog pembeli: kategori + jumlah, daftar/pencarian, detail.
+  void app.register(ruteKatalog, { layanan: opsi.katalog ?? null, lokasi });
 
   return app;
 }
