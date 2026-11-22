@@ -225,6 +225,8 @@ export const barisInvoice = pgTable(
       sql`jenis = 'BARANG' OR (satuan_jual_id IS NULL AND harga_dibayar_rp IS NULL AND modal_snapshot_rp IS NULL AND potongan_baris_rp = 0 AND subsidi_ongkir_baris_rp = 0 AND harga_final_rp IS NULL AND qty_teralokasi IS NULL)`,
     ),
     // CLAUDE.md + P-16: harga dibayar > modal (margin 0 dilarang).
+    // Catatan K-28: CHECK modal di DB memakai harga TERMASUK PPN (harga tampil). Cek modal memakai harga
+    // TANPA PPN (lebih ketat) adalah kewajiban domain, karena rincian PPN ikut konsultan pajak.
     check(
       "baris_harga_di_atas_modal",
       sql`jenis <> 'BARANG' OR (modal_snapshot_rp > 0 AND harga_dibayar_rp > modal_snapshot_rp)`,
@@ -243,10 +245,11 @@ export const barisInvoice = pgTable(
       "baris_ppn_nonneg",
       sql`(ppn_baris_rp IS NULL OR ppn_baris_rp >= 0) AND (dpp_baris_rp IS NULL OR dpp_baris_rp >= 0)`,
     ),
-    // P-09: harga final ≥ modal cut-off; P-19: pembeli tidak pernah ditagih tambahan (final ≤ dibayar).
+    // P-09 + P-16: harga final > modal cut-off (margin 0 dilarang); P-19: pembeli tidak pernah ditagih
+    // tambahan (final ≤ dibayar).
     check(
       "baris_harga_final",
-      sql`harga_final_rp IS NULL OR (modal_cutoff_rp IS NOT NULL AND harga_final_rp >= modal_cutoff_rp AND harga_final_rp <= harga_dibayar_rp)`,
+      sql`harga_final_rp IS NULL OR (modal_cutoff_rp IS NOT NULL AND harga_final_rp > modal_cutoff_rp AND harga_final_rp <= harga_dibayar_rp)`,
     ),
     check("baris_modal_cutoff_positif", sql`modal_cutoff_rp IS NULL OR modal_cutoff_rp > 0`),
     check("baris_qty_teralokasi", sql`qty_teralokasi IS NULL OR qty_teralokasi BETWEEN 0 AND qty`),
@@ -387,10 +390,14 @@ export const webhookProses = pgTable(
 );
 
 /** Payload teredaksi; hanya dipangkas lewat `pangkas_webhook_payload()` (M5 pengecualian 2). */
-export const webhookPayload = pgTable("webhook_payload", {
-  webhookEventId: uuid("webhook_event_id")
-    .primaryKey()
-    .references(() => webhookEvent.id, { onDelete: "restrict" }),
-  payloadRedaksi: jsonb("payload_redaksi").notNull(),
-  ...kolomDibuat,
-});
+export const webhookPayload = pgTable(
+  "webhook_payload",
+  {
+    webhookEventId: uuid("webhook_event_id")
+      .primaryKey()
+      .references(() => webhookEvent.id, { onDelete: "restrict" }),
+    payloadRedaksi: jsonb("payload_redaksi").notNull(),
+    ...kolomDibuat,
+  },
+  (t) => [index("webhook_payload_dibuat_idx").on(t.dibuatPada)],
+);

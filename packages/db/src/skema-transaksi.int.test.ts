@@ -35,6 +35,7 @@ const SHA = (c: string) => c.repeat(64);
 
 describe.skipIf(!URL_ADMIN)("skema database T-013b (PostgreSQL nyata)", () => {
   let db: Db;
+  let urlUji = "";
   const namaDb = `nekat_uji_trx_${hex(4)}`;
   const id: Record<string, string> = {};
   let nomorHp = 81300000000;
@@ -129,7 +130,8 @@ describe.skipIf(!URL_ADMIN)("skema database T-013b (PostgreSQL nyata)", () => {
     await admin.end();
     const u = new URL(URL_ADMIN ?? "");
     u.pathname = `/${namaDb}`;
-    db = buatDb(u.toString());
+    urlUji = u.toString();
+    db = buatDb(urlUji);
     await jalankanMigrasi(db);
     await jalankanSeed(db);
 
@@ -541,7 +543,9 @@ describe.skipIf(!URL_ADMIN)("skema database T-013b (PostgreSQL nyata)", () => {
     it("tanda jumlah sesuai jenis (refund tidak boleh negatif, debit tidak boleh positif)", async () => {
       expect(await gagal(ledger(-1, "REFUND", 2999))).toMatch(/ledger_tanda_sesuai_jenis/);
       expect(await gagal(ledger(1, "PAKAI_CHECKOUT", 3001))).toMatch(/ledger_tanda_sesuai_jenis/);
-      expect(await gagal(ledger(1, "KOREKSI_ADMIN", 3001))).toMatch(/ledger_koreksi_lengkap/);
+      expect(await gagal(ledger(1, "KOREKSI_ADMIN", 3001))).toMatch(
+        /ledger_koreksi_tidak_sah|ledger_koreksi_lengkap/,
+      );
     });
 
     it("akun_saldo tidak bisa diubah langsung; ledger append-only; saldo = Σ ledger", async () => {
@@ -602,7 +606,7 @@ describe.skipIf(!URL_ADMIN)("skema database T-013b (PostgreSQL nyata)", () => {
           q(`INSERT INTO pencairan_saldo (akun_id, jumlah_rp, tujuan_id, reauth_sesi_pada, kunci_idempotensi)
              VALUES ('${a}', 1000, '${tujuanB}', now(), 'cair:${hex(4)}')`),
         ),
-      ).toMatch(/pencairan_tujuan_milik_akun_fk/);
+      ).toMatch(/pencairan_tujuan_tidak_sah|pencairan_tujuan_milik_akun_fk/);
     });
   });
 
@@ -698,6 +702,381 @@ describe.skipIf(!URL_ADMIN)("skema database T-013b (PostgreSQL nyata)", () => {
           ),
         ),
       ).toMatch(/idempotensi_hash_sha256/);
+    });
+  });
+  describe("perbaikan review putaran 1", () => {
+    const debit = (akun: string, jumlah: number, sesudah: number, jenis = "PAKAI_CHECKOUT") =>
+      `INSERT INTO ledger_saldo (akun_id, jumlah_rp, jenis, kunci_idempotensi, saldo_sesudah_rp)
+       VALUES ('${akun}', ${jumlah}, '${jenis}', 'l-${hex(6)}', ${sesudah})`;
+    const saldoAkun = async (akun: string) =>
+      Number(await nilai(`SELECT saldo_rp AS v FROM akun_saldo WHERE akun_id = '${akun}'`));
+    const saldoCocokLedger = async () =>
+      nilai(`SELECT count(*)::int AS v FROM akun_saldo s
+        WHERE s.saldo_rp <> (SELECT coalesce(sum(l.jumlah_rp), 0) FROM ledger_saldo l WHERE l.akun_id = s.akun_id)`);
+    const klien = async () => {
+      const c = new pg.Client({ connectionString: urlUji });
+      await c.connect();
+      return c;
+    };
+
+    it("K-22: tagihan yang sudah terbit tidak bisa dibuka lagi", async () => {
+      const h = await buatAkun();
+      const g = await buatGrup(h);
+      await q(
+        `UPDATE grup SET status = 'TAGIHAN_TERBIT', tagihan_diterbitkan_pada = now() WHERE id = '${g}'`,
+      );
+      expect(
+        await gagal(
+          q(
+            `UPDATE grup SET status = 'BATAL', dibatalkan_pada = now(), tagihan_diterbitkan_pada = NULL WHERE id = '${g}'`,
+          ),
+        ),
+      ).toMatch(/grup_tagihan_terbit/);
+      expect(
+        await gagal(
+          q(
+            `UPDATE grup SET tagihan_diterbitkan_pada = now() + interval '1 hour' WHERE id = '${g}'`,
+          ),
+        ),
+      ).toMatch(/grup_tagihan_terbit/);
+      // Transisi status lain tetap boleh.
+      await q(`UPDATE grup SET status = 'CUT_OFF' WHERE id = '${g}'`);
+    });
+
+    it("DIKELUARKAN, BATAL, DIREFUND adalah status akhir peserta", async () => {
+      for (const [akhir, kolom] of [
+        ["DIKELUARKAN", ", dikeluarkan_pada = now()"],
+        ["BATAL", ""],
+        ["DIREFUND", ""],
+      ] as const) {
+        const h = await buatAkun();
+        const g = await buatGrup(h);
+        const p = await ikut(h, g, "HOST");
+        await q(`UPDATE peserta_grup SET status = '${akhir}'${kolom} WHERE id = '${p}'`);
+        for (const ke of ["AKTIF", "MENUNGGU_BAYAR", "LUNAS"]) {
+          expect(
+            await gagal(q(`UPDATE peserta_grup SET status = '${ke}' WHERE id = '${p}'`)),
+          ).toMatch(/peserta_status_akhir/);
+        }
+      }
+    });
+
+    describe("KOREKSI_ADMIN wajib lewat pengajuan yang disetujui admin lain", () => {
+      let akun: string;
+      const ajukan = (jumlah: number) =>
+        satu(`INSERT INTO pengajuan_koreksi_saldo (akun_id, jumlah_rp, alasan, diajukan_oleh)
+              VALUES ('${akun}', ${jumlah}, 'Koreksi uji', '${id["admin1"]}') RETURNING id`);
+      const putuskan = (pj: string, hasil: string) =>
+        q(`INSERT INTO keputusan_koreksi_saldo (pengajuan_id, hasil, diputuskan_oleh)
+           VALUES ('${pj}', '${hasil}', '${id["admin2"]}')`);
+      const koreksi = (o: {
+        pj?: string | null;
+        jumlah: number;
+        sesudah: number;
+        pengaju?: string | undefined;
+        penyetuju?: string | null;
+      }) => {
+        const ref =
+          o.pj === null || o.pj === undefined ? "NULL, NULL" : `'PENGAJUAN_KOREKSI', '${o.pj}'`;
+        const setuju = o.penyetuju === null ? "NULL" : `'${o.penyetuju ?? id["admin2"]}'`;
+        return q(`INSERT INTO ledger_saldo (akun_id, jumlah_rp, jenis, referensi_jenis, referensi_id, kunci_idempotensi,
+                    alasan, dibuat_oleh_admin_id, disetujui_oleh_admin_id, saldo_sesudah_rp)
+                  VALUES ('${akun}', ${o.jumlah}, 'KOREKSI_ADMIN', ${ref}, 'koreksi:${hex(6)}', 'Koreksi uji',
+                    '${o.pengaju ?? id["admin1"]}', ${setuju}, ${o.sesudah})`);
+      };
+
+      beforeAll(async () => {
+        akun = await buatAkun();
+      });
+
+      it("tanpa pengajuan, pengajuan belum/ditolak, atau data berbeda → ditolak", async () => {
+        expect(await gagal(koreksi({ jumlah: 1000, sesudah: 1000 }))).toMatch(
+          /ledger_koreksi_tidak_sah/,
+        );
+        const pj = await ajukan(1000);
+        expect(await gagal(koreksi({ pj, jumlah: 1000, sesudah: 1000 }))).toMatch(
+          /belum DISETUJUI/,
+        );
+        const ditolak = await ajukan(1000);
+        await putuskan(ditolak, "DITOLAK");
+        expect(await gagal(koreksi({ pj: ditolak, jumlah: 1000, sesudah: 1000 }))).toMatch(
+          /belum DISETUJUI/,
+        );
+        await putuskan(pj, "DISETUJUI");
+        expect(await gagal(koreksi({ pj, jumlah: 2000, sesudah: 2000 }))).toMatch(
+          /tidak sama dengan pengajuan/,
+        );
+        expect(
+          await gagal(koreksi({ pj, jumlah: 1000, sesudah: 1000, pengaju: id["admin2"] })),
+        ).toMatch(/ledger_koreksi_tidak_sah/);
+        expect(await gagal(koreksi({ pj, jumlah: 1000, sesudah: 1000, penyetuju: null }))).toMatch(
+          /penyetuju tidak cocok/,
+        );
+        expect(await saldoAkun(akun)).toBeNaN();
+      });
+
+      it("pengajuan disetujui → tepat satu ledger; jenis lain tidak boleh merujuk pengajuan", async () => {
+        const pj = await ajukan(1500);
+        await putuskan(pj, "DISETUJUI");
+        await koreksi({ pj, jumlah: 1500, sesudah: 1500 });
+        expect(await saldoAkun(akun)).toBe(1500);
+        expect(await gagal(koreksi({ pj, jumlah: 1500, sesudah: 3000 }))).toMatch(
+          /ledger_koreksi_satu_per_pengajuan_uk/,
+        );
+        expect(
+          await gagal(
+            q(`INSERT INTO ledger_saldo (akun_id, jumlah_rp, jenis, referensi_jenis, referensi_id, kunci_idempotensi, saldo_sesudah_rp)
+               VALUES ('${akun}', 10, 'REFUND', 'PENGAJUAN_KOREKSI', '${pj}', 'l-${hex(6)}', 1510)`),
+          ),
+        ).toMatch(/hanya untuk KOREKSI_ADMIN/);
+      });
+    });
+
+    it("status akhir pembayaran: hanya MENUNGGU yang boleh berubah", async () => {
+      const h = await buatAkun();
+      const inv = await buatInvoice(await buatGrup(h), h, { subtotal: 1000 });
+      const bayar = (status: string) =>
+        satu(`INSERT INTO pembayaran (invoice_id, metode, jumlah_rp, kunci_idempotensi, status, paid_at_gateway)
+              VALUES ('${inv}', 'QRIS', 1000, 'k-${hex(4)}', '${status}', now()) RETURNING id`);
+      const lunas = await bayar("LUNAS");
+      expect(
+        await gagal(q(`UPDATE pembayaran SET status = 'MENUNGGU' WHERE id = '${lunas}'`)),
+      ).toMatch(/pembayaran_status_akhir/);
+      const gagalBayar = await bayar("GAGAL");
+      expect(
+        await gagal(q(`UPDATE pembayaran SET status = 'LUNAS' WHERE id = '${gagalBayar}'`)),
+      ).toMatch(/pembayaran_status_akhir/);
+    });
+
+    it("status akhir invoice: LUNAS/KEDALUWARSA final, hanya DITERBITKAN yang boleh berubah", async () => {
+      const h = await buatAkun();
+      const g = await buatGrup(h);
+      const a = await buatInvoice(g, h);
+      await q(`UPDATE invoice SET status = 'LUNAS', lunas_pada = now() WHERE id = '${a}'`);
+      for (const ke of ["DITERBITKAN", "DIBATALKAN", "KEDALUWARSA"]) {
+        expect(await gagal(q(`UPDATE invoice SET status = '${ke}' WHERE id = '${a}'`))).toMatch(
+          /invoice_status_akhir/,
+        );
+      }
+      const b = await buatInvoice(g, h);
+      await q(`UPDATE invoice SET status = 'KEDALUWARSA' WHERE id = '${b}'`);
+      expect(
+        await gagal(q(`UPDATE invoice SET status = 'LUNAS', lunas_pada = now() WHERE id = '${b}'`)),
+      ).toMatch(/invoice_status_akhir/);
+    });
+
+    describe("pencairan saldo", () => {
+      let akun: string;
+      const tujuan = (o: { cocok?: boolean; bolehSejak?: string; nonaktif?: boolean } = {}) =>
+        satu(`INSERT INTO tujuan_pencairan_terverifikasi (akun_id, tujuan_jenis, tujuan_kode, nomor_tujuan_enc,
+                nomor_kunci_versi, nomor_tujuan_akhir, nama_cocok, divalidasi_pada, boleh_dipakai_sejak, dinonaktifkan_pada)
+              VALUES ('${akun}', 'BANK', 'BANK_UJI', '\\x${hex()}', 1, '9876', ${String(o.cocok ?? true)},
+                now() - interval '2 days', ${o.bolehSejak ?? "now() - interval '1 day'"}, ${o.nonaktif ? "now()" : "NULL"})
+              RETURNING id`);
+      const ajukan = (tujuanId: string, status = "DIAJUKAN") =>
+        satu(`INSERT INTO pencairan_saldo (akun_id, jumlah_rp, tujuan_id, reauth_sesi_pada, kunci_idempotensi, status)
+              VALUES ('${akun}', 1000, '${tujuanId}', now(), 'cair:${hex(4)}', '${status}') RETURNING id`);
+
+      beforeAll(async () => {
+        akun = await buatAkun();
+      });
+
+      it("tujuan wajib nama cocok, aktif, dan sudah lewat jeda; pengajuan baru wajib DIAJUKAN", async () => {
+        expect(await gagal(ajukan(await tujuan({ cocok: false })))).toMatch(
+          /pencairan_tujuan_tidak_sah/,
+        );
+        expect(await gagal(ajukan(await tujuan({ nonaktif: true })))).toMatch(
+          /pencairan_tujuan_tidak_sah/,
+        );
+        expect(
+          await gagal(ajukan(await tujuan({ bolehSejak: "now() + interval '1 day'" }))),
+        ).toMatch(/pencairan_tujuan_tidak_sah/);
+        expect(await gagal(ajukan(await tujuan(), "DISETUJUI"))).toMatch(/pencairan_tidak_sah/);
+      });
+
+      it("transisi maju saja, penyetuju & pemroses wajib, berbeda, dan tidak bisa diganti", async () => {
+        const c = await ajukan(await tujuan());
+        const ubah = (set: string) => q(`UPDATE pencairan_saldo SET ${set} WHERE id = '${c}'`);
+        expect(await gagal(ubah("status = 'DISETUJUI'"))).toMatch(/pencairan_disetujui_lengkap/);
+        expect(
+          await gagal(
+            ubah(
+              `status = 'DIPROSES', disetujui_oleh = '${id["admin1"]}', diproses_oleh = '${id["admin2"]}'`,
+            ),
+          ),
+        ).toMatch(/pencairan_transisi_tidak_sah/);
+        await ubah(`status = 'DISETUJUI', disetujui_oleh = '${id["admin1"]}'`);
+        expect(await gagal(ubah(`disetujui_oleh = '${id["admin2"]}'`))).toMatch(
+          /tidak bisa diubah/,
+        );
+        expect(await gagal(ubah("jumlah_rp = 5"))).toMatch(/tidak bisa diubah/);
+        expect(await gagal(ubah(`status = 'DIPROSES', diproses_oleh = '${id["admin1"]}'`))).toMatch(
+          /pencairan_four_eyes/,
+        );
+        expect(await gagal(ubah("status = 'DIPROSES'"))).toMatch(/pencairan_diproses_lengkap/);
+        await ubah(`status = 'DIPROSES', diproses_oleh = '${id["admin2"]}'`);
+        await ubah("status = 'BERHASIL'");
+        expect(await gagal(ubah("status = 'GAGAL'"))).toMatch(/pencairan_transisi_tidak_sah/);
+      });
+    });
+
+    it("P-16: harga final cut-off wajib > modal cut-off (margin 0 dilarang)", async () => {
+      const h = await buatAkun();
+      const g = await buatGrup(h);
+      const p = await ikut(h, g, "HOST");
+      const inv = await buatInvoice(g, h);
+      await tagihPeserta(inv, p, g);
+      const b = await barisBarang(inv, p, { harga: 1200, modal: 1000 });
+      expect(
+        await gagal(
+          q(
+            `UPDATE baris_invoice SET modal_cutoff_rp = 1100, harga_final_rp = 1100 WHERE id = '${b}'`,
+          ),
+        ),
+      ).toMatch(/baris_harga_final/);
+    });
+
+    it("kuotasi ongkir: peserta & invoice wajib dari grup yang sama", async () => {
+      const h1 = await buatAkun();
+      const g1 = await buatGrup(h1);
+      const h2 = await buatAkun();
+      const g2 = await buatGrup(h2);
+      const p2 = await ikut(h2, g2, "HOST");
+      const inv2 = await buatInvoice(g2, h2);
+      const kuotasi = (peserta: string, invoiceId: string) =>
+        q(`INSERT INTO kuotasi_ongkir (grup_id, peserta_id, armada_kode, berat_gram, jarak_meter, ongkir_rp,
+             sumber_adapter, berlaku_sampai, dipakai_di_invoice_id)
+           VALUES ('${g1}', ${peserta}, 'MOTOR', 1000, 1500, 0, 'uji', now() + interval '1 hour', ${invoiceId})`);
+      expect(await gagal(kuotasi(`'${p2}'`, "NULL"))).toMatch(/kuotasi_peserta_grup_fk/);
+      expect(await gagal(kuotasi("NULL", `'${inv2}'`))).toMatch(/kuotasi_invoice_grup_fk/);
+      await kuotasi("NULL", "NULL");
+    });
+
+    it("pangkas_webhook_payload menolak batas di dalam masa simpan minimal (bawaan 90 hari, bisa dikonfigurasi)", async () => {
+      expect(await gagal(q("SELECT pangkas_webhook_payload(now() - interval '89 days')"))).toMatch(
+        /masa simpan minimal 90 hari/,
+      );
+      expect(await gagal(q("SELECT pangkas_webhook_payload(NULL)"))).toMatch(/masa simpan minimal/);
+      await q(
+        `INSERT INTO konfigurasi (kunci, nilai) VALUES ('retensi.webhook_payload_hari', '30')`,
+      );
+      await q("SELECT pangkas_webhook_payload(now() - interval '31 days')");
+      expect(await gagal(q("SELECT pangkas_webhook_payload(now() - interval '29 days')"))).toMatch(
+        /masa simpan minimal 30 hari/,
+      );
+      await q("DELETE FROM konfigurasi WHERE kunci = 'retensi.webhook_payload_hari'");
+    });
+
+    describe("konkurensi ledger (dua koneksi)", () => {
+      /** Pola pemanggil yang benar: buat baris saldo 0, kunci FOR UPDATE, tulis ledger dari saldo terkunci. */
+      const mutasiTerkunci = async (c: pg.Client, akun: string, jumlah: number, jenis: string) => {
+        await c.query("BEGIN");
+        try {
+          await c.query(
+            "INSERT INTO akun_saldo (akun_id, saldo_rp) VALUES ($1, 0) ON CONFLICT DO NOTHING",
+            [akun],
+          );
+          const r = await c.query<{ saldo_rp: string }>(
+            "SELECT saldo_rp FROM akun_saldo WHERE akun_id = $1 FOR UPDATE",
+            [akun],
+          );
+          const sesudah = Number(r.rows[0]?.saldo_rp ?? 0) + jumlah;
+          await c.query(debit(akun, jumlah, sesudah, jenis));
+          await c.query("COMMIT");
+          return "OK";
+        } catch (e) {
+          await c.query("ROLLBACK");
+          return pesan(e);
+        }
+      };
+
+      it("dua debit dari bacaan saldo yang sama tanpa kunci → satu ditolak, saldo = Σ ledger", async () => {
+        const a = await buatAkun();
+        await q(debit(a, 1000, 1000, "REFUND"));
+        const [c1, c2] = [await klien(), await klien()];
+        try {
+          await c1.query("BEGIN");
+          await c2.query("BEGIN");
+          // Keduanya membaca 1000 tanpa FOR UPDATE (pola salah), lalu menulis saldo_sesudah 700.
+          await c1.query(debit(a, -300, 700));
+          const kedua = c2.query(debit(a, -300, 700)).then(
+            () => "OK",
+            (e: unknown) => pesan(e),
+          );
+          await new Promise((selesai) => setTimeout(selesai, 100));
+          await c1.query("COMMIT");
+          expect(await kedua).toMatch(/ledger_saldo_sesudah_tidak_cocok/);
+          await c2.query("ROLLBACK");
+        } finally {
+          await c1.end();
+          await c2.end();
+        }
+        expect(await saldoAkun(a)).toBe(700);
+        expect(await saldoCocokLedger()).toBe(0);
+      });
+
+      it("dua kredit paralel ke akun baru → keduanya masuk berurutan, tanpa galat unique", async () => {
+        const a = await buatAkun();
+        const [c1, c2] = [await klien(), await klien()];
+        try {
+          const hasil = await Promise.all([
+            mutasiTerkunci(c1, a, 500, "REFUND"),
+            mutasiTerkunci(c2, a, 700, "SELISIH_HARGA"),
+          ]);
+          expect(hasil).toEqual(["OK", "OK"]);
+        } finally {
+          await c1.end();
+          await c2.end();
+        }
+        expect(await saldoAkun(a)).toBe(1200);
+        expect(await saldoCocokLedger()).toBe(0);
+      });
+
+      it("kredit pertama akun baru TANPA baris saldo dari dua koneksi → tidak pernah menyimpang", async () => {
+        const a = await buatAkun();
+        const [c1, c2] = [await klien(), await klien()];
+        try {
+          await c1.query("BEGIN");
+          await c2.query("BEGIN");
+          await c1.query(debit(a, 500, 500, "REFUND"));
+          const kedua = c2.query(debit(a, 500, 500, "REFUND")).then(
+            () => "OK",
+            (e: unknown) => pesan(e),
+          );
+          await new Promise((selesai) => setTimeout(selesai, 100));
+          await c1.query("COMMIT");
+          // Menunggu baris saldo milik c1 (bukan unique violation), lalu menolak saldo_sesudah yang basi.
+          expect(await kedua).toMatch(/ledger_saldo_sesudah_tidak_cocok/);
+          await c2.query("ROLLBACK");
+        } finally {
+          await c1.end();
+          await c2.end();
+        }
+        expect(await saldoAkun(a)).toBe(500);
+      });
+
+      it("dua debit paralel yang totalnya melebihi saldo → satu ditolak, saldo tidak pernah negatif", async () => {
+        const a = await buatAkun();
+        await q(debit(a, 1000, 1000, "REFUND"));
+        const [c1, c2] = [await klien(), await klien()];
+        let hasil: string[];
+        try {
+          hasil = await Promise.all([
+            mutasiTerkunci(c1, a, -700, "PAKAI_CHECKOUT"),
+            mutasiTerkunci(c2, a, -700, "PAKAI_CHECKOUT"),
+          ]);
+        } finally {
+          await c1.end();
+          await c2.end();
+        }
+        expect(hasil.filter((h) => h === "OK")).toHaveLength(1);
+        expect(hasil.find((h) => h !== "OK")).toMatch(
+          /ledger_saldo_sesudah_nonneg|akun_saldo_tidak_negatif/,
+        );
+        expect(await saldoAkun(a)).toBe(300);
+        expect(await nilai("SELECT count(*)::int AS v FROM akun_saldo WHERE saldo_rp < 0")).toBe(0);
+        expect(await saldoCocokLedger()).toBe(0);
+      });
     });
   });
 });

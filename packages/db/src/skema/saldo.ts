@@ -91,6 +91,10 @@ export const ledgerSaldo = pgTable(
       "ledger_four_eyes",
       sql`disetujui_oleh_admin_id IS NULL OR disetujui_oleh_admin_id <> dibuat_oleh_admin_id`,
     ),
+    // Satu pengajuan koreksi = paling banyak satu baris ledger (four-eyes, trigger migrasi 0004).
+    uniqueIndex("ledger_koreksi_satu_per_pengajuan_uk")
+      .on(t.referensiId)
+      .where(sql`jenis = 'KOREKSI_ADMIN'`),
     index("ledger_akun_idx").on(t.akunId, t.id.desc()),
   ],
 );
@@ -212,6 +216,14 @@ export const pencairanSaldo = pgTable(
     check(
       "pencairan_four_eyes",
       sql`disetujui_oleh IS NULL OR diproses_oleh IS NULL OR disetujui_oleh <> diproses_oleh`,
+    ),
+    check(
+      "pencairan_disetujui_lengkap",
+      sql`status NOT IN ('DISETUJUI', 'DIPROSES', 'BERHASIL') OR disetujui_oleh IS NOT NULL`,
+    ),
+    check(
+      "pencairan_diproses_lengkap",
+      sql`status NOT IN ('DIPROSES', 'BERHASIL') OR diproses_oleh IS NOT NULL`,
     ),
     uniqueIndex("pencairan_kunci_idempotensi_uk").on(t.kunciIdempotensi),
     uniqueIndex("pencairan_xendit_ref_uk").on(t.xenditDisbursementRef),

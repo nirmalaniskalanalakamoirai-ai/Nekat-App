@@ -83,7 +83,7 @@ export const kuotasiOngkir = pgTable(
     grupId: uuid("grup_id")
       .notNull()
       .references(() => grup.id, { onDelete: "restrict" }),
-    pesertaId: uuid("peserta_id").references(() => pesertaGrup.id, { onDelete: "restrict" }),
+    pesertaId: uuid("peserta_id"),
     armadaKode: text("armada_kode")
       .notNull()
       .references(() => armada.kode, { onDelete: "restrict" }),
@@ -93,13 +93,22 @@ export const kuotasiOngkir = pgTable(
     sumberAdapter: text("sumber_adapter").notNull(),
     refEksternal: text("ref_eksternal"),
     berlakuSampai: ts("berlaku_sampai").notNull(),
-    dipakaiDiInvoiceId: uuid("dipakai_di_invoice_id").references(() => invoice.id, {
-      onDelete: "restrict",
-    }),
+    dipakaiDiInvoiceId: uuid("dipakai_di_invoice_id"),
     ...kolomDibuat,
   },
   (t) => [
     check("kuotasi_nonneg", sql`berat_gram >= 0 AND jarak_meter >= 0 AND ongkir_rp >= 0`),
+    // Peserta & invoice wajib milik grup kuotasi yang sama (FK komposit; NULL = tidak dicek, MATCH SIMPLE).
+    foreignKey({
+      name: "kuotasi_peserta_grup_fk",
+      columns: [t.pesertaId, t.grupId],
+      foreignColumns: [pesertaGrup.id, pesertaGrup.grupId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "kuotasi_invoice_grup_fk",
+      columns: [t.dipakaiDiInvoiceId, t.grupId],
+      foreignColumns: [invoice.id, invoice.grupId],
+    }).onDelete("restrict"),
     index("kuotasi_grup_idx").on(t.grupId),
     index("kuotasi_peserta_idx").on(t.pesertaId),
   ],
