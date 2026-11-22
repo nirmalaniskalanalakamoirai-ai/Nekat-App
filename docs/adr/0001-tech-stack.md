@@ -11,8 +11,9 @@ aturan webhook/OTP/IDOR/sesi, baris ongkir & diskon di §5.3. **v0.5** (putaran 
 batalkan grup, izin aksi `harga.ubah` di §7, istilah `waktu_bayar` (= `paid_at` dari gateway). v0.3 = revisi setelah Evidence Collector & Code Reviewer.
 **v0.6** (19 Nov 2026, T-048) — penyelarasan dengan `keputusan.md`: tanpa pembulatan (H6, §5.1 & §9), Gudang tidak bisa
 dihubungi → tahan checkout (H14, §4.1 & §9), pencairan saldo diputuskan boleh setelah pendapat hukum (H5/G-06d/K-34,
-§4.2 & §9), data di region Indonesia (H12, §3 & §7 & §9), belum ada server staging (K-19, §3 & §3.4), tagihan hanya
-QRIS/VA dulu (K-36, §1.1 & §4.2). Default sementara agen yang digantikan ditandai "tidak berlaku".
+§4.2 & §9), data di region Indonesia (H12, §3 & §7 & §9), belum ada server staging (K-19, §3 & §3.4), tagihan grup hanya
+QRIS/VA dulu, metode lain tetap `keputusan.md` §9 (K-36, §1.1 & §4.2); cek modal memakai harga tanpa PPN (K-28, §5.1);
+H8 error tracking SaaS vs H12 dirujuk ke K-43 (§9). Default sementara agen yang digantikan ditandai "tidak berlaku".
 
 **Rujukan silang:** ID flow (A-xx, B-xx, M-xx, P-xx, R-xx, §6) merujuk `docs/flow/group-order.md` di **PR #2 (T-002,
 belum di-merge)**; aturan harga merujuk `docs/spec/engine-harga.md` di **PR #3 (T-003, belum di-merge)**.
