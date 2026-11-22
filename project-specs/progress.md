@@ -1,5 +1,14 @@
 # Progress
 
+**Update 22 Nov WIB (sesi Build 19 Nov, mode hemat — terputus batas API 19–22 Nov, dilanjutkan 22 Nov):**
+- Langkah 0: 5 jawaban dicatat (H12, K-39, K-40 → K-30, K-41, K-42) → keputusan-terbuka.md (`56661be`), tabel issue #5/#6/#7 diperbarui, "Dicatat" dibalas. Pemindahan ke keputusan.md menunggu PR gabungan berikutnya (batas 3 PR sesi ini terpakai).
+- **T-013b → PR #25**: 34 tabel + trigger invarian (ledger, four-eyes, K-22, F-07, status akhir). Code Reviewer 2 putaran + Security Auditor + Evidence Collector LULUS; 242 tes lulus dengan PostgreSQL 16.
+- **T-025 → PR #26**: API katalog. Code Reviewer, Security Auditor, Evidence Collector (server nyata + curl) LULUS; 235 tes.
+- **T-048 → PR #27**: ADR-0001 diselaraskan. Code Reviewer 3 putaran, temuan ditangani.
+- Keputusan baru: **K-43** (Joseph), **K-44**, **K-46** 🔴 (Efan: PPN kosong → produk kena PPN belum tayang), **K-45** (Randy). Task baru: T-049.
+- Blocked: T-045 (K-19); kini juga wajib memuat peran DB & SECURITY DEFINER dari T-013b sebelum production.
+- Butuh manusia: review & merge #25, #26, #27 (Joseph); jawab K-43–K-46. Siap berikutnya: T-015b, T-016, T-036, T-049; T-021 setelah T-005.
+
 **Update 19 Nov 13.30 WIB:** PR #23 (T-018 InventorySource) di-merge → done. Fase 1: 14/49 (±29%). Tidak ada PR terbuka. Siap berikutnya: T-013b, T-015b, T-019, T-021, T-025.
 
 **Update 19 Nov 13.25 WIB:** PR #24 (T-020 engine harga) di-merge → done. Fase 1: 13/49 (±27%). PR #23 (T-018): konflik `packages/domain/src/index.ts` diselesaikan dengan merge main (165 tes lulus), menunggu CI & merge.
