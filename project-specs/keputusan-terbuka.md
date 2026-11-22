@@ -156,6 +156,10 @@ Catatan: bagian di bawah ditambahkan oleh sesi Build otomatis 10–11 Nov 2026. 
 | K-40 | (19 Nov) Konflik K-30 vs F-07: K-30 "setuju" (anggota yang sudah bayar boleh batal sebelum grup tutup, dana ke saldo) vs F-07 "tidak bisa batal setelah bayar". Mana yang berlaku? S&K §7.1 perlu disesuaikan | Randy | **DIPUTUSKAN 19 Nov: ikut F-07 — tidak bisa batal setelah bayar; S&K §7.1 disesuaikan; dana kembali ke saldo hanya bila grup batal / stok habis (issue #5)** |
 | K-41 | (19 Nov, T-020) Batas bawah margin 5% (P-07/K-16) hanya untuk promo & gratis ongkir, atau juga untuk harga dasar yang diisi admin per level? | Efan | **DIPUTUSKAN 19 Nov: ikut default — margin minimum 5% tidak berlaku untuk harga dasar; cukup harga > modal (issue #6)** |
 | K-42 | (19 Nov, T-020) Bila pagar dilanggar (Mitra Grosir > harga satuan, atau harga per pcs kemasan besar > kemasan kecil), engine tidak tahu harga mana yang salah: tahan **kedua** harga (produk/satuan bisa tidak tayang) atau hanya yang lebih besar? | Efan | **DIPUTUSKAN 19 Nov: tahan kedua harga dan laporkan ke admin (issue #6)** |
+| K-43 | (22 Nov, T-048) H12 = data di region Indonesia. Apakah juga berlaku untuk log & error tracking SaaS (H8, mis. Sentry) yang PII-nya sudah disamarkan? | Joseph | belum — rekomendasi: boleh SaaS luar negeri dengan scrubbing PII aktif; data transaksi & PII tetap di region Indonesia |
+| K-44 | (22 Nov, T-013b) Ongkir "dibagi rata" (K-25) bisa menghasilkan rupiah pecahan (mis. Rp10.000 ÷ 3), padahal H6 tanpa pembulatan. Sisa pembagian dibebankan ke siapa? Dibagi ke semua anggota atau hanya yang diantar ke rumah? | Efan | belum — rekomendasi: sisa rupiah dibebankan ke host; ongkir dibagi hanya ke anggota yang memilih antar rumah |
+| K-45 | (22 Nov, T-013b) Bila grup batal setelah sebagian anggota lunas: tagihan (invoice) yang sudah LUNAS tetap berstatus LUNAS (dana kembali ke saldo lewat refund) atau diubah jadi DIBATALKAN? | Randy | belum — DEFAULT SEMENTARA di skema: tetap LUNAS sebagai bukti bayar, dana kembali lewat ledger REFUND |
+| K-46 | (22 Nov, T-025) Tarif & DPP PPN (G-04) belum diisi di konfigurasi. Selama kosong, katalog hanya menampilkan produk bertanda "bebas PPN". Siapa mengisi dan kapan? | Efan | belum — rekomendasi: Efan/konsultan pajak mengisi tarif & DPP yang berlaku lewat panel admin (T-037) sebelum pilot |
 Catatan: tim memakai satu akun GitHub bersama (dikonfirmasi pemilik 12 Nov malam); jawaban dari akun itu sah sebagai jawaban pemilik.
 
 
@@ -176,3 +180,5 @@ Catatan 15 Nov (sesi Build): tidak ada jawaban baru di issue #5–#7; baru: K-22
 Catatan 19 Nov (sesi Build): 33 jawaban 16–19 Nov dicatat dari issue #5/#6/#7 (2, H5, H11, H13, F-03, F-05, F-07, P-14, P-19, P-20, P-21, G-02, K-11, K-19, K-20–K-29, K-31–K-38). Jawaban terakhir dipakai bila ada dua jawaban (K-22, K-25, K-32, K-33, K-19). H12 dialihkan ke Joseph (issue #7). Baru: K-39, K-40 (konflik K-30 vs F-07).
 
 Catatan 19 Nov sore (sesi Build): 5 jawaban dicatat dari issue #5/#6/#7 (H12, K-39, K-40 → K-30, K-41, K-42).
+
+Catatan 22 Nov (sesi Build): baru K-43 (Joseph), K-44, K-46 (Efan), K-45 (Randy) dari T-013b, T-025, T-048. Pemindahan jawaban 19 Nov sore (H12, K-39, K-40, K-41, K-42) ke keputusan.md menunggu PR gabungan berikutnya.
