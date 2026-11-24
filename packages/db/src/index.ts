@@ -10,3 +10,4 @@ export { buatDb, jalankanMigrasi, FOLDER_MIGRASI, type Db } from "./koneksi.js";
 export { jalankanSeed, SEED_KATEGORI, SEED_ARMADA, KATA_TERLARANG } from "./seed.js";
 export { buatRepoInventoriLokal } from "./repo/inventori-lokal.js";
 export { buatPenyimpanIdempotensiPg } from "./repo/idempotensi-inventori.js";
+export { buatRepoKatalog } from "./repo/katalog.js";

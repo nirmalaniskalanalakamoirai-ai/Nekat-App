@@ -1,7 +1,15 @@
 // Entry proses API. Tidak diimpor oleh tes (tes memakai `buatApp` + `inject`).
-import { bacaKonfigInventory, pastikanSumberInventoryTersedia } from "@nekat/adapters";
+import {
+  bacaKonfigInventory,
+  buatInventorySource,
+  pastikanSumberInventoryTersedia,
+  type KonfigInventory,
+} from "@nekat/adapters";
+import { buatDb, buatRepoInventoriLokal, buatRepoKatalog } from "@nekat/db";
+import { KONFIGURASI_HARGA_BAWAAN, type PenyimpanIdempotensi } from "@nekat/domain";
 import { z } from "zod";
 import { buatApp } from "./app.js";
+import { LayananKatalog } from "./katalog/layanan.js";
 import { muatKonfigLokasi } from "./lokasi.js";
 
 const skemaEnv = z.object({
@@ -13,6 +21,19 @@ const skemaEnv = z.object({
   ),
   // Path config zona (T-015). File tidak ada = zona belum diatur (rute zona 503).
   LOKASI_CONFIG: z.string().min(1).default("config/lokasi.json"),
+  // Katalog (T-025). Kosong = katalog belum siap (rute katalog 503).
+  DATABASE_URL: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z
+      .string()
+      .regex(/^postgres(ql)?:\/\//)
+      .optional(),
+  ),
+  // Umur cache snapshot katalog (detik), 0 = tanpa cache.
+  KATALOG_CACHE_DETIK: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.coerce.number().int().min(0).max(300).default(10),
+  ),
 });
 
 const env = skemaEnv.safeParse(process.env);
@@ -24,11 +45,44 @@ if (!env.success) {
 }
 
 // Toggle InventorySource (T-018): dibaca & divalidasi saat start; nilai salah → gagal start.
+let konfigInventory: KonfigInventory;
 try {
-  pastikanSumberInventoryTersedia(bacaKonfigInventory(process.env));
+  konfigInventory = bacaKonfigInventory(process.env);
+  pastikanSumberInventoryTersedia(konfigInventory);
 } catch (err) {
   console.error((err as Error).message);
   process.exit(1);
+}
+
+// API katalog hanya membaca stok & modal; konfirmasi stok/picking milik worker (T-022/T-040).
+const idempotensiHanyaBaca: PenyimpanIdempotensi = {
+  simpanBilaBelumAda: () =>
+    Promise.reject(new Error("API tidak menulis idempotensi inventori (hanya baca)")),
+};
+
+let katalog: LayananKatalog | null = null;
+if (env.data.DATABASE_URL !== undefined) {
+  const db = buatDb(env.data.DATABASE_URL);
+  katalog = new LayananKatalog({
+    repo: buatRepoKatalog(db),
+    inventory: buatInventorySource(konfigInventory, {
+      repo: buatRepoInventoriLokal(db),
+      idempotensi: idempotensiHanyaBaca,
+    }),
+    // Konfigurasi harga dari panel admin menyusul (T-037); bawaan: PPN belum dikonfigurasi.
+    konfigurasiHarga: KONFIGURASI_HARGA_BAWAAN,
+    maksUmurDataMenit: konfigInventory.maksUmurDataMenit,
+    cacheMs: env.data.KATALOG_CACHE_DETIK * 1000,
+    // K-42: laporkan ke admin. Antrean tinjauan/panel admin menyusul (T-037); sementara log terstruktur.
+    laporDitahan: (ditahan) => {
+      const perKode: Record<string, number> = {};
+      for (const d of ditahan) for (const k of d.kode) perKode[k] = (perKode[k] ?? 0) + 1;
+      app.log.warn(
+        { jumlah: ditahan.length, perKode, satuanJual: ditahan.slice(0, 50) },
+        "katalog: satuan jual ditahan (tidak tayang)",
+      );
+    },
+  });
 }
 
 let lokasi;
@@ -39,8 +93,9 @@ try {
   process.exit(1);
 }
 
-const app = buatApp({ lokasi });
+const app = buatApp({ lokasi, katalog });
 if (!lokasi) app.log.warn("config/lokasi.json belum ada: rute zona menjawab 503");
+if (!katalog) app.log.warn("DATABASE_URL belum diisi: rute katalog menjawab 503");
 try {
   await app.listen({ host: env.data.HOST, port: env.data.PORT });
 } catch (err) {
