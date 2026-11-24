@@ -1,5 +1,7 @@
 # Progress
 
+**Update 24 Nov 07.50 WIB:** PR #27 (T-048 selaraskan ADR) di-merge → done. #25 (T-013b) dan #26 (T-025) masih menunggu review; keduanya bersih terhadap main, tetapi saling konflik di `packages/db/src/index.ts` setelah salah satu di-merge (perlu merge main ke PR kedua).
+
 **Update 22 Nov WIB (sesi Build 19 Nov, mode hemat — terputus batas API 19–22 Nov, dilanjutkan 22 Nov):**
 - Langkah 0: 5 jawaban dicatat (H12, K-39, K-40 → K-30, K-41, K-42) → keputusan-terbuka.md (`56661be`), tabel issue #5/#6/#7 diperbarui, "Dicatat" dibalas. Pemindahan ke keputusan.md menunggu PR gabungan berikutnya (batas 3 PR sesi ini terpakai).
 - **T-013b → PR #25**: 34 tabel + trigger invarian (ledger, four-eyes, K-22, F-07, status akhir). Code Reviewer 2 putaran + Security Auditor + Evidence Collector LULUS; 242 tes lulus dengan PostgreSQL 16.
