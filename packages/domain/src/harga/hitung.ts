@@ -38,7 +38,7 @@ const PHI_BEBAS_PPN: Rasional = { pembilang: 1, penyebut: 1 };
 /**
  * Konfigurasi bawaan. Tidak berisi angka harga/margin produk.
  * `marginMinimumBp` = null: sel cukup lolos PG-1 (harga tanpa PPN > modal). Batas 5 % K-16 hanya
- * diputuskan untuk promo & gratis ongkir; apakah juga berlaku untuk harga sel menunggu keputusan K-41.
+ * berlaku untuk promo & gratis ongkir saja; K-41 (19 Nov): tidak berlaku untuk harga sel.
  * `ppnFaktor` sengaja kosong: produk kena PPN tidak tayang sampai Efan/konsultan pajak mengisinya.
  */
 export const KONFIGURASI_HARGA_BAWAAN: KonfigurasiHarga = {
@@ -46,7 +46,7 @@ export const KONFIGURASI_HARGA_BAWAAN: KonfigurasiHarga = {
   levelAktif: ["SATUAN", "MITRA_GROSIR"],
   mitraWajibUntukTayang: false,
   ppnFaktor: null,
-  marginMinimumBp: null, // menunggu keputusan K-41
+  marginMinimumBp: null, // K-41 (19 Nov): margin minimum 5 % tidak berlaku untuk harga dasar
   batasAtasMarkupBp: null,
   kategoriTerlarang: [
     "rokok",
