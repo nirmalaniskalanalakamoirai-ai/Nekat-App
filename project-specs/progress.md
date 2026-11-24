@@ -1,5 +1,7 @@
 # Progress
 
+**Update 24 Nov 08.00 WIB:** PR #25 (T-013b skema lanjutan) di-merge → T-013 selesai. Tidak ada PR terbuka. Siap berikutnya: T-015b, T-016, T-036, T-049; T-021/T-029 setelah T-005 (non-kode). Butuh manusia: jawab K-43–K-46 (K-46 PPN mendesak).
+
 **Update 24 Nov 08.00 WIB:** PR #26 (T-025 API katalog) di-merge → done. Konflik `packages/db/src/index.ts` di PR #25 (T-013b) diselesaikan dengan merge main (281 tes lulus dengan PostgreSQL 16); #25 menunggu CI & review.
 
 **Update 24 Nov 07.50 WIB:** PR #27 (T-048 selaraskan ADR) di-merge → done. #25 (T-013b) dan #26 (T-025) masih menunggu review; keduanya bersih terhadap main, tetapi saling konflik di `packages/db/src/index.ts` setelah salah satu di-merge (perlu merge main ke PR kedua).
