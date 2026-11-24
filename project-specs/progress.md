@@ -1,5 +1,7 @@
 # Progress
 
+**Update 24 Nov 08.00 WIB:** PR #26 (T-025 API katalog) di-merge → done. Konflik `packages/db/src/index.ts` di PR #25 (T-013b) diselesaikan dengan merge main (281 tes lulus dengan PostgreSQL 16); #25 menunggu CI & review.
+
 **Update 24 Nov 07.50 WIB:** PR #27 (T-048 selaraskan ADR) di-merge → done. #25 (T-013b) dan #26 (T-025) masih menunggu review; keduanya bersih terhadap main, tetapi saling konflik di `packages/db/src/index.ts` setelah salah satu di-merge (perlu merge main ke PR kedua).
 
 **Update 22 Nov WIB (sesi Build 19 Nov, mode hemat — terputus batas API 19–22 Nov, dilanjutkan 22 Nov):**
