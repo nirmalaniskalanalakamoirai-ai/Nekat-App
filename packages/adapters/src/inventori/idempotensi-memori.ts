@@ -2,8 +2,8 @@ import type { EntriIdempotensi, PenyimpanIdempotensi } from "@nekat/domain";
 
 /**
  * Penyimpan idempotensi di memori proses. Untuk tes dan dev satu proses SAJA: isinya hilang saat
- * restart dan tidak dibagi antar-proses API/worker. Penyimpan tahan lama (tabel DB) menyusul
- * bersama outbox/job di T-013b; sampai itu, jangan dipakai di production.
+ * restart dan tidak dibagi antar-proses API/worker. Production memakai penyimpan tahan lama
+ * `buatPenyimpanIdempotensiPg` dari `@nekat/db` (tabel `idempotensi_inventori`, T-013b).
  */
 export class PenyimpanIdempotensiMemori implements PenyimpanIdempotensi {
   readonly #data = new Map<string, EntriIdempotensi<unknown>>();

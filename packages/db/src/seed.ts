@@ -1,9 +1,9 @@
 // Seed data referensi Fase 1 (T-013): kategori/subkategori contoh, peran & izin admin.
-// TANPA harga, modal, margin, tarif, dan TANPA kategori rokok/bir (keputusan §7).
+// Kategori, peran & izin, jenis armada. TANPA harga, modal, margin, tarif, kapasitas, dan TANPA kategori rokok/bir (keputusan §7).
 // Idempoten: aman dijalankan berulang.
 import { sql } from "drizzle-orm";
 import type { Db } from "./koneksi.js";
-import { izin, kategori, peran, peranIzin } from "./skema/index.js";
+import { armada, izin, kategori, peran, peranIzin } from "./skema/index.js";
 
 interface SeedKategori {
   kode: string;
@@ -79,6 +79,13 @@ export const SEED_KATEGORI: readonly SeedKategori[] = [
   },
 ];
 
+/** Jenis armada (keputusan §4). Kapasitas & tarif KOSONG: diisi admin / adapter ongkir; nonaktif sampai diisi. */
+export const SEED_ARMADA: readonly (readonly [kode: string, nama: string])[] = [
+  ["MOTOR", "Motor"],
+  ["TOSSA", "Tossa"],
+  ["PICKUP", "Pickup"],
+];
+
 /** Kata kunci kategori terlarang Fase 1 (keputusan §7, P-24). Dipakai tes & validasi import. */
 export const KATA_TERLARANG = [
   "rokok",
@@ -137,6 +144,11 @@ export async function jalankanSeed(db: Db): Promise<void> {
           ],
     );
     await tx.insert(peranIzin).values(pasangan).onConflictDoNothing();
+
+    await tx
+      .insert(armada)
+      .values(SEED_ARMADA.map(([kode, nama]) => ({ kode, nama })))
+      .onConflictDoNothing();
 
     for (const [i, k] of SEED_KATEGORI.entries()) {
       const [induk] = await tx

@@ -22,6 +22,27 @@
       "when": 1794894218322,
       "tag": "0002_aturan_tambahan",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795087007028,
+      "tag": "0003_skema_transaksi",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795087007712,
+      "tag": "0004_aturan_transaksi",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795326974889,
+      "tag": "0005_perbaikan_review",
+      "breakpoints": true
     }
   ]
 }
