@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js",
+    "admin:buat": "node dist/cli-admin.js buat"
   },
   "dependencies": {
     "@nekat/adapters": "workspace:*",

@@ -44,6 +44,11 @@ const anak: RouteObject[] = RUTE_PEMBELI.map((r) =>
 );
 
 const router = createBrowserRouter([
+  // H-14 Panel admin (T-036): kerangka sendiri (bukan AppShell pembeli), dimuat lazy.
+  {
+    path: "/admin/*",
+    lazy: () => import("./admin/AdminApp").then((m) => ({ Component: m.AdminApp })),
+  },
   {
     path: "/",
     element: <AppShell />,
