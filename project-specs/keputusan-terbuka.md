@@ -184,3 +184,33 @@ Catatan 19 Nov sore (sesi Build): 5 jawaban dicatat dari issue #5/#6/#7 (H12, K-
 Catatan 22 Nov (sesi Build): baru K-43 (Joseph), K-44, K-46 (Efan), K-45 (Randy) dari T-013b, T-025, T-048. Pemindahan jawaban 19 Nov sore (H12, K-39, K-40, K-41, K-42) ke keputusan.md menunggu PR gabungan berikutnya.
 
 Catatan 26 Nov (sesi Build): dicatat dari issue — Randy (20/23/25 Nov; bila dua jawaban dipakai yang terakhir): 5, F-10, F-13–F-19, F-21–F-25, F-27, F-28, P-17, P-18, P-24, K-45; Joseph (24 Nov): K-43; Efan (26 Nov): K-46. K-44 dialihkan ke Randy (Efan: "ikut jawaban Randy", Randy belum menjawab K-44). Pemindahan ke keputusan.md lewat PR gabungan.
+
+## Dari T-005 (flow pembayaran, PR #29) dan T-008 (komponen UI, PR #30) — 26 Nov
+
+DEFAULT SEMENTARA = rekomendasi, kecuali disebut lain. Detail: `docs/flow/pembayaran.md` §16, `docs/spec/T-008-komponen-ui.md` §8.
+
+| # | Keputusan | Pemilik | Status |
+|---|---|---|---|
+| K-47 | Bayar dengan `paid_at` sebelum batas 60 menit, tetapi konfirmasi tiba setelah anggota dikeluarkan: hidupkan kembali atau dana ke saldo? | Randy | belum — rekomendasi: cek status ke Xendit + masa tenggang teknis singkat sebelum mengeluarkan; setelah dikeluarkan tidak dihidupkan kembali, nominal penuh ke saldo |
+| K-48 | Host memilih "bayar semua" setelah sebagian anggota sudah/sedang bayar sendiri | Randy | belum — rekomendasi: tagihan gabungan hanya anggota yang belum lunas; QR/VA lama dibatalkan; bila tetap terbayar → ke saldo anggota itu |
+| K-49 | Stok satu baris habis sebelum tagihan dilunasi: terbitkan ulang tagihan atau tetap & nilai baris ke saldo setelah lunas? | Randy | belum — rekomendasi: tagihan tetap; setelah lunas nilai baris dikreditkan REFUND; pembeli diberi tahu sebelum bayar (COD: sisa tunai dikurangi) |
+| K-50 | Sisa bayar setelah saldo lebih kecil dari minimum kanal Xendit | Joseph | belum — rekomendasi: kurangi pemakaian saldo otomatis agar sisa = minimum kanal; kanal yang tetap tidak memenuhi disembunyikan |
+| K-51 | Biaya transaksi Xendit ditanggung siapa, ditampilkan ke pembeli? | Efan | belum — rekomendasi: Fase 1 ditanggung NEKAT, tidak ditambahkan ke tagihan; dicatat sebagai biaya per order |
+| K-52 | KPI COD: pesanan yang dihitung, penyebut tingkat sukses, definisi minggu | Randy | belum — rekomendasi: grup + individu; batal karena NEKAT tidak dihitung; Senin 00.00–Minggu 23.59 WIB menurut waktu status akhir |
+| K-53 | Setelah COD dicabut manual: reset hitungan? boleh lolos lagi? admin boleh beri COD manual? | Randy | belum — rekomendasi: reset 0; boleh lolos lagi kecuali ditandai "blokir COD"; admin tidak bisa beri COD manual |
+| K-54 | Pesanan COD yang sudah dibuat saat COD dicabut | Randy | belum — rekomendasi: tetap COD; admin boleh batalkan manual dengan alasan |
+| K-55 | COD ditolak / gagal antar: ongkir dibebankan ke pembeli? | Efan | belum — rekomendasi: Fase 1 tidak ditagih; sanksi lewat KPI; ditinjau setelah pilot |
+| K-56 | "Total" batas COD Rp500.000 termasuk ongkir & biaya admin? | Randy | belum — rekomendasi: ya (barang − diskon + biaya admin + ongkir − subsidi ongkir), sebelum saldo |
+| K-57 | Skema untuk pesanan individu, COD, e-wallet, bayar terlambat | Joseph | belum — rekomendasi: migrasi expand (`invoice.grup_id` nullable + `jenis_pesanan`, `invoice.metode_bayar`, metode EWALLET/COD hanya individu, status `LUNAS_TERLAMBAT`, indeks TTL tanpa COD) sebelum T-034 |
+| K-58 | Uang masuk tanpa pasangan / nominal tidak cocok | Joseph | belum — rekomendasi: tidak pernah otomatis LUNAS; admin tinjau; pemilik jelas → KOREKSI_ADMIN four-eyes; tidak jelas → refund di luar aplikasi, tercatat |
+| K-59 | COD boleh untuk ambil di drop point? | Efan | belum — rekomendasi: Fase 1 hanya antar rumah |
+| K-60 | Konfirmasi tunai COD perlu persetujuan admin kedua? | Joseph | belum — rekomendasi: tidak per transaksi di Fase 1; wajib bukti, peran, log, rekonsiliasi kas harian oleh admin lain; four-eyes di atas ambang konfigurasi (kosong) |
+| U-01 | "Setara Rp —/pcs" untuk lusin/dus/koli bisa pecahan (H6) | Efan | belum — rekomendasi: tampil hanya bila habis dibagi isi; selain itu tidak tampil |
+| U-02 | Judul T-008/T-027 "X/Y di zona kamu · Z lagi → harga" tidak cocok G-01 | Randy | belum — rekomendasi: progres lengkap di pita grup/keranjang/halaman grup; kartu cukup chip pendek; judul T-027/T-028 diselaraskan |
+| U-03 | Akun punya >1 grup (F-16): tombol tambah masuk ke mana? boleh >1 grup di slot sama? | Randy | belum — rekomendasi: 1 grup → langsung; >1 → lembar "Masukkan ke mana?"; grup bertagihan tidak jadi pilihan; maks 1 grup per akun per slot |
+| U-04 | Total di stepper detail boleh dihitung klien? | Joseph | belum — rekomendasi: boleh `hargaAktif × qty` setelah harga terbaru dimuat; total keranjang & tagihan dari server |
+| U-05 | Pesan ajakan WhatsApp boleh diubah pengguna / memuat harga? | Randy (+ Growth) | belum — rekomendasi: boleh diubah ≤500 karakter, link otomatis sekali, tanpa nominal harga |
+| U-06 | Slot tidak bisa dipilih: nonaktif atau disembunyikan, sisa kapasitas, berapa hari | Efan (+ Operations) | belum — rekomendasi: nonaktif + alasan, tanpa angka sisa ("Penuh"), 7 hari |
+| U-07 | Stok cukup untuk pcs, tidak untuk dus/koli | Efan + Randy | belum — rekomendasi: opsi satuan itu nonaktif "Stok habis"; label K-20 hanya bila semua satuan habis |
+| U-08 | Sebutan UI grup <3 akun (F-15 "terbuka" = ≥3 akun) | Randy | belum — rekomendasi: <3 "Kurang {x} orang"; ≥3 "Grup terbuka" |
+| U-09 | Chip promo di kartu: nominal atau label saja? | Efan | belum — rekomendasi: label saja (+ "s.d. tanggal"); nominal hanya untuk promo per produk yang ditandai server |
