@@ -99,6 +99,30 @@ describe("bacaKonfigLokasi (T-015/T-015b)", () => {
     expect(() => bacaKonfigLokasi(tanpaDp)).toThrow(/dropPoint/);
   });
 
+  it("panjang teks dibatasi (kode 64, nama 120, alamatPublik 200, jamAmbil 60)", () => {
+    const panjang = (n: number) => "a".repeat(n);
+    const cek = (
+      ubah: (dp: {
+        kode: string;
+        nama: string;
+        alamatPublik?: string | undefined;
+        jamAmbil?: string | undefined;
+      }) => void,
+    ) => {
+      const k = salin();
+      const dp = k.zona[0]?.dropPoint[0];
+      if (dp) ubah(dp);
+      return () => bacaKonfigLokasi(k);
+    };
+    expect(cek((dp) => (dp.kode = panjang(65)))).toThrow(/kode maks\. 64/);
+    expect(cek((dp) => (dp.kode = panjang(64)))).not.toThrow();
+    expect(cek((dp) => (dp.nama = panjang(121)))).toThrow(/nama/);
+    expect(cek((dp) => (dp.alamatPublik = panjang(201)))).toThrow(/alamatPublik/);
+    expect(cek((dp) => (dp.jamAmbil = panjang(61)))).toThrow(/jamAmbil/);
+    expect(cek((dp) => (dp.jamAmbil = "Senin–Sabtu 08.00–17.00"))).not.toThrow();
+    expect(cek((dp) => (dp.jamAmbil = "   "))).toThrow(/jamAmbil/);
+  });
+
   it("versi lain ditolak", () => {
     expect(() => bacaKonfigLokasi({ ...salin(), versi: 2 })).toThrow(/versi/);
   });

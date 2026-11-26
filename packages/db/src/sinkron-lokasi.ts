@@ -10,12 +10,17 @@
 //   baris lain (FK RESTRICT ke grup, invoice, slot, alamat, stok, ...), selain itu hanya dinonaktifkan.
 //   Baris yang sudah nonaktif dibiarkan (riwayat).
 // - Drop point tidak boleh pindah zona (riwayat grup/invoice ikut berubah makna): pakai kode baru.
+// - Pagar operasional (default sementara Z-03, menunggu Randy + Ops): zona/drop point/gudang yang
+//   masih dipakai slot kirim DIBUKA atau grup belum final tidak boleh dilepas, dan zona seperti itu
+//   tidak boleh pindah gudang — kecuali `paksa`. Lihat `rencanakanSinkronLokasi`.
+// - Pagar skema: semua FK ke gudang/zona/drop_point harus ON DELETE RESTRICT (bukan CASCADE /
+//   SET NULL / NO ACTION deferrable) agar "hapus bila belum dipakai" tidak ikut menghapus riwayat.
 // - Semua dalam satu transaksi + advisory lock; tiap perubahan dicatat di log_audit (aktor SISTEM).
 import { createHash } from "node:crypto";
 import type { KonfigLokasi } from "@nekat/shared";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, sql, type SQL } from "drizzle-orm";
 import type { Db } from "./koneksi.js";
-import { dropPoint, gudang, logAudit, zona } from "./skema/index.js";
+import { dropPoint, gudang, logAudit, STATUS_PESERTA_NONAKTIF, zona } from "./skema/index.js";
 
 export type JenisEntitasLokasi = "gudang" | "zona" | "drop_point";
 export type NilaiLokasi = Record<string, string | boolean | null>;
@@ -44,13 +49,19 @@ export type PerubahanLokasi = LangkahSinkronLokasi & {
 
 export interface RencanaSinkronLokasi {
   readonly langkah: readonly LangkahSinkronLokasi[];
-  /** Tidak kosong = sinkron ditolak, tidak ada yang ditulis. */
+  /** Tidak kosong = sinkron ditolak, tidak ada yang ditulis (tidak bisa dipaksa). */
   readonly konflik: readonly string[];
+  /** Masih dipakai slot DIBUKA / grup belum final (Z-03). Menolak sinkron kecuali `paksa`. */
+  readonly konflikPemakaian: readonly string[];
 }
 
 export interface HasilSinkronLokasi {
   readonly kering: boolean;
   readonly perubahan: readonly PerubahanLokasi[];
+  /** Hanya terisi pada mode kering (mode terapkan melempar GalatSinkronLokasi). */
+  readonly konflik: readonly string[];
+  /** Mode kering: konflik pemakaian; mode terapkan dengan `paksa`: yang dipaksa lewat. */
+  readonly konflikPemakaian: readonly string[];
 }
 
 // ---- Status DB (dirujuk lewat kode, bukan id, agar rencana mudah dibaca & diuji) ----
@@ -80,11 +91,27 @@ export interface BarisDropPointDb {
   readonly jamAmbil: string | null;
   readonly aktif: boolean;
 }
+/** Kode entri yang sedang dipakai operasi berjalan (Z-03). */
+export interface PemakaianAktifLokasi {
+  /** Zona dengan slot_kirim berstatus DIBUKA. */
+  readonly zonaSlotDibuka: readonly string[];
+  /** Zona dengan grup belum final. */
+  readonly zonaGrupBelumFinal: readonly string[];
+  /** Drop point yang dipilih peserta hidup di grup belum final. */
+  readonly dropPointPesertaHidup: readonly string[];
+  /** Gudang penerima grup belum final. */
+  readonly gudangGrupBelumFinal: readonly string[];
+}
 export interface StatusLokasiDb {
   readonly gudang: readonly BarisGudangDb[];
   readonly zona: readonly BarisZonaDb[];
   readonly dropPoint: readonly BarisDropPointDb[];
+  /** Tidak diisi = tidak ada pemakaian aktif. */
+  readonly pemakaian?: PemakaianAktifLokasi;
 }
+
+/** Status grup yang sudah final (tidak ada lagi pengiriman/penagihan berjalan). */
+export const STATUS_GRUP_FINAL = ["GAGAL", "BATAL", "SELESAI"] as const;
 
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 type Eksekutor = Db | Tx;
@@ -195,6 +222,24 @@ export function rencanakanSinkronLokasi(
       );
     }
   }
+  const p = status.pemakaian;
+  const konflikPemakaian: string[] = [];
+  const alasanZona = (kode: string) =>
+    [
+      p?.zonaSlotDibuka.includes(kode) ? "slot kirim DIBUKA" : null,
+      p?.zonaGrupBelumFinal.includes(kode) ? "grup belum final" : null,
+    ]
+      .filter((x) => x !== null)
+      .join(" & ");
+  for (const zDb of status.zona) {
+    const tujuan = t.zona.get(zDb.kode);
+    const alasan = alasanZona(zDb.kode);
+    if (tujuan && tujuan.gudang !== zDb.gudang && alasan) {
+      konflikPemakaian.push(
+        `zona ${zDb.kode} pindah gudang ${zDb.gudang} → ${tujuan.gudang} saat masih ada ${alasan}`,
+      );
+    }
+  }
   const g = rencanakanJenis("gudang", status.gudang, t.gudang, (b) => ({
     nama: b.nama,
     jenis: b.jenis,
@@ -214,9 +259,24 @@ export function rencanakanSinkronLokasi(
     jamAmbil: b.jamAmbil,
     aktif: b.aktif,
   }));
+  for (const l of d.lepas) {
+    if (p?.dropPointPesertaHidup.includes(l.kode))
+      konflikPemakaian.push(
+        `drop point ${l.kode} dilepas saat masih dipilih peserta grup belum final`,
+      );
+  }
+  for (const l of z.lepas) {
+    const alasan = alasanZona(l.kode);
+    if (alasan) konflikPemakaian.push(`zona ${l.kode} dilepas saat masih ada ${alasan}`);
+  }
+  for (const l of g.lepas) {
+    if (p?.gudangGrupBelumFinal.includes(l.kode))
+      konflikPemakaian.push(`gudang ${l.kode} dilepas saat masih menerima grup belum final`);
+  }
   return {
     langkah: [...g.simpan, ...z.simpan, ...d.simpan, ...d.lepas, ...z.lepas, ...g.lepas],
     konflik,
+    konflikPemakaian,
   };
 }
 
@@ -254,10 +314,30 @@ export async function bacaStatusLokasiDb(db: Eksekutor): Promise<StatusLokasiDb>
       aktif: dropPoint.aktif,
     })
     .from(dropPoint);
+  const final = sql.raw(STATUS_GRUP_FINAL.map((x) => `'${x}'`).join(", "));
+  const nonaktif = sql.raw(STATUS_PESERTA_NONAKTIF.map((x) => `'${x}'`).join(", "));
+  const daftarKode = async (kueri: SQL) =>
+    ((await db.execute(kueri)).rows as { kode: string }[]).map((r) => r.kode).sort();
+  const pemakaian: PemakaianAktifLokasi = {
+    zonaSlotDibuka: await daftarKode(sql`
+      SELECT DISTINCT z.kode_konfig AS kode FROM slot_kirim s JOIN zona z ON z.id = s.zona_id
+      WHERE s.status = 'DIBUKA'`),
+    zonaGrupBelumFinal: await daftarKode(sql`
+      SELECT DISTINCT z.kode_konfig AS kode FROM grup g JOIN zona z ON z.id = g.zona_id
+      WHERE g.status NOT IN (${final})`),
+    dropPointPesertaHidup: await daftarKode(sql`
+      SELECT DISTINCT d.kode_konfig AS kode FROM peserta_grup p
+      JOIN grup g ON g.id = p.grup_id JOIN drop_point d ON d.id = p.drop_point_id
+      WHERE g.status NOT IN (${final}) AND p.status NOT IN (${nonaktif})`),
+    gudangGrupBelumFinal: await daftarKode(sql`
+      SELECT DISTINCT gd.kode_konfig AS kode FROM grup g JOIN gudang gd ON gd.id = g.gudang_id
+      WHERE g.status NOT IN (${final})`),
+  };
   const kodeGudang = new Map(g.map((x) => [x.id, x.kode]));
   const kodeZona = new Map(z.map((x) => [x.id, x.kode]));
   const kodeDp = new Map(d.map((x) => [x.id, x.kode]));
   return {
+    pemakaian,
     gudang: g,
     zona: z.map((x) => ({
       id: x.id,
@@ -280,6 +360,24 @@ export async function bacaStatusLokasiDb(db: Eksekutor): Promise<StatusLokasiDb>
   };
 }
 
+/**
+ * FK ke gudang/zona/drop_point yang TIDAK aman untuk "hapus bila belum dipakai": aksi hapus selain
+ * RESTRICT (CASCADE, SET NULL, SET DEFAULT, NO ACTION) — NO ACTION deferrable bisa lolos savepoint.
+ * FK melingkar zona → drop_point memakai RESTRICT (dicek seketika walau DEFERRABLE).
+ */
+export async function periksaFkLokasi(db: Eksekutor): Promise<string[]> {
+  const r = await db.execute(sql`
+    SELECT conrelid::regclass::text AS tabel, conname::text AS nama, confdeltype::text AS aksi
+    FROM pg_constraint
+    WHERE contype = 'f'
+      AND confrelid IN ('gudang'::regclass, 'zona'::regclass, 'drop_point'::regclass)
+      AND (confdeltype <> 'r' OR (condeferrable AND confdeltype = 'a'))
+    ORDER BY 1, 2`);
+  return (r.rows as { tabel: string; nama: string; aksi: string }[]).map(
+    (x) => `FK ${x.tabel}.${x.nama} (on delete '${x.aksi}') harus ON DELETE RESTRICT`,
+  );
+}
+
 // ---- Terapkan ----
 
 export class GalatSinkronLokasi extends Error {
@@ -296,6 +394,8 @@ export interface OpsiSinkronLokasi {
   readonly izinkanUji?: boolean;
   /** Sidik isi file config (sha256 hex) untuk jejak di log_audit. */
   readonly sidikKonfig?: string;
+  /** Lewati konflik pemakaian (Z-03): slot DIBUKA / grup belum final. Dicatat di log_audit. */
+  readonly paksa?: boolean;
 }
 
 /** Kunci advisory transaksi: cegah dua sinkron berjalan bersamaan. */
@@ -329,6 +429,8 @@ async function cobaHapus(tx: Tx, hapus: (sp: Tx) => Promise<unknown>): Promise<b
   }
 }
 
+const adaLepas = (r: RencanaSinkronLokasi) => r.langkah.some((l) => l.aksi === "LEPAS");
+
 function wajib<T>(m: Map<string, T>, kode: string, apa: string): T {
   const v = m.get(kode);
   if (v === undefined) throw new GalatSinkronLokasi(`${apa} ${kode} tidak ditemukan saat sinkron`);
@@ -350,9 +452,20 @@ export async function sinkronLokasi(
     );
   }
   if (opsi.kering === true) {
-    const rencana = rencanakanSinkronLokasi(konfig, await bacaStatusLokasiDb(db));
-    if (rencana.konflik.length > 0) throw new GalatSinkronLokasi(rencana.konflik.join("; "));
-    return { kering: true, perubahan: rencana.langkah };
+    // Transaksi read-only: pratinjau dijamin tidak menulis apa pun.
+    return db.transaction(
+      async (tx) => {
+        const rencana = rencanakanSinkronLokasi(konfig, await bacaStatusLokasiDb(tx));
+        const fk = adaLepas(rencana) ? await periksaFkLokasi(tx) : [];
+        return {
+          kering: true,
+          perubahan: rencana.langkah,
+          konflik: [...fk, ...rencana.konflik],
+          konflikPemakaian: rencana.konflikPemakaian,
+        };
+      },
+      { accessMode: "read only" },
+    );
   }
 
   return db.transaction(async (tx) => {
@@ -360,6 +473,16 @@ export async function sinkronLokasi(
     const status = await bacaStatusLokasiDb(tx);
     const rencana = rencanakanSinkronLokasi(konfig, status);
     if (rencana.konflik.length > 0) throw new GalatSinkronLokasi(rencana.konflik.join("; "));
+    if (rencana.konflikPemakaian.length > 0 && opsi.paksa !== true) {
+      throw new GalatSinkronLokasi(
+        `${rencana.konflikPemakaian.join("; ")} — tutup slot/selesaikan grup dulu, atau --paksa`,
+      );
+    }
+    // Pagar skema sebelum fase pelepasan (dan sebelum ada yang ditulis).
+    if (adaLepas(rencana)) {
+      const fk = await periksaFkLokasi(tx);
+      if (fk.length > 0) throw new GalatSinkronLokasi(fk.join("; "));
+    }
 
     const t = targetDariKonfig(konfig);
     const idGudang = new Map(status.gudang.map((x) => [x.kode, x.id]));
@@ -457,8 +580,10 @@ export async function sinkronLokasi(
     for (const l of langkahJenis("drop_point", "LEPAS")) {
       const id = wajib(idDp, l.kode, "drop point");
       const terhapus = await cobaHapus(tx, async (sp) => {
-        // FK zona → drop_point DEFERRABLE: dicek saat commit, bukan di savepoint. Kosongkan dulu
-        // penunjuk dari zona nonaktif (zona aktif sudah dipindah ke drop point pusat baru di langkah 4).
+        // FK zona.drop_point_pusat_id → drop_point ON DELETE RESTRICT: dicek seketika (walau FK-nya
+        // DEFERRABLE), jadi penunjuk dari zona nonaktif dikosongkan dulu (zona aktif sudah dipindah ke
+        // drop point pusat baru di langkah 4). Bila hapus gagal karena perujuk lain, savepoint ikut
+        // membatalkan pengosongan ini.
         await sp
           .update(zona)
           .set({ dropPointPusatId: null, diubahPada: kini })
@@ -501,11 +626,17 @@ export async function sinkronLokasi(
             ...(p.aksi === "TAMBAH" ? { sesudah: p.sesudah } : {}),
             ...(p.hasil ? { hasil: p.hasil } : {}),
             ...(opsi.sidikKonfig ? { sidikKonfig: opsi.sidikKonfig } : {}),
+            ...(rencana.konflikPemakaian.length > 0 ? { dipaksa: rencana.konflikPemakaian } : {}),
           },
         })),
       );
     }
-    return { kering: false, perubahan };
+    return {
+      kering: false,
+      perubahan,
+      konflik: [],
+      konflikPemakaian: rencana.konflikPemakaian,
+    };
   });
 }
 

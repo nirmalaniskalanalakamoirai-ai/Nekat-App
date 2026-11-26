@@ -39,10 +39,13 @@ berubah, jalankan setelah `pnpm build`:
 ```bash
 DATABASE_URL=postgres://... pnpm db:sinkron-lokasi --kering   # pratinjau, tidak menulis
 DATABASE_URL=postgres://... pnpm db:sinkron-lokasi            # terapkan (idempoten, dicatat di log_audit)
-# opsi: --config <path> (default $LOKASI_CONFIG atau config/lokasi.json), --izinkan-uji (config "uji": true)
+# opsi: --config <path> (default $LOKASI_CONFIG atau config/lokasi.json), --izinkan-uji (config "uji": true),
+#       --paksa (lepas/pindah gudang walau masih ada slot DIBUKA / grup belum final; dicatat)
 ```
 
 Entri yang dihapus dari config dihapus dari DB bila belum dipakai, selain itu hanya dinonaktifkan.
+Zona/drop point/gudang yang masih dipakai slot kirim DIBUKA atau grup belum final tidak dilepas
+(dan zonanya tidak pindah gudang) tanpa `--paksa`.
 Drop point tidak boleh pindah zona (pakai kode baru). API memperingatkan di log saat start bila DB
 belum sesuai config.
 

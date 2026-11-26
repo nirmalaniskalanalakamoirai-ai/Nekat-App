@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   rencanakanSinkronLokasi,
   teksPerubahanLokasi,
+  type PemakaianAktifLokasi,
   type StatusLokasiDb,
 } from "./sinkron-lokasi.js";
 
@@ -94,7 +95,11 @@ describe("rencanakanSinkronLokasi", () => {
   });
 
   it("DB sudah sesuai → 0 langkah (idempoten)", () => {
-    expect(rencanakanSinkronLokasi(konfig(), sesuai())).toEqual({ langkah: [], konflik: [] });
+    expect(rencanakanSinkronLokasi(konfig(), sesuai())).toEqual({
+      langkah: [],
+      konflik: [],
+      konflikPemakaian: [],
+    });
   });
 
   it("UBAH hanya memuat kolom yang berubah", () => {
@@ -210,6 +215,105 @@ describe("rencanakanSinkronLokasi", () => {
     const r = rencanakanSinkronLokasi(k, sesuai());
     expect(r.konflik).toHaveLength(1);
     expect(r.konflik[0]).toMatch(/dp-b terdaftar di zona z-uji.*z-dua.*kode drop point baru/);
+  });
+
+  describe("pagar pemakaian aktif (Z-03, default sementara)", () => {
+    const tanpaPemakaian = {
+      zonaSlotDibuka: [],
+      zonaGrupBelumFinal: [],
+      dropPointPesertaHidup: [],
+      gudangGrupBelumFinal: [],
+    };
+    // DB punya z-lama (+dp-lama, g-lama) yang sudah tidak ada di config.
+    const denganLama = (pemakaian: PemakaianAktifLokasi): StatusLokasiDb => {
+      const s = sesuai();
+      return {
+        pemakaian,
+        gudang: [
+          ...s.gudang,
+          { id: "9", kode: "g-lama", nama: "Lama", jenis: "CABANG", aktif: true },
+        ],
+        zona: [
+          ...s.zona,
+          {
+            id: "8",
+            kode: "z-lama",
+            namaKelurahan: "Lama",
+            gudang: "g-lama",
+            dropPointPusat: "dp-lama",
+            aktif: true,
+          },
+        ],
+        dropPoint: [
+          ...s.dropPoint,
+          {
+            id: "6",
+            kode: "dp-lama",
+            zona: "z-lama",
+            gudang: "g-lama",
+            nama: "Lama",
+            alamatPublik: null,
+            jamAmbil: null,
+            aktif: true,
+          },
+        ],
+      };
+    };
+
+    it("tanpa pemakaian aktif → tidak ada konflik pemakaian", () => {
+      expect(
+        rencanakanSinkronLokasi(konfig(), denganLama(tanpaPemakaian)).konflikPemakaian,
+      ).toEqual([]);
+    });
+
+    it("lepas zona/drop point/gudang yang masih dipakai → konflik pemakaian per entri", () => {
+      const r = rencanakanSinkronLokasi(
+        konfig(),
+        denganLama({
+          zonaSlotDibuka: ["z-lama"],
+          zonaGrupBelumFinal: ["z-lama"],
+          dropPointPesertaHidup: ["dp-lama"],
+          gudangGrupBelumFinal: ["g-lama"],
+        }),
+      );
+      expect(r.konflik).toEqual([]);
+      expect(r.konflikPemakaian).toEqual([
+        "drop point dp-lama dilepas saat masih dipilih peserta grup belum final",
+        "zona z-lama dilepas saat masih ada slot kirim DIBUKA & grup belum final",
+        "gudang g-lama dilepas saat masih menerima grup belum final",
+      ]);
+      // Langkah tetap dihitung (untuk pratinjau --kering).
+      expect(r.langkah.filter((l) => l.aksi === "LEPAS")).toHaveLength(3);
+    });
+
+    it("pemakaian pada entri yang TIDAK dilepas tidak menimbulkan konflik", () => {
+      const r = rencanakanSinkronLokasi(konfig(), {
+        ...sesuai(),
+        pemakaian: {
+          zonaSlotDibuka: ["z-uji"],
+          zonaGrupBelumFinal: ["z-uji"],
+          dropPointPesertaHidup: ["dp-a"],
+          gudangGrupBelumFinal: ["g-uji"],
+        },
+      });
+      expect(r).toEqual({ langkah: [], konflik: [], konflikPemakaian: [] });
+    });
+
+    it("zona pindah gudang saat slot DIBUKA → konflik; tanpa pemakaian → boleh", () => {
+      const k = konfig((x) => {
+        x.gudang.push({ kode: "g-dua", nama: "Cabang", jenis: "CABANG", lat: -6.3, lng: 106.7 });
+        const z = x.zona[0];
+        if (z) z.gudang = "g-dua";
+      });
+      const dipakai = rencanakanSinkronLokasi(k, {
+        ...sesuai(),
+        pemakaian: { ...tanpaPemakaian, zonaSlotDibuka: ["z-uji"] },
+      });
+      expect(dipakai.konflikPemakaian).toEqual([
+        "zona z-uji pindah gudang g-uji → g-dua saat masih ada slot kirim DIBUKA",
+      ]);
+      expect(rencanakanSinkronLokasi(k, sesuai()).konflikPemakaian).toEqual([]);
+    });
   });
 
   it("teksPerubahanLokasi: satu baris yang bisa dibaca manusia", () => {

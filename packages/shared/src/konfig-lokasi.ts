@@ -19,11 +19,17 @@ export const BATAS_KOORDINAT_INDONESIA = {
 } as const;
 
 const B = BATAS_KOORDINAT_INDONESIA;
-const kode = z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "kode: huruf kecil, angka, tanda minus");
+const kode = z
+  .string()
+  .max(64, "kode maks. 64 karakter")
+  .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "kode: huruf kecil, angka, tanda minus");
 // z.number() menolak NaN & Infinity.
 const lat = z.number().min(-90).max(90);
 const lng = z.number().min(-180).max(180);
-const teks = z.string().trim().min(1);
+const teks = z.string().trim().min(1).max(120);
+// Teks bebas untuk pembeli. Format jam ambil belum baku (contoh hanya "08.00–20.00"; bisa juga
+// "Senin–Sabtu 08.00–17.00"), jadi hanya dibatasi panjang, tanpa regex.
+const teksOpsional = (maks: number) => z.string().trim().min(1).max(maks).optional();
 
 function diIndonesia(k: { lat: number; lng: number }): boolean {
   return k.lat >= B.latMin && k.lat <= B.latMaks && k.lng >= B.lngMin && k.lng <= B.lngMaks;
@@ -55,8 +61,8 @@ export const skemaKonfigLokasi = z
                 .object({
                   kode,
                   nama: teks,
-                  alamatPublik: z.string().optional(),
-                  jamAmbil: z.string().optional(),
+                  alamatPublik: teksOpsional(200),
+                  jamAmbil: teksOpsional(60),
                   lat,
                   lng,
                   radiusMeter: z.number().int().min(RADIUS_MIN_METER).max(RADIUS_MAKS_METER),

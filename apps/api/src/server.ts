@@ -116,7 +116,11 @@ if (db && lokasi) {
       const rencana = rencanakanSinkronLokasi(konfigLokasi, await bacaStatusLokasiDb(dbLokasi));
       if (rencana.langkah.length > 0 || rencana.konflik.length > 0) {
         app.log.warn(
-          { selisih: rencana.langkah.map(teksPerubahanLokasi), konflik: rencana.konflik },
+          {
+            selisih: rencana.langkah.map(teksPerubahanLokasi),
+            konflik: rencana.konflik,
+            konflikPemakaian: rencana.konflikPemakaian,
+          },
           "lokasi: DB belum sesuai config/lokasi.json — jalankan `pnpm db:sinkron-lokasi`",
         );
       }
