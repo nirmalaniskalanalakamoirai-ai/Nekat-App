@@ -214,3 +214,21 @@ DEFAULT SEMENTARA = rekomendasi, kecuali disebut lain. Detail: `docs/flow/pembay
 | U-07 | Stok cukup untuk pcs, tidak untuk dus/koli | Efan + Randy | belum — rekomendasi: opsi satuan itu nonaktif "Stok habis"; label K-20 hanya bila semua satuan habis |
 | U-08 | Sebutan UI grup <3 akun (F-15 "terbuka" = ≥3 akun) | Randy | belum — rekomendasi: <3 "Kurang {x} orang"; ≥3 "Grup terbuka" |
 | U-09 | Chip promo di kartu: nominal atau label saja? | Efan | belum — rekomendasi: label saja (+ "s.d. tanggal"); nominal hanya untuk promo per produk yang ditandai server |
+
+## Dari T-015b (sinkron zona, PR #32) dan T-019 (Gudang API, PR berikutnya) — 27 Nov
+
+DEFAULT SEMENTARA = rekomendasi, sudah dipakai di kode. Detail: `README.md` (sinkron lokasi), `docs/spec/T-009-kontrak-inventory-source.md` §12.
+
+| # | Keputusan | Pemilik | Status |
+|---|---|---|---|
+| Z-01 | Sinkron `config/lokasi.json` → DB otomatis saat deploy atau manual? | Joseph | belum — rekomendasi: otomatis di pipeline deploy setelah migrasi (`--kering` lalu terapkan); staging pakai `--izinkan-uji` |
+| Z-02 | Drop point boleh dilayani gudang berbeda dari gudang zonanya? | Efan (+ Operations) | belum — rekomendasi: tidak, drop point selalu ikut gudang zona (F-20) sampai ada kebutuhan nyata |
+| Z-03 | Zona/drop point/gudang dihapus dari config atau zona pindah gudang saat masih ada slot DIBUKA / grup belum final / peserta aktif | Randy (+ Operations) | belum — DEFAULT SEMENTARA: sinkron ditolak, bisa dipaksa admin (`--paksa`, tercatat); grup/peserta yang terdampak belum punya alur (perlu Workflow Architect) |
+| IG-01 | Data master SKU dari Gudang | Joseph | belum — DEFAULT: hanya `aktif_di_sumber` disinkron; satuan dasar beda → SKU dinonaktifkan + log audit |
+| IG-02 | Stok "tidak diketahui" (data Gudang basi): tombol beli & keranjang | Randy | belum — DEFAULT: produk tampil, tombol beli nonaktif, label "Stok sedang dicek". Rekomendasi agen: izinkan masuk keranjang, tagihan ditahan |
+| IG-03 | Kode lokasi cabang di sistem Gudang | Joseph | belum — DEFAULT: pakai `gudang.kode_konfig`; ikuti spesifikasi Gudang bila ada |
+| IG-04 | Satuan jumlah saat konfirmasi stok/picking ke Gudang | Joseph | belum — DEFAULT: satuan dasar NEKAT (pcs/gram/ml); konfirmasi ke tim Gudang untuk barang curah |
+| IG-05 | SKU yang hilang dari daftar/respons Gudang | Joseph | belum — DEFAULT: hilang dari daftar → nonaktif; hilang dari respons stok yang valid → stok 0 |
+| IG-06 | Modal dari Gudang vs modal MANUAL lama | Efan | belum — DEFAULT: modal Gudang menimpa; tanpa modal valid → kosong, produk tidak tayang; timpaan admin tetap lewat `modal_timpaan` |
+| IG-07 | Mekanisme retry permintaan picking | Joseph | belum — DEFAULT: lewat outbox NEKAT (backoff sampai 6 jam, lalu antrean admin) |
+| IG-08 | Ambang anomali sinkron: berapa SKU boleh dinonaktifkan sekali sinkron sebelum ditahan untuk ditinjau | Joseph | belum — DEFAULT: min(50 SKU, 20%) dengan lantai untuk katalog kecil; dapat diubah lewat env |
