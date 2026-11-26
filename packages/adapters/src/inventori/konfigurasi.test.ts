@@ -25,6 +25,7 @@ describe("bacaKonfigInventory (toggle INVENTORY_SOURCE)", () => {
       maksUmurDataMenit: 15,
       saatGangguan: "tahan_checkout",
       intervalSinkronMenit: 5,
+      batasNonaktif: { jumlah: 50, persen: 20 },
       gudang: null,
     });
     // String kosong = tidak diisi.
@@ -37,8 +38,11 @@ describe("bacaKonfigInventory (toggle INVENTORY_SOURCE)", () => {
       INVENTORY_MAKS_UMUR_DATA_MENIT: "30",
       INVENTORY_SAAT_GANGGUAN: "jual_snapshot",
       INVENTORY_INTERVAL_SINKRON_MENIT: "10",
+      INVENTORY_BATAS_NONAKTIF_SKU: "0",
+      INVENTORY_BATAS_NONAKTIF_PERSEN: "100",
     });
     expect(k).toMatchObject({
+      batasNonaktif: { jumlah: 0, persen: 100 },
       maksUmurDataMenit: 30,
       saatGangguan: "jual_snapshot",
       intervalSinkronMenit: 10,
@@ -51,12 +55,14 @@ describe("bacaKonfigInventory (toggle INVENTORY_SOURCE)", () => {
       INVENTORY_MAKS_UMUR_DATA_MENIT: "0",
       INVENTORY_SAAT_GANGGUAN: "abaikan",
       INVENTORY_INTERVAL_SINKRON_MENIT: "5.5",
+      INVENTORY_BATAS_NONAKTIF_PERSEN: "101",
     });
     expect(e.variabel).toEqual([
       "INVENTORY_SOURCE",
       "INVENTORY_MAKS_UMUR_DATA_MENIT",
       "INVENTORY_SAAT_GANGGUAN",
       "INVENTORY_INTERVAL_SINKRON_MENIT",
+      "INVENTORY_BATAS_NONAKTIF_PERSEN",
     ]);
     expect(e.message).not.toContain("rahasia");
   });
@@ -69,6 +75,9 @@ describe("bacaKonfigInventory (toggle INVENTORY_SOURCE)", () => {
     for (const url of [
       "http://gudang.contoh.id/api",
       "https://user:pass@gudang.contoh.id/api",
+      // Seragam dengan klien HTTP (urlDasarGudang): query/fragmen ditolak saat start.
+      "https://gudang.contoh.id/api?token=x",
+      "https://gudang.contoh.id/api#x",
       "bukan url",
     ]) {
       const e = galatKonfig({

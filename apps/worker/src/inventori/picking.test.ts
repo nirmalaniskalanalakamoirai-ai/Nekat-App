@@ -2,7 +2,7 @@
 import type { EntriOutboxPicking, InventorySource, RepoOutboxPicking } from "@nekat/domain";
 import { InventoryError, type HasilPicking, type PermintaanPicking } from "@nekat/shared";
 import { describe, expect, it } from "vitest";
-import { kirimOutboxPicking, LEASE_PICKING_MS } from "./picking.js";
+import { kirimOutboxPicking, leasePicking } from "./picking.js";
 
 const GRUP = "0190c000-0000-7000-8000-000000000001";
 const KINI = new Date("2026-11-26T05:00:00Z");
@@ -33,7 +33,7 @@ function entri(ubah: Partial<EntriOutboxPicking> = {}): EntriOutboxPicking {
   };
 }
 
-function repoPalsu(daftar: EntriOutboxPicking[]) {
+function repoPalsu(daftar: EntriOutboxPicking[], milik = true) {
   const log: string[] = [];
   const repo: RepoOutboxPicking & { log: string[]; jadwal: Date[]; lease: number[] } = {
     log,
@@ -44,18 +44,18 @@ function repoPalsu(daftar: EntriOutboxPicking[]) {
       repo.lease.push(leaseMs);
       return Promise.resolve(daftar.splice(0));
     },
-    tandaiTerkirim(id, h) {
-      log.push(`terkirim:${id}:${h.status}:${String(h.referensiSumber)}`);
-      return Promise.resolve();
+    tandaiTerkirim(k, h) {
+      log.push(`terkirim:${k.id}:${h.status}:${String(h.referensiSumber)}`);
+      return Promise.resolve(milik);
     },
-    jadwalkanUlang(id, kapan, kode) {
+    jadwalkanUlang(k, kapan, kode) {
       repo.jadwal.push(kapan);
-      log.push(`ulang:${id}:${kode}`);
-      return Promise.resolve();
+      log.push(`ulang:${k.id}:${kode}`);
+      return Promise.resolve(milik);
     },
-    tandaiGagal(id, kode, jenis) {
-      log.push(`gagal:${id}:${kode}:${jenis}`);
-      return Promise.resolve();
+    tandaiGagal(k, kode, jenis) {
+      log.push(`gagal:${k.id}:${kode}:${jenis}`);
+      return Promise.resolve(milik);
     },
   };
   return repo;
@@ -91,9 +91,29 @@ describe("kirimOutboxPicking", () => {
         ),
       ),
     );
-    expect(h).toEqual({ terkirim: 1, dijadwalkanUlang: 0, gagal: 0 });
+    expect(h).toEqual({ terkirim: 1, dijadwalkanUlang: 0, gagal: 0, klaimHilang: 0 });
     expect(repo.log).toEqual(["terkirim:ob-1:DITERIMA:PK-1"]);
-    expect(repo.lease).toEqual([LEASE_PICKING_MS]);
+    // Lease mencakup seluruh putaran: 20 entri × (10 dtk timeout + 5 dtk cadangan) = 300 dtk.
+    expect(repo.lease).toEqual([300_000]);
+  });
+
+  it("lease ≥ batas × (timeout + cadangan), minimal 2 menit", () => {
+    expect(leasePicking(1)).toBe(120_000);
+    expect(leasePicking(20)).toBe(300_000);
+    expect(leasePicking(100)).toBe(1_500_000);
+  });
+
+  it("klaim sudah diambil alih worker lain (lease habis) → tidak dihitung terkirim", async () => {
+    const repo = repoPalsu([entri()], false);
+    const h = await kirimOutboxPicking(
+      opsi(
+        repo,
+        inventory((r) =>
+          Promise.resolve({ grupId: r.grupId, status: "DUPLIKAT", referensiSumber: "PK-1" }),
+        ),
+      ),
+    );
+    expect(h).toEqual({ terkirim: 0, dijadwalkanUlang: 0, gagal: 0, klaimHilang: 1 });
   });
 
   it("Gudang tak terjangkau → dijadwalkan ulang dengan backoff eksponensial", async () => {

@@ -45,12 +45,36 @@ export interface OpsiSinkron {
   readonly repo: RepoSinkronInventori;
   readonly pengumpul: PengumpulPeristiwaSinkron;
   readonly sekarang?: () => Date;
+  /**
+   * Ambang anomali penonaktifan SKU pada sinkron penuh (DEFAULT SEMENTARA IG-08): bila calon SKU
+   * yang dinonaktifkan karena hilang dari daftar Gudang > `jumlah` ATAU > `persen` % SKU terpetakan,
+   * penonaktifan DITAHAN (dicatat log audit, admin meninjau). Bawaan 50 SKU / 20 %.
+   */
+  readonly batasNonaktif?: { readonly jumlah: number; readonly persen: number };
+  /**
+   * Opsional: bila SKU yang hilang dari respons stok satu batch > persen ini, jangan isi stok 0
+   * (anomali). null = nonaktif (bawaan). Respons kosong untuk permintaan tak kosong SELALU anomali.
+   */
+  readonly batasHilangStokPersen?: number | null;
 }
 
+export const BATAS_NONAKTIF_BAWAAN = { jumlah: 50, persen: 20 } as const;
+
 export interface HasilSinkron {
-  readonly sku: { diubah: number; dinonaktifkan: number; satuanBeda: number } | null;
+  readonly sku: {
+    diubah: number;
+    dinonaktifkan: number;
+    satuanBeda: number;
+    ditahan: boolean;
+  } | null;
   readonly stokDisimpan: number;
-  readonly modal: { disimpan: number; dikosongkan: number; turun: number };
+  readonly modal: {
+    disimpan: number;
+    dikosongkan: number;
+    turun: number;
+    naik: number;
+    peringatanRupiah: number;
+  };
   /** Kode galat per bagian yang gagal (tanpa pesan bebas). */
   readonly gagal: readonly { bagian: string; kode: string }[];
 }
@@ -65,26 +89,39 @@ export async function sinkronInventori(o: OpsiSinkron): Promise<HasilSinkron> {
     return {
       sku: null,
       stokDisimpan: 0,
-      modal: { disimpan: 0, dikosongkan: 0, turun: 0 },
+      modal: { disimpan: 0, dikosongkan: 0, turun: 0, naik: 0, peringatanRupiah: 0 },
       gagal: [],
     };
   }
   const sekarang = o.sekarang ?? (() => new Date());
   const gagal: { bagian: string; kode: string }[] = [];
 
+  const skuIds = await o.repo.skuTerpetakan();
+  const batch = pecahBatch(skuIds);
+
   let hasilSku: HasilSinkron["sku"] = null;
   try {
+    const sebelum = o.pengumpul.jumlahTidakValid;
     const daftar = await o.inventory.listSku();
-    // Pengaman: daftar kosong dari Gudang (mis. galat di sisi Gudang) TIDAK menonaktifkan semua SKU.
-    const penuh = daftar.length > 0;
-    if (!penuh) gagal.push({ bagian: "sku", kode: "DAFTAR_SKU_KOSONG" });
-    hasilSku = await o.repo.terapkanSku(daftar, { penuh, waktu: sekarang() });
+    // Pengaman penonaktifan (sinkron penuh hanya bila respons bersih):
+    // - daftar kosong (mis. galat di sisi Gudang) → jangan nonaktifkan semua SKU;
+    // - ada baris SKU cacat → SKU itu tidak muncul di hasil walau masih ada di Gudang → jangan
+    //   anggap "hilang" (ID sumber baris cacat bisa tidak terbaca, jadi sinkron penuh dilewati).
+    let penuh = true;
+    if (daftar.length === 0) {
+      penuh = false;
+      gagal.push({ bagian: "sku", kode: "DAFTAR_SKU_KOSONG" });
+    } else if (o.pengumpul.jumlahTidakValid > sebelum) {
+      penuh = false;
+      gagal.push({ bagian: "sku", kode: "BARIS_SKU_TIDAK_VALID" });
+    }
+    const batas = o.batasNonaktif ?? BATAS_NONAKTIF_BAWAAN;
+    const maksNonaktif = Math.min(batas.jumlah, Math.floor((skuIds.length * batas.persen) / 100));
+    hasilSku = await o.repo.terapkanSku(daftar, { penuh, maksNonaktif, waktu: sekarang() });
+    if (hasilSku.ditahan) gagal.push({ bagian: "sku", kode: "ANOMALI_PENONAKTIFAN" });
   } catch (e) {
     gagal.push({ bagian: "sku", kode: kodeGalat(e) });
   }
-
-  const skuIds = await o.repo.skuTerpetakan();
-  const batch = pecahBatch(skuIds);
 
   let stokDisimpan = 0;
   stok: for (const lokasiId of await o.repo.lokasiAktif()) {
@@ -92,9 +129,21 @@ export async function sinkronInventori(o: OpsiSinkron): Promise<HasilSinkron> {
       const sebelum = o.pengumpul.jumlahTidakValid;
       try {
         const stok = await o.inventory.getStok(ids, lokasiId);
+        // Isi stok 0 untuk SKU yang hilang HANYA bila respons tampak utuh (data basi ≠ stok habis):
+        // tanpa baris cacat, tidak kosong total, dan (opsional) jumlah hilang di bawah ambang.
+        let isiNol = o.pengumpul.jumlahTidakValid === sebelum;
+        if (stok.length === 0 && ids.length > 0) {
+          isiNol = false;
+          gagal.push({ bagian: "stok", kode: "STOK_KOSONG" });
+        } else if (
+          o.batasHilangStokPersen != null &&
+          ((ids.length - stok.length) * 100) / ids.length > o.batasHilangStokPersen
+        ) {
+          isiNol = false;
+          gagal.push({ bagian: "stok", kode: "STOK_BANYAK_HILANG" });
+        }
         stokDisimpan += await o.repo.simpanStok(lokasiId, ids, stok, {
-          // Ada baris cacat → jangan anggap SKU yang hilang = stok 0 (data basi ≠ stok habis).
-          isiNol: o.pengumpul.jumlahTidakValid === sebelum,
+          isiNol,
           waktu: sekarang(),
         });
       } catch (e) {
@@ -105,16 +154,26 @@ export async function sinkronInventori(o: OpsiSinkron): Promise<HasilSinkron> {
     }
   }
 
-  const modal = { disimpan: 0, dikosongkan: 0, turun: 0 };
+  const modal = { disimpan: 0, dikosongkan: 0, turun: 0, naik: 0, peringatanRupiah: 0 };
   for (const ids of batch) {
     try {
       const daftar = await o.inventory.getHargaModal(ids);
+      if (daftar.length === 0 && ids.length > 0) {
+        // Respons kosong total = anomali: JANGAN kosongkan modal semua satuan jual. Snapshot lama
+        // dibiarkan menua; TODO(invoice/checkout): wajib menolak modal lewat batas usia P-10.
+        gagal.push({ bagian: "modal", kode: "MODAL_KOSONG" });
+        continue;
+      }
       const r = await o.repo.simpanModal(ids, daftar, sekarang());
       modal.disimpan += r.disimpan;
       modal.dikosongkan += r.dikosongkan;
       modal.turun += r.turun;
+      modal.naik += r.naik;
+      modal.peringatanRupiah += r.peringatanRupiah;
     } catch (e) {
-      // Snapshot modal lama menua → engine harga menahan satuan jual (P-10), tidak dijual.
+      // Snapshot modal lama dibiarkan menua. Katalog TIDAK menegakkan usia modal (agar tetap tampil
+      // saat gangguan, T-009 §6); TODO(invoice/checkout): penerbitan tagihan WAJIB menolak modal
+      // yang lebih tua dari INVENTORY_MAKS_UMUR_DATA_MENIT (P-10, K-15).
       gagal.push({ bagian: "modal", kode: kodeGalat(e) });
       if (e instanceof InventoryError && e.kode !== "DATA_TIDAK_VALID") break;
     }

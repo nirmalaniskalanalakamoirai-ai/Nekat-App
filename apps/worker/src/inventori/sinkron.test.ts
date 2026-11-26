@@ -20,6 +20,8 @@ function repoPalsu() {
     audit: [] as { jenis: string; data: unknown }[],
     sku: 0,
     penuh: [] as boolean[],
+    maksNonaktif: [] as number[],
+    tahan: false,
   };
   const repo: RepoSinkronInventori = {
     skuTerpetakan: () => Promise.resolve(SKU),
@@ -27,7 +29,13 @@ function repoPalsu() {
     terapkanSku: (h, o) => {
       catatan.sku = h.length;
       catatan.penuh.push(o.penuh);
-      return Promise.resolve({ diubah: h.length, dinonaktifkan: 0, satuanBeda: 0 });
+      catatan.maksNonaktif.push(o.maksNonaktif);
+      return Promise.resolve({
+        diubah: h.length,
+        dinonaktifkan: 0,
+        satuanBeda: 0,
+        ditahan: catatan.tahan,
+      });
     },
     simpanStok: (_l, ids, stok, o) => {
       catatan.stok.push({ ids: ids.length, stok: stok.length, isiNol: o.isiNol });
@@ -35,7 +43,13 @@ function repoPalsu() {
     },
     simpanModal: (ids, modal) => {
       catatan.modal.push(ids.length);
-      return Promise.resolve({ disimpan: modal.length, dikosongkan: 0, turun: 0 });
+      return Promise.resolve({
+        disimpan: modal.length,
+        dikosongkan: 0,
+        turun: 0,
+        naik: 0,
+        peringatanRupiah: 0,
+      });
     },
     catatTinjauan: (t) => {
       catatan.tinjauan.push(t);
@@ -145,6 +159,79 @@ describe("sinkronInventori", () => {
     });
     expect(catatan.penuh).toEqual([false]);
     expect(h.gagal).toContainEqual({ bagian: "sku", kode: "DAFTAR_SKU_KOSONG" });
+  });
+
+  it("baris SKU cacat di daftar Gudang → sinkron TIDAK penuh (SKU cacat tidak dinonaktifkan)", async () => {
+    const { repo, catatan } = repoPalsu();
+    const pengumpul = new PengumpulPeristiwaSinkron();
+    const dasar = inventoryPalsu(pengumpul);
+    const h = await sinkronInventori({
+      inventory: inventoryPalsu(pengumpul, {
+        listSku: () => {
+          pengumpul.catat({ kode: "BARIS_TIDAK_VALID", skuId: "", keterangan: "field nama" });
+          return dasar.listSku();
+        },
+      }),
+      repo,
+      pengumpul,
+    });
+    expect(catatan.penuh).toEqual([false]);
+    expect(h.gagal).toContainEqual({ bagian: "sku", kode: "BARIS_SKU_TIDAK_VALID" });
+  });
+
+  it("ambang anomali penonaktifan: min(jumlah, persen × terpetakan); ditahan → dicatat gagal", async () => {
+    const { repo, catatan } = repoPalsu();
+    catatan.tahan = true;
+    const pengumpul = new PengumpulPeristiwaSinkron();
+    const h = await sinkronInventori({
+      inventory: inventoryPalsu(pengumpul),
+      repo,
+      pengumpul,
+      batasNonaktif: { jumlah: 50, persen: 10 },
+    });
+    // 201 SKU terpetakan × 10 % = 20 (lebih kecil dari 50).
+    expect(catatan.maksNonaktif).toEqual([20]);
+    expect(catatan.penuh).toEqual([true]);
+    expect(h.gagal).toContainEqual({ bagian: "sku", kode: "ANOMALI_PENONAKTIFAN" });
+    expect(catatan.audit[0]?.jenis).toBe("SINKRON_GUDANG_SEBAGIAN");
+  });
+
+  it("respons stok `data: []` untuk permintaan tak kosong → anomali, BUKAN stok 0", async () => {
+    const { repo, catatan } = repoPalsu();
+    const pengumpul = new PengumpulPeristiwaSinkron();
+    const h = await sinkronInventori({
+      inventory: inventoryPalsu(pengumpul, { getStok: () => Promise.resolve([]) }),
+      repo,
+      pengumpul,
+    });
+    expect(catatan.stok.map((x) => x.isiNol)).toEqual([false, false]);
+    expect(h.gagal.filter((g) => g.kode === "STOK_KOSONG")).toHaveLength(2);
+  });
+
+  it("ambang opsional SKU hilang dari respons stok", async () => {
+    const { repo, catatan } = repoPalsu();
+    const pengumpul = new PengumpulPeristiwaSinkron();
+    // Batch 200 → 2 dikembalikan (99 % hilang); batch 1 → 1 dikembalikan (0 % hilang).
+    const h = await sinkronInventori({
+      inventory: inventoryPalsu(pengumpul),
+      repo,
+      pengumpul,
+      batasHilangStokPersen: 50,
+    });
+    expect(catatan.stok.map((x) => x.isiNol)).toEqual([false, true]);
+    expect(h.gagal).toContainEqual({ bagian: "stok", kode: "STOK_BANYAK_HILANG" });
+  });
+
+  it("respons modal `data: []` → anomali, modal TIDAK dikosongkan", async () => {
+    const { repo, catatan } = repoPalsu();
+    const pengumpul = new PengumpulPeristiwaSinkron();
+    const h = await sinkronInventori({
+      inventory: inventoryPalsu(pengumpul, { getHargaModal: () => Promise.resolve([]) }),
+      repo,
+      pengumpul,
+    });
+    expect(catatan.modal).toEqual([]);
+    expect(h.gagal.filter((g) => g.kode === "MODAL_KOSONG")).toHaveLength(2);
   });
 
   it("baris stok tidak valid di respons → SKU yang hilang TIDAK dianggap stok 0", async () => {

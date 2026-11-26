@@ -8,6 +8,7 @@ import {
   buatRepoOutboxPicking,
   buatRepoSinkronInventori,
 } from "@nekat/db";
+import type { InventorySource } from "@nekat/domain";
 import { bacaKonfigurasi } from "./config.js";
 import { kirimOutboxPicking } from "./inventori/picking.js";
 import { PengumpulPeristiwaSinkron, sinkronInventori } from "./inventori/sinkron.js";
@@ -33,14 +34,24 @@ const logPeristiwa = (p: PeristiwaInventori): void => {
 };
 const pengumpul = new PengumpulPeristiwaSinkron(logPeristiwa);
 
-// Toggle InventorySource (T-018/T-019): dibaca sekali saat start.
-const inventory = buatInventorySource(konfigurasi.inventory, {
-  idempotensi,
-  repo: buatRepoInventoriLokal(db),
-  pemetaan: buatPemetaanSumberPg(db),
-  profilBaca: "sinkron",
-  catat: pengumpul.catat,
-});
+// Toggle InventorySource (T-018/T-019): dibaca sekali saat start. Gagal → keluar dengan pesan jelas
+// (pesan error adapter/konfigurasi hanya menyebut nama variabel/dependensi, tanpa nilai rahasia).
+let inventory: InventorySource;
+try {
+  inventory = buatInventorySource(konfigurasi.inventory, {
+    idempotensi,
+    repo: buatRepoInventoriLokal(db),
+    pemetaan: buatPemetaanSumberPg(db),
+    profilBaca: "sinkron",
+    catat: pengumpul.catat,
+  });
+} catch (e) {
+  console.error(
+    `[worker] InventorySource "${konfigurasi.inventory.sumber}" gagal dibuat: ${(e as Error).message}`,
+  );
+  await db.$client.end();
+  process.exit(1);
+}
 const repoSinkron = buatRepoSinkronInventori(db);
 const repoOutbox = buatRepoOutboxPicking(db);
 
@@ -58,7 +69,12 @@ await daftarkanJobInventori(boss, {
   sinkron:
     inventory.nama === "gudang"
       ? async () => {
-          const h = await sinkronInventori({ inventory, repo: repoSinkron, pengumpul });
+          const h = await sinkronInventori({
+            inventory,
+            repo: repoSinkron,
+            pengumpul,
+            batasNonaktif: konfigurasi.inventory.batasNonaktif,
+          });
           if (h.gagal.length > 0) {
             console.warn(`[worker] sinkron Gudang sebagian gagal: ${JSON.stringify(h.gagal)}`);
           }

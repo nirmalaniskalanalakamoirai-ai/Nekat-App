@@ -1,15 +1,23 @@
 // Outbox permintaan picking (T-019, T-009 §1/§5): `picking:{grup_id}:v{versi}` dikirim worker lewat
 // InventorySource, retry berjenjang sampai 6 jam, lalu GAGAL + antrean tinjauan admin.
 // Payload = PermintaanPicking (tanpa nama/HP/alamat; divalidasi skema ketat sebelum disimpan).
-import type { EntriOutboxPicking, RepoOutboxPicking } from "@nekat/domain";
+import type { EntriOutboxPicking, KlaimOutbox, RepoOutboxPicking } from "@nekat/domain";
 import { permintaanPickingSchema } from "@nekat/shared";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "../koneksi.js";
 import { antreanTinjauan, logAudit, outbox } from "../skema/index.js";
 
 /** Kode galat disimpan tanpa pesan bebas (tanpa PII/rahasia). */
 const POLA_KODE = /^[A-Z_]{1,40}$/;
 const kodeAman = (k: string) => (POLA_KODE.test(k) ? k : "GALAT_LAIN");
+
+/**
+ * Hanya pemegang klaim yang boleh mengubah entri: masih MENUNGGU dan `percobaan` sama dengan saat
+ * diklaim (worker lain yang mengklaim ulang setelah lease habis menaikkan `percobaan`).
+ */
+function milikKlaim(k: KlaimOutbox) {
+  return and(eq(outbox.id, k.id), eq(outbox.status, "MENUNGGU"), eq(outbox.percobaan, k.percobaan));
+}
 
 export function buatRepoOutboxPicking(db: Db): RepoOutboxPicking {
   return {
@@ -58,12 +66,14 @@ export function buatRepoOutboxPicking(db: Db): RepoOutboxPicking {
       }));
     },
 
-    async tandaiTerkirim(id, hasil, sekarang) {
-      await db.transaction(async (tx) => {
-        await tx
+    async tandaiTerkirim(klaim, hasil, sekarang) {
+      return db.transaction(async (tx) => {
+        const r = await tx
           .update(outbox)
           .set({ status: "TERKIRIM", terkirimPada: sekarang, galatTerakhir: null })
-          .where(eq(outbox.id, id));
+          .where(milikKlaim(klaim))
+          .returning({ id: outbox.id });
+        if (r.length === 0) return false;
         await tx.insert(logAudit).values({
           jenis: "PICKING_TERKIRIM",
           aktor: "SISTEM",
@@ -71,33 +81,37 @@ export function buatRepoOutboxPicking(db: Db): RepoOutboxPicking {
           refId: hasil.grupId,
           data: { status: hasil.status, referensiSumber: hasil.referensiSumber },
         });
+        return true;
       });
     },
 
-    async jadwalkanUlang(id, kirimSetelah, kodeGalat) {
-      await db
+    async jadwalkanUlang(klaim, kirimSetelah, kodeGalat) {
+      const r = await db
         .update(outbox)
         .set({ kirimSetelah, galatTerakhir: kodeAman(kodeGalat) })
-        .where(eq(outbox.id, id));
+        .where(milikKlaim(klaim))
+        .returning({ id: outbox.id });
+      return r.length > 0;
     },
 
-    async tandaiGagal(id, kodeGalat, jenisTinjauan) {
-      await db.transaction(async (tx) => {
+    async tandaiGagal(klaim, kodeGalat, jenisTinjauan) {
+      return db.transaction(async (tx) => {
         const [b] = await tx
           .update(outbox)
           .set({ status: "GAGAL", galatTerakhir: kodeAman(kodeGalat) })
-          .where(eq(outbox.id, id))
+          .where(milikKlaim(klaim))
           .returning({ grupId: outbox.grupId, kunci: outbox.kunciIdempotensi });
-        if (!b) return;
+        if (!b) return false;
         await tx
           .insert(antreanTinjauan)
           .values({
             jenis: jenisTinjauan,
             entitasJenis: b.grupId ? "grup" : "outbox",
-            entitasId: b.grupId ?? id,
-            data: { outboxId: id, kunciIdempotensi: b.kunci, galat: kodeAman(kodeGalat) },
+            entitasId: b.grupId ?? klaim.id,
+            data: { outboxId: klaim.id, kunciIdempotensi: b.kunci, galat: kodeAman(kodeGalat) },
           })
           .onConflictDoNothing();
+        return true;
       });
     },
   };

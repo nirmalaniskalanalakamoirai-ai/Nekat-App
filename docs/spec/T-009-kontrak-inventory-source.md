@@ -237,9 +237,11 @@ Kode: `packages/adapters/src/inventori/{gudang-api-inventory,http-gudang}.ts`, s
 
 **Snapshot & data basi.** Job sinkron worker (`INVENTORY_INTERVAL_SINKRON_MENIT`) menulis `stok_lokasi` dan `modal_satuan_jual` (sumber `GUDANG`, `disinkron_pada`). Katalog membaca snapshot lewat `PembacaSnapshotInventori` (tidak memanggil adapter per request). Umur data = yang tertua dari `data_pada` dan `disinkron_pada`. Status stok katalog: `TERSEDIA`, `HABIS` (sumber menyatakan 0, K-20), `TIDAK_DIKETAHUI` (snapshot lewat batas usia P-10 atau belum pernah disinkron; label "Stok sedang dicek, coba lagi sebentar"). Respons stok berisi baris tidak valid → SKU yang hilang tidak dianggap 0.
 
-**Picking.** Outbox `PICKING` (kunci `picking:{grup_id}:v{n}`) diklaim dengan lease 2 menit (`FOR UPDATE SKIP LOCKED`), dikirim lewat `InventorySource`, retry 30 dtk × 2^(n−1) (maks. 30 menit, jitter ≤ 10 %, `Retry-After` dihormati) sampai 6 jam sejak masuk outbox → `GAGAL` + antrean `PICKING_GAGAL`; `KONFLIK_IDEMPOTENSI` → antrean `KONFLIK_IDEMPOTENSI`; `DITOLAK`/`DATA_TIDAK_VALID` → `GAGAL` tanpa retry. I-02: NEKAT cek penyimpan idempotensi dulu, lalu kirim dengan `Idempotency-Key`; referensi Gudang disimpan di `idempotensi_inventori`.
+**Usia modal (P-10).** Katalog TIDAK menegakkan usia modal agar tetap tampil dari snapshot saat Gudang terganggu (§6); stok basi tetap tampil "tidak diketahui" dan tombol beli nonaktif. **Wajib:** use case penerbitan tagihan/checkout (K-15) menolak modal yang lebih tua dari `INVENTORY_MAKS_UMUR_DATA_MENIT` — belum ada di kode (TODO di `apps/api/src/server.ts`, `apps/worker/src/inventori/sinkron.ts`).
 
-**Keputusan terbuka baru (ID sementara; dicatat di sini, belum di `keputusan-terbuka.md`).**
+**Picking.** Outbox `PICKING` (kunci `picking:{grup_id}:v{n}`) diklaim dengan lease max(2 menit, batas × (timeout 10 dtk + cadangan 5 dtk)) (`FOR UPDATE SKIP LOCKED`); hanya pemegang klaim (status `MENUNGGU` + `percobaan` sama) yang boleh menandai hasil, dikirim lewat `InventorySource`, retry 30 dtk × 2^(n−1) (maks. 30 menit, jitter ≤ 10 %, `Retry-After` dihormati) sampai 6 jam sejak masuk outbox → `GAGAL` + antrean `PICKING_GAGAL`; `KONFLIK_IDEMPOTENSI` → antrean `KONFLIK_IDEMPOTENSI`; `DITOLAK`/`DATA_TIDAK_VALID` → `GAGAL` tanpa retry. I-02: NEKAT cek penyimpan idempotensi dulu, lalu kirim dengan `Idempotency-Key`; referensi Gudang disimpan di `idempotensi_inventori`.
+
+**Keputusan terbuka baru.** Status resmi & jawaban: lihat `project-specs/keputusan-terbuka.md` (IG-01–IG-07 dicatat koordinator). Tabel di bawah = ringkasan default sementara yang dipakai kode.
 
 | # | Pertanyaan | Pemilik | Default sementara (dipakai kode) | Rekomendasi agen |
 |---|---|---|---|---|
@@ -250,6 +252,7 @@ Kode: `packages/adapters/src/inventori/{gudang-api-inventory,http-gudang}.ts`, s
 | IG-05 | SKU terpetakan yang hilang dari daftar SKU Gudang / dari respons stok | Joseph | Hilang dari `listSku()` penuh → `aktif_di_sumber=false`; hilang dari respons stok yang valid → stok 0 (`HABIS`) | Pertahankan (sesuai §3 "tak dikenal = stok 0") |
 | IG-06 | Modal di mode Gudang vs modal MANUAL lama | Efan | Sinkron menimpa `modal_satuan_jual` (sumber `GUDANG`); satuan jual tanpa modal valid dari Gudang → modal kosong (tidak tayang). Timpaan admin tetap lewat `modal_timpaan` (P-25) | Pertahankan; panel admin menampilkan modal Gudang vs timpaan |
 | IG-07 | Mekanisme retry picking | Joseph | Outbox NEKAT (`kirim_setelah`, `percobaan`) diproses job pg-boss tiap menit, bukan retry bawaan pg-boss (lihat di atas) | Pertahankan: status & riwayat terlihat di panel admin |
+| IG-08 | Ambang anomali penonaktifan SKU saat sinkron penuh | Joseph | Calon nonaktif > `INVENTORY_BATAS_NONAKTIF_SKU` (50) atau > `INVENTORY_BATAS_NONAKTIF_PERSEN` (20 %) SKU terpetakan → penonaktifan ditahan + `log_audit` `SINKRON_GUDANG_ANOMALI_NONAKTIF`; baris SKU cacat / daftar kosong → sinkron tidak penuh; respons stok/modal `data: []` → anomali (tidak diisi 0 / tidak dikosongkan) | Pertahankan; tampilkan anomali di panel admin |
 
 ## Riwayat versi
 

@@ -122,9 +122,9 @@ describe.skipIf(!URL_ADMIN)("snapshot inventori & outbox picking (PostgreSQL nya
           // NEKAT: gram, Gudang: pcs → tidak bisa dibandingkan → nonaktif.
           { ...dasar, skuId: v("c"), satuanDasar: "pcs", aktifDiSumber: true },
         ],
-        { penuh: true, waktu: W },
+        { penuh: true, maksNonaktif: 10, waktu: W },
       );
-      expect(hasil).toEqual({ diubah: 2, dinonaktifkan: 1, satuanBeda: 1 });
+      expect(hasil).toEqual({ diubah: 2, dinonaktifkan: 1, satuanBeda: 1, ditahan: false });
       const aktif = await q(
         `SELECT kode_sku, aktif_di_sumber FROM sku WHERE id IN ('${v("a")}','${v("b")}','${v("c")}','${v("lokal")}') ORDER BY kode_sku`,
       );
@@ -187,7 +187,13 @@ describe.skipIf(!URL_ADMIN)("snapshot inventori & outbox picking (PostgreSQL nya
         ],
         W,
       );
-      expect(hasil).toEqual({ disimpan: 1, dikosongkan: 2, turun: 1 });
+      expect(hasil).toEqual({
+        disimpan: 1,
+        dikosongkan: 2,
+        turun: 1,
+        naik: 0,
+        peringatanRupiah: 0,
+      });
       const m =
         await q(`SELECT sj.jenis, s.kode_sku, m.modal_rp::int AS modal_rp, m.modal_gudang_rp::int AS modal_gudang_rp, m.sumber, m.disinkron_pada = '2026-11-26T05:00:00Z' AS disinkron_pada
         FROM modal_satuan_jual m JOIN satuan_jual sj ON sj.id = m.satuan_jual_id JOIN sku s ON s.id = sj.sku_id
@@ -226,6 +232,86 @@ describe.skipIf(!URL_ADMIN)("snapshot inventori & outbox picking (PostgreSQL nya
       // Tidak ada harga jual/margin yang ditulis job sinkron.
       expect(await q(`SELECT count(*)::int AS n FROM harga_level`)).toEqual([{ n: 0 }]);
       expect(await q(`SELECT count(*)::int AS n FROM harga_terhitung`)).toEqual([{ n: 0 }]);
+    });
+
+    it("terapkanSku: calon nonaktif > maksNonaktif → ditahan (anomali) + log audit, tidak ada yang dinonaktifkan", async () => {
+      const r = buatRepoSinkronInventori(db);
+      const hasil = await r.terapkanSku(
+        [
+          {
+            skuId: v("a"),
+            skuSumberId: "G-A",
+            nama: "Minyak",
+            kategori: "minyak",
+            satuanDasar: "pcs",
+            konversiSatuan: [],
+            beratGram: null,
+            barcode: null,
+            aktifDiSumber: true,
+            diubahPada: "2026-11-26T04:00:00+07:00",
+          },
+        ],
+        // b & c hilang (2 calon) > batas 1.
+        { penuh: true, maksNonaktif: 1, waktu: W },
+      );
+      expect(hasil).toEqual({ diubah: 0, dinonaktifkan: 0, satuanBeda: 0, ditahan: true });
+      expect(await q(`SELECT count(*)::int AS n FROM sku WHERE aktif_di_sumber = false`)).toEqual([
+        { n: 0 },
+      ]);
+      expect(
+        await q(`SELECT data FROM log_audit WHERE jenis = 'SINKRON_GUDANG_ANOMALI_NONAKTIF'`),
+      ).toEqual([{ data: { calon: 2, batas: 1, terpetakan: 3 } }]);
+    });
+
+    it("simpanModal: data lebih tua tidak menimpa; kenaikan dicatat + peringatan harga RUPIAH berhenti tayang", async () => {
+      const r = buatRepoSinkronInventori(db);
+      await q(`INSERT INTO harga_level (satuan_jual_id, level, mode, harga_jual_rp)
+        VALUES ('${v("a1")}', 'SATUAN', 'RUPIAH', 17000)`);
+      // Lebih tua dari snapshot (04:58) → diabaikan.
+      const tua = await r.simpanModal(
+        [v("a")],
+        [
+          {
+            skuId: v("a"),
+            satuan: "PCS_1",
+            modalPerSatuan: keRupiah(99_000),
+            dataPada: "2026-11-26T03:00:00Z",
+          },
+        ],
+        W,
+      );
+      expect(tua.disimpan).toBe(0);
+      expect(
+        await q(
+          `SELECT modal_rp::int AS m FROM modal_satuan_jual WHERE satuan_jual_id = '${v("a1")}'`,
+        ),
+      ).toEqual([{ m: 15000 }]);
+      // Naik 15.000 → 18.000: harga SATUAN RUPIAH 17.000 ≤ modal → peringatan.
+      const naik = await r.simpanModal(
+        [v("a")],
+        [
+          {
+            skuId: v("a"),
+            satuan: "PCS_1",
+            modalPerSatuan: keRupiah(18_000),
+            dataPada: "2026-11-26T05:01:00Z",
+          },
+        ],
+        W,
+      );
+      expect(naik).toMatchObject({ disimpan: 1, naik: 1, peringatanRupiah: 1, turun: 0 });
+      expect(await q(`SELECT data FROM log_audit WHERE jenis = 'MODAL_GUDANG_NAIK'`)).toEqual([
+        { data: { sebelumRp: 15000, sesudahRp: 18000 } },
+      ]);
+      expect(
+        await q(
+          `SELECT ref_id, data FROM log_audit WHERE jenis = 'MODAL_NAIK_HARGA_RUPIAH_TIDAK_TAYANG'`,
+        ),
+      ).toEqual([{ ref_id: v("a1"), data: { modalBaruRp: 18000, level: ["SATUAN"] } }]);
+      // Pulihkan untuk tes pembaca.
+      await q(`DELETE FROM harga_level`);
+      await q(`UPDATE modal_satuan_jual SET modal_rp = 15000, modal_gudang_rp = 15000, data_pada = '2026-11-26T04:58:00Z'
+        WHERE satuan_jual_id = '${v("a1")}'`);
     });
 
     it("catatTinjauan: modal pecahan & SKU belum dipetakan masuk antrean tanpa dobel", async () => {
@@ -368,37 +454,54 @@ describe.skipIf(!URL_ADMIN)("snapshot inventori & outbox picking (PostgreSQL nya
       expect(lagi.map((x) => x.percobaan)).toEqual([2]);
 
       // Paralel: dua worker tidak mendapat entri yang sama (SKIP LOCKED).
-      await o.jadwalkanUlang(lagi[0]?.id ?? "", kini, "SUMBER_TIDAK_TERJANGKAU");
+      const klaimLagi = lagi[0] ?? { id: "", percobaan: 0 };
+      expect(await o.jadwalkanUlang(klaimLagi, kini, "SUMBER_TIDAK_TERJANGKAU")).toBe(true);
       const [x, y] = await Promise.all([o.klaim(10, kini, 120_000), o.klaim(10, kini, 120_000)]);
       expect(x.length + y.length).toBe(1);
       const g = await q(`SELECT galat_terakhir FROM outbox WHERE grup_id = '${grupId}'`);
       expect(g).toEqual([{ galat_terakhir: "SUMBER_TIDAK_TERJANGKAU" }]);
     });
 
-    it("tandaiTerkirim → TERKIRIM + log audit; tandaiGagal → GAGAL + antrean tinjauan admin", async () => {
+    it("lease habis → worker lain mengambil alih; worker lama tidak bisa menandai (pemilik klaim)", async () => {
       const o = buatRepoOutboxPicking(db);
-      const [row] = await q(`SELECT id FROM outbox WHERE grup_id = '${grupId}'`);
-      const outboxId = String(row?.["id"]);
-      await o.tandaiTerkirim(
-        outboxId,
-        { grupId, status: "DITERIMA", referensiSumber: "PK-9" },
-        new Date(),
+      const [row] = await q(
+        `SELECT extract(epoch FROM kirim_setelah)::float8 * 1000 AS ms FROM outbox WHERE grup_id = '${grupId}'`,
       );
-      expect(await q(`SELECT status FROM outbox WHERE id = '${outboxId}'`)).toEqual([
+      const leaseHabis = new Date(Number(row?.["ms"]) + 1_000);
+      // Worker B mengklaim setelah lease worker A (klaim sebelumnya) habis.
+      const [b] = await o.klaim(10, leaseHabis, 120_000);
+      expect(b).toBeDefined();
+      const klaimB = { id: b?.id ?? "", percobaan: b?.percobaan ?? 0 };
+      const klaimA = { id: klaimB.id, percobaan: klaimB.percobaan - 1 };
+      const hasil = { grupId, status: "DITERIMA" as const, referensiSumber: "PK-9" };
+      expect(await o.tandaiTerkirim(klaimA, hasil, new Date())).toBe(false);
+      expect(await o.jadwalkanUlang(klaimA, new Date(), "X")).toBe(false);
+      expect(await o.tandaiGagal(klaimA, "X", "PICKING_GAGAL")).toBe(false);
+      expect(await o.tandaiTerkirim(klaimB, hasil, new Date())).toBe(true);
+      // Sudah TERKIRIM → tidak bisa diubah lagi (status harus MENUNGGU).
+      expect(await o.jadwalkanUlang(klaimB, new Date(), "X")).toBe(false);
+      expect(await o.tandaiGagal(klaimB, "X", "PICKING_GAGAL")).toBe(false);
+      expect(await q(`SELECT status FROM outbox WHERE id = '${klaimB.id}'`)).toEqual([
         { status: "TERKIRIM" },
       ]);
       expect(await q(`SELECT data FROM log_audit WHERE jenis = 'PICKING_TERKIRIM'`)).toEqual([
         { data: { status: "DITERIMA", referensiSumber: "PK-9" } },
       ]);
-
-      await o.antrekan({ ...permintaan(), kunciIdempotensi: `picking:${grupId}:v2` });
-      const [r2] = await q(
-        `SELECT id FROM outbox WHERE kunci_idempotensi = 'picking:${grupId}:v2'`,
-      );
-      await o.tandaiGagal(String(r2?.["id"]), "pesan bebas: rahasia", "PICKING_GAGAL");
       expect(
-        await q(`SELECT status, galat_terakhir FROM outbox WHERE id = '${String(r2?.["id"])}'`),
-      ).toEqual([{ status: "GAGAL", galat_terakhir: "GALAT_LAIN" }]);
+        await q(`SELECT count(*)::int AS n FROM antrean_tinjauan WHERE jenis = 'PICKING_GAGAL'`),
+      ).toEqual([{ n: 0 }]);
+    });
+
+    it("tandaiGagal → GAGAL + antrean tinjauan admin; galat bebas disaring", async () => {
+      const o = buatRepoOutboxPicking(db);
+      await o.antrekan({ ...permintaan(), kunciIdempotensi: `picking:${grupId}:v2` });
+      const [k] = await o.klaim(10, new Date(Date.now() + 1_000), 120_000);
+      expect(k?.kunciIdempotensi).toBe(`picking:${grupId}:v2`);
+      const klaim = k ?? { id: "", percobaan: 0 };
+      expect(await o.tandaiGagal(klaim, "pesan bebas: rahasia", "PICKING_GAGAL")).toBe(true);
+      expect(await q(`SELECT status, galat_terakhir FROM outbox WHERE id = '${klaim.id}'`)).toEqual(
+        [{ status: "GAGAL", galat_terakhir: "GALAT_LAIN" }],
+      );
       const t = await q(
         `SELECT entitas_jenis, entitas_id::text AS e FROM antrean_tinjauan WHERE jenis = 'PICKING_GAGAL'`,
       );

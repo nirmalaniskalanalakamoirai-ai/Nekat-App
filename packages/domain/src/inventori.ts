@@ -147,12 +147,13 @@ export interface RepoSinkronInventori {
   lokasiAktif(): Promise<string[]>;
   /**
    * Terapkan status SKU dari sumber (`sku.aktif_di_sumber`). `penuh`: SKU terpetakan yang tidak
-   * muncul di `listSku()` dinonaktifkan (tak dikenal / kategori terlarang → tidak tayang).
+   * muncul di `listSku()` dinonaktifkan (tak dikenal / kategori terlarang → tidak tayang), KECUALI
+   * jumlahnya > `maksNonaktif` (anomali): penonaktifan itu ditahan (`ditahan: true`) + log audit.
    */
   terapkanSku(
     hasil: readonly SkuSumber[],
-    opsi: { readonly penuh: boolean; readonly waktu: Date },
-  ): Promise<{ diubah: number; dinonaktifkan: number; satuanBeda: number }>;
+    opsi: { readonly penuh: boolean; readonly maksNonaktif: number; readonly waktu: Date },
+  ): Promise<{ diubah: number; dinonaktifkan: number; satuanBeda: number; ditahan: boolean }>;
   /**
    * Simpan stok satu cabang. `isiNol`: SKU diminta yang tidak dikembalikan sumber = tak dikenal →
    * stok 0 (T-009 §3); false bila ada baris tidak valid di respons (data lama dibiarkan menua →
@@ -167,13 +168,21 @@ export interface RepoSinkronInventori {
   /**
    * Simpan modal per satuan jual (K-01) untuk SKU yang diminta. Satuan jual yang tidak dikembalikan
    * atau tidak valid → modal kosong (tidak tayang; snapshot lama TIDAK dipakai, T-009 §4).
-   * Penurunan modal hanya dicatat di log audit (K-02).
+   * Penurunan modal hanya dicatat di log audit (K-02); kenaikan juga dicatat, plus peringatan bila
+   * modal baru ≥ harga jual RUPIAH tersimpan (satuan itu berhenti tayang). Data sumber yang lebih
+   * tua dari snapshot tidak menimpa.
    */
   simpanModal(
     diminta: readonly string[],
     modal: readonly ModalSumber[],
     waktu: Date,
-  ): Promise<{ disimpan: number; dikosongkan: number; turun: number }>;
+  ): Promise<{
+    disimpan: number;
+    dikosongkan: number;
+    turun: number;
+    naik: number;
+    peringatanRupiah: number;
+  }>;
   catatTinjauan(t: TinjauanSinkron): Promise<void>;
   /** `log_audit` aktor SISTEM. `data` tanpa PII/rahasia. */
   catatAudit(jenis: string, data: Readonly<Record<string, unknown>>): Promise<void>;
@@ -190,19 +199,27 @@ export interface EntriOutboxPicking {
   readonly dibuatPada: Date;
 }
 
+/** Identitas klaim outbox: id + `percobaan` saat diklaim (token pemilik lease). */
+export type KlaimOutbox = Pick<EntriOutboxPicking, "id" | "percobaan">;
+
 export interface RepoOutboxPicking {
   /** Masukkan permintaan picking ke outbox; kunci sama → tidak dobel. */
   antrekan(p: PermintaanPicking): Promise<{ baru: boolean }>;
   /** Klaim entri MENUNGGU yang jatuh tempo dengan lease (mencegah kirim ganda antar-worker). */
   klaim(batas: number, sekarang: Date, leaseMs: number): Promise<EntriOutboxPicking[]>;
-  tandaiTerkirim(id: string, hasil: HasilPicking, sekarang: Date): Promise<void>;
-  jadwalkanUlang(id: string, kirimSetelah: Date, kodeGalat: string): Promise<void>;
+  /*
+   * Tiga method di bawah hanya berlaku untuk pemegang klaim: entri masih `MENUNGGU` DAN
+   * `percobaan` sama dengan saat diklaim (klaim ulang oleh worker lain setelah lease habis menaikkan
+   * `percobaan`). false = klaim sudah tidak dipegang, tidak ada yang diubah.
+   */
+  tandaiTerkirim(klaim: KlaimOutbox, hasil: HasilPicking, sekarang: Date): Promise<boolean>;
+  jadwalkanUlang(klaim: KlaimOutbox, kirimSetelah: Date, kodeGalat: string): Promise<boolean>;
   /** Status GAGAL + antrean tinjauan admin (`PICKING_GAGAL` / `KONFLIK_IDEMPOTENSI`). */
   tandaiGagal(
-    id: string,
+    klaim: KlaimOutbox,
     kodeGalat: string,
     jenisTinjauan: "PICKING_GAGAL" | "KONFLIK_IDEMPOTENSI",
-  ): Promise<void>;
+  ): Promise<boolean>;
 }
 
 // ---- Aturan murni ----

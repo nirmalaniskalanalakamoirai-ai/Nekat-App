@@ -217,6 +217,17 @@ describe("GudangApiInventory — kontrak T-009 §10", () => {
       expect(hasil).toHaveLength(3);
     });
 
+    it("batas total baris lintas halaman → DATA_TIDAK_VALID", async () => {
+      mock.ukuranHalamanSku = 2;
+      const terbatas = new GudangApiInventory({
+        klien: { baseUrl: mock.url, ambilToken: () => mock.token, izinkanHttpLokalUntukTes: true },
+        pemetaan: pemetaanMemori(),
+        idempotensi: idem,
+        maksBarisSku: 3,
+      });
+      expect((await galat(terbatas.listSku())).kode).toBe("DATA_TIDAK_VALID");
+    });
+
     it("baris kawat tidak valid diabaikan & dicatat tanpa nilai mentah", async () => {
       mock.sku = [
         skuMock("G-MINYAK-1L", { nama: 123, rahasia: "isi-mentah-xyz" }),

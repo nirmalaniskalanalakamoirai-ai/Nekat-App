@@ -212,11 +212,11 @@ describe.skipIf(!URL_ADMIN)("T-019 Gudang ujung ke ujung (mock Gudang + PostgreS
     await outbox.antrekan(req(1));
     const kini = () => new Date(Date.now() + 1_000);
     const h1 = await kirimOutboxPicking({ inventory: inventory(), repo: outbox, sekarang: kini });
-    expect(h1).toEqual({ terkirim: 1, dijadwalkanUlang: 0, gagal: 0 });
+    expect(h1).toEqual({ terkirim: 1, dijadwalkanUlang: 0, gagal: 0, klaimHilang: 0 });
     expect(mock.picking.size).toBe(1);
     expect(
       await kirimOutboxPicking({ inventory: inventory(), repo: outbox, sekarang: kini }),
-    ).toEqual({ terkirim: 0, dijadwalkanUlang: 0, gagal: 0 });
+    ).toEqual({ terkirim: 0, dijadwalkanUlang: 0, gagal: 0, klaimHilang: 0 });
     // Body ke Gudang tanpa data pribadi.
     const kiriman = mock.permintaan.find((p) => p.path === "/v1/picking");
     expect(JSON.stringify(kiriman?.body)).not.toMatch(/nama|nomorHp|alamat|\+62/);

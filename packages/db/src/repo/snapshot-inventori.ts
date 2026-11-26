@@ -16,6 +16,7 @@ import type { Db } from "../koneksi.js";
 import {
   antreanTinjauan,
   gudang,
+  hargaLevel,
   logAudit,
   modalSatuanJual,
   pemetaanSkuSumber,
@@ -203,9 +204,25 @@ export function buatRepoSinkronInventori(db: Db): RepoSinkronInventori {
           target.set(skuId, h.aktifDiSumber);
         }
         let dinonaktifkan = 0;
+        let ditahan = false;
         if (opsi.penuh) {
-          for (const id of terpetakan) {
-            if (!masuk.has(id)) {
+          const hilang = terpetakan.filter((id) => !masuk.has(id));
+          if (hilang.length > opsi.maksNonaktif) {
+            // Anomali (IG-08): terlalu banyak SKU "hilang" sekaligus → kemungkinan galat Gudang.
+            // Penonaktifan ditahan; admin meninjau lewat log audit.
+            ditahan = true;
+            await tx.insert(logAudit).values({
+              jenis: "SINKRON_GUDANG_ANOMALI_NONAKTIF",
+              aktor: "SISTEM",
+              refJenis: "inventori",
+              data: {
+                calon: hilang.length,
+                batas: opsi.maksNonaktif,
+                terpetakan: terpetakan.length,
+              },
+            });
+          } else {
+            for (const id of hilang) {
               target.set(id, false);
               dinonaktifkan++;
             }
@@ -229,7 +246,7 @@ export function buatRepoSinkronInventori(db: Db): RepoSinkronInventori {
             data: { jumlah: satuanBeda },
           });
         }
-        return { diubah, dinonaktifkan, satuanBeda };
+        return { diubah, dinonaktifkan, satuanBeda, ditahan };
       });
     },
 
@@ -277,15 +294,18 @@ export function buatRepoSinkronInventori(db: Db): RepoSinkronInventori {
     },
 
     async simpanModal(diminta, modal, waktu) {
+      const kosong = { disimpan: 0, dikosongkan: 0, turun: 0, naik: 0, peringatanRupiah: 0 };
       const ids = uuidSaja(diminta);
-      if (ids.length === 0) return { disimpan: 0, dikosongkan: 0, turun: 0 };
+      if (ids.length === 0) return kosong;
       const masuk = new Map<string, ModalSumber>(
         modal.map((m) => [`${m.skuId}\u0000${m.satuan}`, m]),
       );
       return db.transaction(async (tx) => {
-        let disimpan = 0;
-        let dikosongkan = 0;
-        let turun = 0;
+        const r = { ...kosong };
+        const catat = (jenis: string, refId: string, data: Record<string, unknown>) =>
+          tx
+            .insert(logAudit)
+            .values({ jenis, aktor: "SISTEM", refJenis: "satuan_jual", refId, data });
         for (const bagian of potong(ids)) {
           const sj = await tx
             .select({
@@ -293,34 +313,71 @@ export function buatRepoSinkronInventori(db: Db): RepoSinkronInventori {
               skuId: satuanJual.skuId,
               jenis: satuanJual.jenis,
               modalGudangLama: modalSatuanJual.modalGudangRp,
+              dataPadaLama: modalSatuanJual.dataPada,
             })
             .from(satuanJual)
             .leftJoin(modalSatuanJual, eq(modalSatuanJual.satuanJualId, satuanJual.id))
             .where(inArray(satuanJual.skuId, bagian))
             .orderBy(asc(satuanJual.id));
+          if (sj.length === 0) continue;
+          // Harga jual RUPIAH tersimpan (untuk peringatan "berhenti tayang" saat modal naik).
+          const hargaRupiah = new Map<string, { level: string; harga: number }[]>();
+          for (const h of await tx
+            .select({
+              satuanJualId: hargaLevel.satuanJualId,
+              level: hargaLevel.level,
+              harga: hargaLevel.hargaJualRp,
+            })
+            .from(hargaLevel)
+            .where(
+              and(
+                inArray(
+                  hargaLevel.satuanJualId,
+                  sj.map((x) => x.id),
+                ),
+                eq(hargaLevel.mode, "RUPIAH"),
+              ),
+            )) {
+            if (h.harga === null) continue;
+            const d = hargaRupiah.get(h.satuanJualId) ?? [];
+            d.push({ level: h.level, harga: h.harga });
+            hargaRupiah.set(h.satuanJualId, d);
+          }
+
           const nilai = [];
           for (const s of sj) {
             const m = masuk.get(`${s.skuId}\u0000${s.jenis}`);
+            const dataPada = m ? new Date(m.dataPada) : waktu;
+            // Pagar urutan: data sumber yang lebih tua dari snapshot tidak menimpa (sama dengan stok).
+            if (s.dataPadaLama !== null && dataPada < s.dataPadaLama) continue;
             const baru = m?.modalPerSatuan ?? null;
-            if (baru === null) dikosongkan++;
-            else disimpan++;
-            if (baru !== null && s.modalGudangLama !== null && baru < s.modalGudangLama) {
+            const lama = s.modalGudangLama;
+            if (baru === null) r.dikosongkan++;
+            else r.disimpan++;
+            if (baru !== null && lama !== null && baru < lama) {
               // K-02: penurunan modal hanya dicatat (tanpa ambang tahan).
-              turun++;
-              await tx.insert(logAudit).values({
-                jenis: "MODAL_GUDANG_TURUN",
-                aktor: "SISTEM",
-                refJenis: "satuan_jual",
-                refId: s.id,
-                data: { sebelumRp: s.modalGudangLama, sesudahRp: baru },
-              });
+              r.turun++;
+              await catat("MODAL_GUDANG_TURUN", s.id, { sebelumRp: lama, sesudahRp: baru });
+            }
+            if (baru !== null && lama !== null && baru > lama) {
+              r.naik++;
+              await catat("MODAL_GUDANG_NAIK", s.id, { sebelumRp: lama, sesudahRp: baru });
+              // Harga jual RUPIAH ≤ modal baru → engine menahan satuan ini (tidak tayang): peringatkan.
+              const kena = (hargaRupiah.get(s.id) ?? []).filter((h) => h.harga <= baru);
+              if (kena.length > 0) {
+                r.peringatanRupiah++;
+                await catat("MODAL_NAIK_HARGA_RUPIAH_TIDAK_TAYANG", s.id, {
+                  modalBaruRp: baru,
+                  level: kena.map((h) => h.level).sort(),
+                });
+              }
             }
             nilai.push({
               satuanJualId: s.id,
               modalRp: baru,
               sumber: "GUDANG",
               modalGudangRp: baru,
-              dataPada: m ? new Date(m.dataPada) : waktu,
+              dataPada,
               disinkronPada: waktu,
             });
           }
@@ -337,9 +394,11 @@ export function buatRepoSinkronInventori(db: Db): RepoSinkronInventori {
                 dataPada: sql`excluded.data_pada`,
                 disinkronPada: sql`excluded.disinkron_pada`,
               },
+              // Pertahanan berlapis untuk proses paralel: data lebih tua tidak menimpa.
+              setWhere: sql`${modalSatuanJual.dataPada} IS NULL OR ${modalSatuanJual.dataPada} <= excluded.data_pada`,
             });
         }
-        return { disimpan, dikosongkan, turun };
+        return r;
       });
     },
 

@@ -64,6 +64,8 @@ export interface OpsiGudangApiInventory {
   readonly retry?: Omit<OpsiRetry, "saatUlang">;
   /** Batas halaman `listSku` (kursor). Bawaan 200. */
   readonly maksHalamanSku?: number;
+  /** Batas total baris `listSku` lintas halaman (melindungi memori). Bawaan 100.000. */
+  readonly maksBarisSku?: number;
 }
 
 // ---- Format kawat Gudang (DEFAULT SEMENTARA, I-01). Field tambahan dari Gudang diabaikan. ----
@@ -130,6 +132,7 @@ export class GudangApiInventory implements InventorySource {
   readonly #kataTerlarang: readonly string[];
   readonly #retry: OpsiRetry;
   readonly #maksHalaman: number;
+  readonly #maksBaris: number;
 
   constructor(opsi: OpsiGudangApiInventory) {
     this.#klien = new KlienGudang(opsi.klien);
@@ -150,6 +153,7 @@ export class GudangApiInventory implements InventorySource {
       },
     };
     this.#maksHalaman = opsi.maksHalamanSku ?? 200;
+    this.#maksBaris = opsi.maksBarisSku ?? 100_000;
   }
 
   async listSku(sejak?: Date): Promise<SkuSumber[]> {
@@ -166,6 +170,9 @@ export class GudangApiInventory implements InventorySource {
         { metode: "GET", path: "v1/sku", query, timeoutMs: PROFIL_GUDANG.sinkron.timeoutMs },
         PROFIL_GUDANG.sinkron,
       );
+      if (mentah.length + amplop.data.length > this.#maksBaris) {
+        throw new InventoryError("DATA_TIDAK_VALID", "Daftar SKU Gudang melebihi batas baris");
+      }
       mentah.push(...amplop.data);
       kursor = amplop.berikutnya ?? null;
       if (kursor === null) break;

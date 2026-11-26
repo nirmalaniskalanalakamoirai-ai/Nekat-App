@@ -58,9 +58,10 @@ if (env.data.DATABASE_URL !== undefined) {
     snapshot: buatPembacaSnapshotInventori(db),
     sumber: konfigInventory.sumber,
     // Konfigurasi harga dari panel admin menyusul (T-037); bawaan: PPN belum dikonfigurasi.
-    // Batas usia modal TIDAK dipakai untuk tampilan katalog: saat Gudang terganggu katalog tetap
-    // tampil dari snapshot (T-009 §6) dengan stok "sedang dicek"; batas usia P-10 ditegakkan saat
-    // invoice/checkout (K-15; use case invoice menyusul).
+    // Batas usia modal SENGAJA tidak dipakai untuk tampilan katalog: saat Gudang terganggu katalog
+    // tetap tampil dari snapshot (T-009 §6), stok basi = "sedang dicek" & tombol beli nonaktif.
+    // TODO(invoice/checkout, K-15/P-10): penerbitan tagihan WAJIB menolak modal yang lebih tua dari
+    // INVENTORY_MAKS_UMUR_DATA_MENIT. Belum ada use case invoice, jadi belum ada penjualan.
     konfigurasiHarga: KONFIGURASI_HARGA_BAWAAN,
     maksUmurDataMenit: konfigInventory.maksUmurDataMenit,
     cacheMs: env.data.KATALOG_CACHE_DETIK * 1000,
