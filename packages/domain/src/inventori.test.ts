@@ -4,6 +4,9 @@ import {
   kodeKategoriTerlarang,
   pecahBatch,
   statusStokSatuanJual,
+  statusStokSnapshot,
+  jadwalUlangPicking,
+  BATAS_RETRY_PICKING_MS,
 } from "./inventori.js";
 
 describe("pecahBatch", () => {
@@ -55,6 +58,67 @@ describe("dataInventoriSegar (P-10)", () => {
 
   it("local tidak pernah kedaluwarsa", () => {
     expect(dataInventoriSegar("local", menitLalu(10_000), sekarang, 15)).toBe(true);
+  });
+});
+
+describe("statusStokSnapshot (T-019: data basi ≠ stok habis)", () => {
+  const kini = new Date("2026-11-26T05:00:00Z");
+  const dasar = {
+    sumber: "gudang" as const,
+    reservasi: 0,
+    isiSatuanDasar: 1,
+    sekarang: kini,
+    maksUmurDataMenit: 15,
+  };
+  const segar = new Date("2026-11-26T04:50:00Z");
+  const basi = new Date("2026-11-26T04:44:59Z");
+
+  it("data segar: stok cukup → TERSEDIA, stok 0 → HABIS", () => {
+    expect(statusStokSnapshot({ ...dasar, stok: { tersedia: 3, dataPada: segar } })).toBe(
+      "TERSEDIA",
+    );
+    expect(statusStokSnapshot({ ...dasar, stok: { tersedia: 0, dataPada: segar } })).toBe("HABIS");
+  });
+
+  it("data basi → TIDAK_DIKETAHUI walau stok snapshot 0 atau banyak", () => {
+    expect(statusStokSnapshot({ ...dasar, stok: { tersedia: 0, dataPada: basi } })).toBe(
+      "TIDAK_DIKETAHUI",
+    );
+    expect(statusStokSnapshot({ ...dasar, stok: { tersedia: 99, dataPada: basi } })).toBe(
+      "TIDAK_DIKETAHUI",
+    );
+  });
+
+  it("tanpa baris: gudang → TIDAK_DIKETAHUI, local → HABIS", () => {
+    expect(statusStokSnapshot({ ...dasar, stok: undefined })).toBe("TIDAK_DIKETAHUI");
+    expect(statusStokSnapshot({ ...dasar, sumber: "local", stok: undefined })).toBe("HABIS");
+  });
+
+  it("local tidak pernah basi; reservasi mengurangi stok bebas", () => {
+    const lama = { tersedia: 5, dataPada: new Date("2020-01-01T00:00:00Z") };
+    expect(statusStokSnapshot({ ...dasar, sumber: "local", stok: lama })).toBe("TERSEDIA");
+    expect(statusStokSnapshot({ ...dasar, sumber: "local", stok: lama, reservasi: 5 })).toBe(
+      "HABIS",
+    );
+  });
+});
+
+describe("jadwalUlangPicking (T-009 §5: sampai 6 jam)", () => {
+  const dibuat = new Date("2026-11-26T00:00:00Z");
+  const jeda = (n: number, kini = dibuat, acak = 0) =>
+    (jadwalUlangPicking(n, dibuat, kini, acak)?.getTime() ?? Number.NaN) - kini.getTime();
+
+  it("eksponensial 30 dtk × 2^(n−1), maks. 30 menit, jitter ≤ 10%", () => {
+    expect([1, 2, 3, 6, 7, 20].map((n) => jeda(n))).toEqual([
+      30_000, 60_000, 120_000, 960_000, 1_800_000, 1_800_000,
+    ]);
+    expect(jeda(1, dibuat, 0.999)).toBe(32_997);
+  });
+
+  it("lewat 6 jam sejak masuk outbox → null (GAGAL)", () => {
+    const hampir = new Date(dibuat.getTime() + BATAS_RETRY_PICKING_MS - 40_000);
+    expect(jadwalUlangPicking(1, dibuat, hampir, 0)).not.toBeNull();
+    expect(jadwalUlangPicking(2, dibuat, hampir, 0)).toBeNull();
   });
 });
 

@@ -7,7 +7,12 @@
 // - PG-6: harga kartu & detail dari satu fungsi (`tampilanHargaKatalog`) dan objek yang sama.
 // - Modal, margin, isian sel, dan alasan admin tidak pernah masuk hasil (hanya kode di `ditahan`).
 // - Rokok/bir (keputusan #7): kategori terlarang (kode kategori ATAU induknya) disaring.
-import { LABEL_STOK_HABIS, type Rupiah } from "@nekat/shared";
+import {
+  LABEL_STOK_HABIS,
+  LABEL_STOK_TIDAK_DIKETAHUI,
+  type Rupiah,
+  type StatusStok,
+} from "@nekat/shared";
 import { cekKesegaranModal, hitungHargaProduk, normalisasiKodeKategori } from "../harga/hitung.js";
 import { labelSatuan } from "../harga/pesan.js";
 import {
@@ -19,7 +24,7 @@ import {
   type TabelHarga,
   type TinjauanKategori,
 } from "../harga/tipe.js";
-import { dataInventoriSegar, kodeKategoriTerlarang, statusStokSatuanJual } from "../inventori.js";
+import { kodeKategoriTerlarang, statusStokSnapshot } from "../inventori.js";
 import { kunciCari } from "./cari.js";
 import type {
   BarisKategoriKatalog,
@@ -82,8 +87,22 @@ export function tampilanHargaKatalog(t: TabelHarga): TampilanHargaKatalog | null
   return { hargaSatuan: satuan.harga, hargaBelanjaBareng: belanjaBareng };
 }
 
-function statusStok(tersedia: boolean): StatusStokTampil {
-  return tersedia ? { tersedia: true, label: null } : { tersedia: false, label: LABEL_STOK_HABIS };
+function statusStok(status: StatusStok): StatusStokTampil {
+  switch (status) {
+    case "TERSEDIA":
+      return { status, tersedia: true, label: null };
+    case "HABIS":
+      return { status, tersedia: false, label: LABEL_STOK_HABIS };
+    case "TIDAK_DIKETAHUI":
+      return { status, tersedia: false, label: LABEL_STOK_TIDAK_DIKETAHUI };
+  }
+}
+
+/** Status produk: ada satuan tersedia → TERSEDIA; ada yang tidak diketahui → TIDAK_DIKETAHUI; selain itu HABIS. */
+function statusProduk(semua: readonly SatuanTampil[]): StatusStok {
+  if (semua.some((x) => x.stok.status === "TERSEDIA")) return "TERSEDIA";
+  if (semua.some((x) => x.stok.status === "TIDAK_DIKETAHUI")) return "TIDAK_DIKETAHUI";
+  return "HABIS";
 }
 
 interface PosisiKategori {
@@ -159,10 +178,7 @@ export function susunKatalog(m: MasukanKatalog): SnapshotKatalog {
       );
 
       const stok = m.stok.get(s.id);
-      const segar =
-        stok !== undefined &&
-        dataInventoriSegar(m.sumber, stok.dataPada, m.sekarang, m.maksUmurDataMenit);
-      const bebas = segar ? stok.tersedia - (m.reservasi.get(s.id) ?? 0) : 0;
+      const reservasi = m.reservasi.get(s.id) ?? 0;
 
       const satuan: SatuanTampil[] = [];
       for (const t of hasil.satuan) {
@@ -185,7 +201,16 @@ export function susunKatalog(m: MasukanKatalog): SnapshotKatalog {
           label: labelSatuan(t.kode),
           isi: t.isi,
           harga,
-          stok: statusStok(statusStokSatuanJual(bebas, sj.isiSatuanDasar).bolehDibeli),
+          stok: statusStok(
+            statusStokSnapshot({
+              sumber: m.sumber,
+              stok,
+              reservasi,
+              isiSatuanDasar: sj.isiSatuanDasar,
+              sekarang: m.sekarang,
+              maksUmurDataMenit: m.maksUmurDataMenit,
+            }),
+          ),
         });
       }
       if (satuan.length > 0) {
@@ -207,7 +232,7 @@ export function susunKatalog(m: MasukanKatalog): SnapshotKatalog {
       subkategori: pos.sub ? ringkas(pos.sub) : null,
       varian,
       utama,
-      stok: statusStok(semua.some((x) => x.stok.tersedia)),
+      stok: statusStok(statusProduk(semua)),
       kunciCari: kunciCari([p.nama, ...varian.map((v) => v.nama ?? "")]),
       urutan: 0,
     });

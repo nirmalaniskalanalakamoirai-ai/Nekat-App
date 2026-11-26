@@ -1,18 +1,16 @@
-// Tes API katalog (T-025) dengan repo palsu + LocalInventory nyata (T-018) di atas repo memori.
+// Tes API katalog (T-025) dengan repo palsu + pembaca snapshot lokal di memori (T-019).
 // SEMUA ANGKA CONTOH FIKTIF (keputusan #6). Tidak ada produk rokok/bir nyata.
 import { readFileSync } from "node:fs";
-import { LocalInventory } from "@nekat/adapters";
 import {
   KONFIGURASI_HARGA_BAWAAN,
   type BarisModalLokal,
   type BarisStokLokal,
   type DataKatalog,
-  type PenyimpanIdempotensi,
-  type RepoInventoriLokal,
+  type PembacaSnapshotInventori,
   type RepoKatalog,
   type SatuanDitahan,
 } from "@nekat/domain";
-import { LABEL_STOK_HABIS } from "@nekat/shared";
+import { LABEL_STOK_HABIS, LABEL_STOK_TIDAK_DIKETAHUI } from "@nekat/shared";
 import { describe, expect, it } from "vitest";
 import { buatApp } from "./app.js";
 import { LayananKatalog } from "./katalog/layanan.js";
@@ -116,8 +114,7 @@ function buatData(
     },
     idGudang: (kode) => Promise.resolve(kode === KODE_GUDANG ? GUDANG : null),
   };
-  const repoInventori: RepoInventoriLokal = {
-    daftarSku: () => Promise.resolve([]),
+  const repoInventori: PembacaSnapshotInventori = {
     stok: (ids, gudangId): Promise<BarisStokLokal[]> =>
       Promise.resolve(
         ids
@@ -137,10 +134,6 @@ function buatData(
 function produkDari(skuId: string): string {
   return uid(5000 + Number(skuId.slice(-4)));
 }
-
-const hanyaBaca: PenyimpanIdempotensi = {
-  simpanBilaBelumAda: () => Promise.reject(new Error("tidak dipakai")),
-};
 
 // Katalog uji: A tayang berstok (pcs + dus), B tanpa harga, C harga di bawah modal,
 // D stok habis, E pagar dilanggar (Mitra Grosir > Satuan), F tayang (kategori susu).
@@ -195,11 +188,20 @@ const NAMA: Record<string, string> = {
 };
 const STOK: Record<string, number> = { [uid(201)]: 15, [uid(204)]: 0, [uid(206)]: 3 };
 
-function siapkan(opsi: { cacheMs?: number; ditahan?: SatuanDitahan[][] } = {}) {
+function siapkan(
+  opsi: {
+    cacheMs?: number;
+    ditahan?: SatuanDitahan[][];
+    sumber?: "local" | "gudang";
+    sekarang?: Date;
+  } = {},
+) {
   const { repoKatalog, repoInventori } = buatData(SATUAN, NAMA, STOK);
   const layanan = new LayananKatalog({
     repo: repoKatalog,
-    inventory: new LocalInventory({ repo: repoInventori, idempotensi: hanyaBaca }),
+    snapshot: repoInventori,
+    sumber: opsi.sumber ?? "local",
+    ...(opsi.sekarang ? { sekarang: () => opsi.sekarang ?? WAKTU } : {}),
     konfigurasiHarga: KONFIGURASI_HARGA_BAWAAN,
     maksUmurDataMenit: 15,
     cacheMs: opsi.cacheMs ?? 0,
@@ -211,6 +213,7 @@ function siapkan(opsi: { cacheMs?: number; ditahan?: SatuanDitahan[][] } = {}) {
 interface Kartu {
   id: string;
   nama: string;
+  statusStok: string;
   satuan: { id: string; harga: unknown; tersedia: boolean; labelStok: string | null };
   tersedia: boolean;
   labelStok: string | null;
@@ -302,14 +305,40 @@ describe("API katalog (T-025)", () => {
     expect(d.produk).toHaveLength(1);
     expect(d.produk[0]).toMatchObject({
       tersedia: false,
+      statusStok: "HABIS",
       labelStok: LABEL_STOK_HABIS,
-      satuan: { tersedia: false, labelStok: LABEL_STOK_HABIS },
+      satuan: { tersedia: false, statusStok: "HABIS", labelStok: LABEL_STOK_HABIS },
     });
     const det = (
       await app.inject({ method: "GET", url: `/api/katalog/produk/${uid(5204)}` })
     ).json<Detail>();
     expect(det.varian[0]?.satuan[0]?.tersedia).toBe(false);
     await app.close();
+  });
+
+  it("T-019: mode gudang, snapshot stok basi → 'tidak diketahui', BUKAN 'stok habis'", async () => {
+    // 20 menit setelah data snapshot > batas usia 15 menit (P-10).
+    const { app } = siapkan({
+      sumber: "gudang",
+      sekarang: new Date(WAKTU.getTime() + 20 * 60_000),
+    });
+    const d = (await app.inject({ method: "GET", url: "/api/katalog/produk" })).json<Daftar>();
+    expect(d.produk.length).toBeGreaterThan(0);
+    for (const p of d.produk) {
+      expect(p).toMatchObject({
+        tersedia: false,
+        statusStok: "TIDAK_DIKETAHUI",
+        labelStok: LABEL_STOK_TIDAK_DIKETAHUI,
+      });
+      expect(p.labelStok).not.toBe(LABEL_STOK_HABIS);
+    }
+    // Data segar di mode gudang: stok habis tetap "habis", yang berstok tetap tersedia.
+    const segar = siapkan({ sumber: "gudang", sekarang: new Date(WAKTU.getTime() + 60_000) }).app;
+    const s = (await segar.inject({ method: "GET", url: "/api/katalog/produk" })).json<Daftar>();
+    expect(s.produk.find((p) => p.nama === "Beras Uji Habis")?.statusStok).toBe("HABIS");
+    expect(s.produk.find((p) => p.nama === "Beras Uji Wangi")?.statusStok).toBe("TERSEDIA");
+    await app.close();
+    await segar.close();
   });
 
   it("harga kartu = harga detail untuk satuan yang sama; promo terpisah (null)", async () => {
@@ -342,6 +371,7 @@ describe("API katalog (T-025)", () => {
       subkategori: { kode: "beras", nama: "Beras" },
       satuanUtamaId: uid(301),
       tersedia: true,
+      statusStok: "TERSEDIA",
       labelStok: null,
       varian: [
         {
@@ -356,6 +386,7 @@ describe("API katalog (T-025)", () => {
               isi: 1,
               harga: { hargaSatuan: 1_000_000, hargaBelanjaBareng: 990_000 },
               tersedia: true,
+              statusStok: "TERSEDIA",
               labelStok: null,
             },
             {
@@ -365,6 +396,7 @@ describe("API katalog (T-025)", () => {
               isi: 10,
               harga: { hargaSatuan: 9_900_000, hargaBelanjaBareng: 9_800_000 },
               tersedia: true,
+              statusStok: "TERSEDIA",
               labelStok: null,
             },
           ],
@@ -468,14 +500,8 @@ describe("API katalog (T-025)", () => {
         muatData: () => Promise.reject(new Error("koneksi postgres://rahasia@db gagal")),
         idGudang: () => Promise.resolve(GUDANG),
       },
-      inventory: new LocalInventory({
-        repo: {
-          daftarSku: () => Promise.resolve([]),
-          stok: () => Promise.resolve([]),
-          modal: () => Promise.resolve([]),
-        },
-        idempotensi: hanyaBaca,
-      }),
+      snapshot: { stok: () => Promise.resolve([]), modal: () => Promise.resolve([]) },
+      sumber: "local",
       konfigurasiHarga: KONFIGURASI_HARGA_BAWAAN,
       maksUmurDataMenit: 15,
       cacheMs: 10_000,

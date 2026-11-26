@@ -9,6 +9,19 @@ export const BATAS_SKU_PER_PANGGILAN = 200;
 /** Teks label produk stok habis (K-20). Produk tetap tampil, tombol beli nonaktif. */
 export const LABEL_STOK_HABIS = "Stok habis, segera distok";
 
+/**
+ * Teks label saat data stok basi / belum pernah disinkron (T-019, tindak lanjut T-025): BUKAN stok
+ * habis. Teks diambil dari T-009 §6. DEFAULT SEMENTARA (IG-02): tombol beli juga nonaktif.
+ */
+export const LABEL_STOK_TIDAK_DIKETAHUI = "Stok sedang dicek, coba lagi sebentar";
+
+/**
+ * Status stok yang dibedakan katalog: `HABIS` = sumber menyatakan stok 0 (K-20);
+ * `TIDAK_DIKETAHUI` = snapshot lewat batas usia (P-10) atau belum pernah disinkron.
+ */
+export const STATUS_STOK_TAMPIL = ["TERSEDIA", "HABIS", "TIDAK_DIKETAHUI"] as const;
+export type StatusStok = (typeof STATUS_STOK_TAMPIL)[number];
+
 export const NAMA_SUMBER_INVENTORY = ["local", "gudang"] as const;
 export type NamaSumberInventory = (typeof NAMA_SUMBER_INVENTORY)[number];
 
