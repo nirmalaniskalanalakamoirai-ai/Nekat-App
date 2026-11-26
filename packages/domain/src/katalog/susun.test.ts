@@ -1,5 +1,5 @@
 // Tes katalog (T-025). Semua angka contoh fiktif.
-import { LABEL_STOK_HABIS } from "@nekat/shared";
+import { LABEL_STOK_HABIS, LABEL_STOK_TIDAK_DIKETAHUI } from "@nekat/shared";
 import { describe, expect, it } from "vitest";
 import { KONFIGURASI_HARGA_BAWAAN } from "../harga/hitung.js";
 import { potongHalaman, saringProduk } from "./cari.js";
@@ -36,7 +36,7 @@ describe("aturan tayang", () => {
     const s = satu(dasar);
     expect(s.produk).toHaveLength(1);
     expect(s.produk[0]?.utama.harga).toEqual({ hargaSatuan: 1_200, hargaBelanjaBareng: 1_100 });
-    expect(s.produk[0]?.stok).toEqual({ tersedia: true, label: null });
+    expect(s.produk[0]?.stok).toEqual({ status: "TERSEDIA", tersedia: true, label: null });
     expect(s.ditahan).toEqual([]);
   });
 
@@ -127,13 +127,22 @@ describe("K-20 stok habis", () => {
   it("tetap tampil dengan label, tidak tersedia, dan tetap dihitung di kategori", () => {
     const s = satu(ubahSku(dasar, { stok: 0 }));
     expect(s.produk).toHaveLength(1);
-    expect(s.produk[0]?.stok).toEqual({ tersedia: false, label: LABEL_STOK_HABIS });
-    expect(s.produk[0]?.utama.stok).toEqual({ tersedia: false, label: LABEL_STOK_HABIS });
+    expect(s.produk[0]?.stok).toEqual({
+      status: "HABIS",
+      tersedia: false,
+      label: LABEL_STOK_HABIS,
+    });
+    expect(s.produk[0]?.utama.stok).toEqual({
+      status: "HABIS",
+      tersedia: false,
+      label: LABEL_STOK_HABIS,
+    });
     expect(s.kategori[0]?.jumlahProduk).toBe(1);
   });
 
-  it("SKU tanpa baris stok = stok 0 (habis)", () => {
+  it("SKU tanpa baris stok = stok 0 (habis) di mode local", () => {
     expect(satu(tanpaStok(dasar)).produk[0]?.stok.tersedia).toBe(false);
+    expect(satu(tanpaStok(dasar)).produk[0]?.stok.status).toBe("HABIS");
   });
 
   it("stok per satuan jual: dus habis bila stok < isi; kartu memilih satuan yang tersedia", () => {
@@ -149,7 +158,7 @@ describe("K-20 stok habis", () => {
     const [pcs, dus] = s.produk[0]?.varian[0]?.satuan ?? [];
     expect(pcs?.kode).toBe("PCS_1");
     expect(pcs?.stok.tersedia).toBe(true);
-    expect(dus?.stok).toEqual({ tersedia: false, label: LABEL_STOK_HABIS });
+    expect(dus?.stok).toEqual({ status: "HABIS", tersedia: false, label: LABEL_STOK_HABIS });
     expect(s.produk[0]?.utama).toBe(pcs);
   });
 
@@ -173,10 +182,44 @@ describe("K-20 stok habis", () => {
     expect(s.produk[0]?.stok.tersedia).toBe(false);
   });
 
-  it("data stok kedaluwarsa (mode gudang, P-10) → tidak bisa dibeli", () => {
+  it("data stok kedaluwarsa (mode gudang, P-10) → tidak bisa dibeli, tapi BUKAN stok habis", () => {
     const m = masukan([dasar]);
     const s = susunKatalog({ ...m, sumber: "gudang", maksUmurDataMenit: 15 });
-    expect(s.produk[0]?.stok.tersedia).toBe(false);
+    const dataBasi = {
+      status: "TIDAK_DIKETAHUI",
+      tersedia: false,
+      label: LABEL_STOK_TIDAK_DIKETAHUI,
+    };
+    expect(s.produk[0]?.stok).toEqual(dataBasi);
+    expect(s.produk[0]?.utama.stok).toEqual(dataBasi);
+    expect(s.produk[0]?.stok.label).not.toBe(LABEL_STOK_HABIS);
+    // Tetap tampil & dihitung di kategori (seperti K-20), tidak disembunyikan.
+    expect(s.kategori[0]?.jumlahProduk).toBe(1);
+  });
+
+  it("mode gudang: SKU tanpa baris snapshot (belum pernah disinkron) → TIDAK_DIKETAHUI", () => {
+    const m = masukan([tanpaStok(dasar)]);
+    const s = susunKatalog({ ...m, sumber: "gudang", maksUmurDataMenit: 1440 * 365 });
+    expect(s.produk[0]?.stok.status).toBe("TIDAK_DIKETAHUI");
+  });
+
+  it("mode gudang: data segar & stok 0 → HABIS (bukan tidak diketahui)", () => {
+    const m = masukan([ubahSku(dasar, { stok: 0 })]);
+    const s = susunKatalog({ ...m, sumber: "gudang", maksUmurDataMenit: 1440 * 365 });
+    expect(s.produk[0]?.stok.status).toBe("HABIS");
+  });
+
+  it("produk TERSEDIA bila ada satuan tersedia walau satuan lain habis", () => {
+    const m = masukan([
+      ubahSku(dasar, {
+        stok: 5,
+        satuan: [
+          { id: uid(3002), jenis: "DUS", isi: 10, modal: 9_000, satuanRp: 11_000 },
+          { id: uid(3001), jenis: "PCS_1", isi: 1, modal: 1_000, satuanRp: 1_200 },
+        ],
+      }),
+    ]);
+    expect(susunKatalog(m).produk[0]?.stok.status).toBe("TERSEDIA");
   });
 });
 

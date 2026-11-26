@@ -1,6 +1,6 @@
 # T-009 — Kontrak `InventorySource`
 
-Status: usulan v0.4 (19 Nov 2026, T-018: §2 disamakan dengan skema DB T-004 & kode; lihat Riwayat versi) · v0.3 (15 Nov 2026, T-047: sinkron `keputusan.md` §11–§13 — snapshot saat invoice K-15/P-08, modal per satuan jual K-01, K-02, K-03; v0.2 12 Nov: keputusan PR #9 + temuan keamanan) · Squad: Build & QA (Joseph) · Dasar: `keputusan.md` #8, §11–§13, ADR-0001 §4.1
+Status: usulan v0.5 (26 Nov 2026, T-019: §12 implementasi GudangApiInventory) · v0.4 (19 Nov 2026, T-018: §2 disamakan dengan skema DB T-004 & kode; lihat Riwayat versi) · v0.3 (15 Nov 2026, T-047: sinkron `keputusan.md` §11–§13 — snapshot saat invoice K-15/P-08, modal per satuan jual K-01, K-02, K-03; v0.2 12 Nov: keputusan PR #9 + temuan keamanan) · Squad: Build & QA (Joseph) · Dasar: `keputusan.md` #8, §11–§13, ADR-0001 §4.1
 Tergantung: T-001 (selesai). Dipakai oleh: T-018 (`LocalInventory`), T-019 (`GudangApiInventory`), T-022, T-023, T-040.
 
 Inti: NEKAT membaca SKU, stok, dan harga modal dari satu antarmuka. Ada dua implementasi, `LocalInventory` (default) dan `GudangApiInventory`. Modul lain **hanya** membaca snapshot lokal dan tidak pernah memanggil Gudang langsung.
@@ -221,10 +221,41 @@ Satu set tes yang sama dijalankan terhadap `LocalInventory` dan `GudangApiInvent
 
 Sudah diputuskan dan diterapkan di dokumen ini: P-10 = 15 menit, H14 = tahan checkout, F-20 = cek stok di cabang, P-03 = satuan 1 pcs/3 pcs/lusin/dus/koli, P-25 = modal boleh ditimpa (12 Nov); K-01 = modal per satuan jual, pecahan → tidak tayang + tinjau; K-02 = penurunan modal hanya dicatat; K-03 = timpaan sampai dicabut + kedaluwarsa opsional dengan pemberitahuan; K-15/P-08 = snapshot harga & modal saat invoice, menggantikan F-08 (13 Nov); P-09/P-26 = DITAHAN (14 Nov). ADR-0001 §4.1/§9 H14 masih menyebut default "jual snapshot" — di luar cakupan T-047 (hanya H9), diusulkan sebagai task lanjutan.
 
+## 12. Implementasi T-019 (`GudangApiInventory`) — default sementara
+
+Kode: `packages/adapters/src/inventori/{gudang-api-inventory,http-gudang}.ts`, snapshot & outbox `packages/db/src/repo/{snapshot-inventori,outbox-picking}.ts`, job `apps/worker/src/inventori/{sinkron,picking}.ts`. Mock server Gudang hanya untuk tes: `packages/adapters/src/inventori/mock-gudang.test-util.ts`.
+
+**Format kawat Gudang — DEFAULT SEMENTARA (I-01, menunggu spesifikasi Gudang-Repo).** Base = `GUDANG_API_URL`; header `Authorization: Bearer`; field tambahan diabaikan; kg/liter dikonversi ×1000 tanpa pembulatan.
+
+| Method kontrak | HTTP | Body / query | Respons |
+|---|---|---|---|
+| `listSku(sejak?)` | `GET v1/sku?sejak=&kursor=` | — | `{ data: [{ id, nama, kategori, satuanDasar, konversi[], beratGram, barcode, aktif, diubahPada }], berikutnya }` |
+| `getStok` | `POST v1/stok/cari` | `{ lokasi, skuIds }` (ID Gudang) | `{ data: [{ skuId, lokasi, tersedia, satuan, dataPada }] }` |
+| `getHargaModal` | `POST v1/modal/cari` | `{ skuIds }` | `{ data: [{ skuId, satuan (PCS_1…KOLI), modal, dataPada }] }` |
+| `konfirmasiStok` | `POST v1/stok/konfirmasi` + `Idempotency-Key` | `{ grupId, skuId, lokasi, qtyDibutuhkan }` | `{ qtyTersedia, dataPada }`; 409 = konflik |
+| `kirimPermintaanPicking` | `POST v1/picking` + `Idempotency-Key` | `{ grupId, lokasi, slotKirim, baris[{ anggotaId, skuId, qty, caraKirim, dropPointId }] }` | `{ status: DITERIMA\|DUPLIKAT, referensi }`; 409 = konflik |
+
+**Snapshot & data basi.** Job sinkron worker (`INVENTORY_INTERVAL_SINKRON_MENIT`) menulis `stok_lokasi` dan `modal_satuan_jual` (sumber `GUDANG`, `disinkron_pada`). Katalog membaca snapshot lewat `PembacaSnapshotInventori` (tidak memanggil adapter per request). Umur data = yang tertua dari `data_pada` dan `disinkron_pada`. Status stok katalog: `TERSEDIA`, `HABIS` (sumber menyatakan 0, K-20), `TIDAK_DIKETAHUI` (snapshot lewat batas usia P-10 atau belum pernah disinkron; label "Stok sedang dicek, coba lagi sebentar"). Respons stok berisi baris tidak valid → SKU yang hilang tidak dianggap 0.
+
+**Picking.** Outbox `PICKING` (kunci `picking:{grup_id}:v{n}`) diklaim dengan lease 2 menit (`FOR UPDATE SKIP LOCKED`), dikirim lewat `InventorySource`, retry 30 dtk × 2^(n−1) (maks. 30 menit, jitter ≤ 10 %, `Retry-After` dihormati) sampai 6 jam sejak masuk outbox → `GAGAL` + antrean `PICKING_GAGAL`; `KONFLIK_IDEMPOTENSI` → antrean `KONFLIK_IDEMPOTENSI`; `DITOLAK`/`DATA_TIDAK_VALID` → `GAGAL` tanpa retry. I-02: NEKAT cek penyimpan idempotensi dulu, lalu kirim dengan `Idempotency-Key`; referensi Gudang disimpan di `idempotensi_inventori`.
+
+**Keputusan terbuka baru (ID sementara; dicatat di sini, belum di `keputusan-terbuka.md`).**
+
+| # | Pertanyaan | Pemilik | Default sementara (dipakai kode) | Rekomendasi agen |
+|---|---|---|---|---|
+| IG-01 | Data master SKU dari Gudang (nama, kategori, satuan, berat, barcode) ikut ditulis ke tabel NEKAT? | Joseph | Hanya `sku.aktif_di_sumber` yang disinkron; master tetap dari panel admin/CSV. Satuan dasar Gudang ≠ NEKAT → SKU dinonaktifkan + `log_audit` `SINKRON_GUDANG_SATUAN_BEDA` | Pertahankan sampai I-01; tampilkan selisih master di panel admin (T-036) |
+| IG-02 | Stok "tidak diketahui" (data basi/belum sinkron): tombol beli & keranjang? | Randy | Produk tetap tampil & dihitung di kategori; tombol beli **nonaktif**; label "Stok sedang dicek, coba lagi sebentar" | Izinkan masuk keranjang (tidak mengikat stok, P-08, §6) tetapi tagihan ditahan sampai data segar |
+| IG-03 | Kode lokasi cabang di Gudang | Joseph | `gudang.kode_konfig` = kode lokasi Gudang | Ikuti spesifikasi Gudang; bila beda, tambah kolom pemetaan lokasi |
+| IG-04 | Satuan qty pada konfirmasi stok & picking ke Gudang | Joseph | Satuan dasar NEKAT (pcs/gram/ml) | Konfirmasi dengan tim Gudang (terutama barang curah kg/liter) |
+| IG-05 | SKU terpetakan yang hilang dari daftar SKU Gudang / dari respons stok | Joseph | Hilang dari `listSku()` penuh → `aktif_di_sumber=false`; hilang dari respons stok yang valid → stok 0 (`HABIS`) | Pertahankan (sesuai §3 "tak dikenal = stok 0") |
+| IG-06 | Modal di mode Gudang vs modal MANUAL lama | Efan | Sinkron menimpa `modal_satuan_jual` (sumber `GUDANG`); satuan jual tanpa modal valid dari Gudang → modal kosong (tidak tayang). Timpaan admin tetap lewat `modal_timpaan` (P-25) | Pertahankan; panel admin menampilkan modal Gudang vs timpaan |
+| IG-07 | Mekanisme retry picking | Joseph | Outbox NEKAT (`kirim_setelah`, `percobaan`) diproses job pg-boss tiap menit, bukan retry bawaan pg-boss (lihat di atas) | Pertahankan: status & riwayat terlihat di panel admin |
+
 ## Riwayat versi
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
+| v0.5 | 26 Nov 2026 | T-019: §12 implementasi `GudangApiInventory` (format kawat sementara, snapshot & status `TIDAK_DIKETAHUI`, outbox picking), keputusan terbuka IG-01–IG-07; `PenyimpanIdempotensi.ambil` |
 | v0.4 | 19 Nov 2026 | T-018: `satuanDasar` = `pcs`/`gram`/`ml` (selaras T-004; kg/liter dikonversi adapter tanpa pembulatan); `beratGram` nullable; field baru `konversiSatuan[].beratGram`; aturan `listSku(sejak)` untuk SKU yang pindah ke kategori terlarang; ID tanpa normalisasi; kunci idempotensi terikat `grupId`; baris picking ganda ditolak (§2, §7) |
 | v0.3 | 15 Nov 2026 | T-047: snapshot saat invoice (K-15/P-08), modal per satuan jual (K-01), K-02, K-03 |
 | v0.2 | 12 Nov 2026 | Keputusan PR #9 + temuan keamanan |

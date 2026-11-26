@@ -1,36 +1,58 @@
-import type { InventorySource } from "@nekat/domain";
+import type {
+  InventorySource,
+  PemetaanSumberInventori,
+  PenyimpanIdempotensi,
+  RepoInventoriLokal,
+} from "@nekat/domain";
+import { GudangApiInventory } from "./gudang-api-inventory.js";
+import type { JenisProfilBaca } from "./http-gudang.js";
 import type { KonfigInventory } from "./konfigurasi.js";
-import { LocalInventory, type OpsiLocalInventory } from "./local-inventory.js";
+import { LocalInventory, type PeristiwaInventori } from "./local-inventory.js";
 
-export class SumberInventoryBelumDiimplementasiError extends Error {
-  constructor(sumber: string) {
-    super(`InventorySource "${sumber}" belum diimplementasi (GudangApiInventory dibuat di T-019)`);
-    this.name = "SumberInventoryBelumDiimplementasiError";
+export interface DependensiInventory {
+  readonly idempotensi: PenyimpanIdempotensi;
+  /** Wajib untuk `local`. */
+  readonly repo?: RepoInventoriLokal;
+  /** Wajib untuk `gudang`. */
+  readonly pemetaan?: PemetaanSumberInventori;
+  /** `gudang`: profil getStok/getHargaModal (T-009 §5). Bawaan `sinkron`. */
+  readonly profilBaca?: JenisProfilBaca;
+  readonly catat?: (p: PeristiwaInventori) => void;
+  readonly sekarang?: () => Date;
+}
+
+export class DependensiInventoryKurangError extends Error {
+  constructor(sumber: string, nama: string) {
+    super(`InventorySource "${sumber}" butuh dependensi "${nama}"`);
+    this.name = "DependensiInventoryKurangError";
   }
 }
 
-export type DependensiInventory = OpsiLocalInventory;
-
 /**
  * Memilih implementasi `InventorySource` dari konfigurasi (toggle `INVENTORY_SOURCE`, dibaca saat
- * start, tidak per request). Titik sambung T-019: cabang `gudang` diganti `new GudangApiInventory(...)`.
+ * start, tidak per request; keputusan.md #8: integrasi bisa dinyalakan/dimatikan lewat konfigurasi).
  */
 export function buatInventorySource(
   konfig: KonfigInventory,
   dep: DependensiInventory,
 ): InventorySource {
+  const umum = {
+    idempotensi: dep.idempotensi,
+    ...(dep.catat ? { catat: dep.catat } : {}),
+    ...(dep.sekarang ? { sekarang: dep.sekarang } : {}),
+  };
   switch (konfig.sumber) {
     case "local":
-      return new LocalInventory(dep);
+      if (!dep.repo) throw new DependensiInventoryKurangError("local", "repo");
+      return new LocalInventory({ ...umum, repo: dep.repo });
     case "gudang":
-      throw new SumberInventoryBelumDiimplementasiError(konfig.sumber);
+      if (!dep.pemetaan) throw new DependensiInventoryKurangError("gudang", "pemetaan");
+      if (!konfig.gudang) throw new DependensiInventoryKurangError("gudang", "GUDANG_API_URL");
+      return new GudangApiInventory({
+        ...umum,
+        pemetaan: dep.pemetaan,
+        klien: { baseUrl: konfig.gudang.apiUrl, ambilToken: konfig.gudang.ambilToken },
+        ...(dep.profilBaca ? { profilBaca: dep.profilBaca } : {}),
+      });
   }
-}
-
-/**
- * Penjaga start API/worker: `INVENTORY_SOURCE=gudang` ditolak sampai GudangApiInventory ada (T-019).
- * T-019 menghapus cabang `gudang` di sini bersamaan dengan pabrik di atas.
- */
-export function pastikanSumberInventoryTersedia(konfig: KonfigInventory): void {
-  if (konfig.sumber === "gudang") throw new SumberInventoryBelumDiimplementasiError(konfig.sumber);
 }

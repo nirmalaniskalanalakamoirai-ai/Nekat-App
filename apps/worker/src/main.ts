@@ -1,13 +1,50 @@
 // Entry proses worker (dijalankan terpisah dari API, ADR-0001 §3.1). Tidak diimpor oleh tes.
-import { pastikanSumberInventoryTersedia } from "@nekat/adapters";
+import { buatInventorySource, type PeristiwaInventori } from "@nekat/adapters";
+import {
+  buatDb,
+  buatPemetaanSumberPg,
+  buatPenyimpanIdempotensiPg,
+  buatRepoInventoriLokal,
+  buatRepoOutboxPicking,
+  buatRepoSinkronInventori,
+} from "@nekat/db";
 import { bacaKonfigurasi } from "./config.js";
-import { buatWorker } from "./worker.js";
+import { kirimOutboxPicking } from "./inventori/picking.js";
+import { PengumpulPeristiwaSinkron, sinkronInventori } from "./inventori/sinkron.js";
+import { buatWorker, daftarkanJobInventori } from "./worker.js";
 
-const konfigurasi = bacaKonfigurasi(process.env);
-// INVENTORY_SOURCE=gudang → gagal start sampai T-019 (pesan tanpa nilai rahasia).
-pastikanSumberInventoryTersedia(konfigurasi.inventory);
+let konfigurasi;
+try {
+  konfigurasi = bacaKonfigurasi(process.env);
+} catch (e) {
+  // Pesan hanya menyebut nama variabel (tanpa nilai rahasia).
+  console.error((e as Error).message);
+  process.exit(1);
+}
+
+const db = buatDb(konfigurasi.databaseUrl);
+const idempotensi = buatPenyimpanIdempotensiPg(db);
+
+/** Log peristiwa inventori: hanya kode & ID (tanpa token/URL/PII). */
+const logPeristiwa = (p: PeristiwaInventori): void => {
+  if (p.kode === "PANGGILAN_DIULANG" || p.kode === "BARIS_TIDAK_VALID") {
+    console.warn(`[worker] inventori ${p.kode}: ${p.keterangan}`);
+  }
+};
+const pengumpul = new PengumpulPeristiwaSinkron(logPeristiwa);
+
+// Toggle InventorySource (T-018/T-019): dibaca sekali saat start.
+const inventory = buatInventorySource(konfigurasi.inventory, {
+  idempotensi,
+  repo: buatRepoInventoriLokal(db),
+  pemetaan: buatPemetaanSumberPg(db),
+  profilBaca: "sinkron",
+  catat: pengumpul.catat,
+});
+const repoSinkron = buatRepoSinkronInventori(db);
+const repoOutbox = buatRepoOutboxPicking(db);
+
 const boss = buatWorker(konfigurasi);
-// Instans InventorySource dirangkai saat konsumen pertamanya ada (T-022/T-025/T-040).
 console.info(`[worker] sumber inventori: ${konfigurasi.inventory.sumber}`);
 
 boss.on("error", (galat: Error) => {
@@ -16,11 +53,25 @@ boss.on("error", (galat: Error) => {
 });
 
 await boss.start();
+await daftarkanJobInventori(boss, {
+  intervalSinkronMenit: konfigurasi.inventory.intervalSinkronMenit,
+  sinkron:
+    inventory.nama === "gudang"
+      ? async () => {
+          const h = await sinkronInventori({ inventory, repo: repoSinkron, pengumpul });
+          if (h.gagal.length > 0) {
+            console.warn(`[worker] sinkron Gudang sebagian gagal: ${JSON.stringify(h.gagal)}`);
+          }
+        }
+      : null,
+  kirimPicking: () => kirimOutboxPicking({ inventory, repo: repoOutbox }),
+});
 console.info("[worker] pg-boss berjalan");
 
 const berhenti = async (sinyal: string): Promise<void> => {
   console.info(`[worker] ${sinyal} diterima, berhenti dengan rapi`);
   await boss.stop({ graceful: true });
+  await db.$client.end();
   process.exit(0);
 };
 process.once("SIGTERM", () => void berhenti("SIGTERM"));

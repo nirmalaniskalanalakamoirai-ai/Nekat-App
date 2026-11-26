@@ -29,16 +29,31 @@ import {
 } from "@nekat/shared";
 import { hashKanonik } from "./kanonik.js";
 
-/** Peristiwa untuk log admin. Tidak memuat nilai mentah dari sumber selain ID SKU. */
+/**
+ * Peristiwa untuk log admin. Tidak memuat token, URL, atau data pribadi. Nilai mentah dari sumber
+ * hanya `nilaiMentah` untuk `MODAL_PECAHAN` (antrean tinjau K-01 butuh nilai apa adanya, T-004 §3.7).
+ */
 export interface PeristiwaInventori {
   readonly kode:
     | "BARIS_TIDAK_VALID"
     | "KATEGORI_TERLARANG"
     | "STOK_NEGATIF"
     | "MODAL_TIDAK_VALID"
-    | "MODAL_PECAHAN";
+    | "MODAL_PECAHAN"
+    /** GudangApiInventory: SKU sumber tanpa `pemetaan_sku_sumber` (antrean "perlu dipetakan"). */
+    | "SKU_BELUM_DIPETAKAN"
+    /** GudangApiInventory: percobaan ulang panggilan ke Gudang (hanya kode galat). */
+    | "PANGGILAN_DIULANG";
   readonly skuId: string;
   readonly keterangan: string;
+  /** ID SKU di sumber (Gudang) bila relevan, mis. `SKU_BELUM_DIPETAKAN`. */
+  readonly skuSumberId?: string;
+  /** Satuan jual (K-01) untuk peristiwa modal. */
+  readonly satuan?: string;
+  /** Hanya `MODAL_PECAHAN`: nilai modal apa adanya sebagai teks (tidak dibulatkan). */
+  readonly nilaiMentah?: string;
+  /** Hanya `SKU_BELUM_DIPETAKAN`: nama SKU di sumber untuk panel admin (bukan data pribadi). */
+  readonly namaSumber?: string;
 }
 
 export interface OpsiLocalInventory {
@@ -150,6 +165,8 @@ export class LocalInventory implements InventorySource {
         this.#catat({
           kode: pecahan ? "MODAL_PECAHAN" : "MODAL_TIDAK_VALID",
           skuId: b.skuId,
+          satuan: b.jenis,
+          ...(pecahan ? { nilaiMentah: String(modal) } : {}),
           keterangan: pecahan
             ? `modal pecahan satuan ${b.jenis}: perlu ditinjau, tidak tayang`
             : `modal tidak valid satuan ${b.jenis}: tidak tayang`,

@@ -10,6 +10,7 @@ import {
   type SatuanTampil,
   type SnapshotKatalog,
 } from "@nekat/domain";
+import { STATUS_STOK_TAMPIL } from "@nekat/shared";
 import type { FastifyBaseLogger } from "fastify";
 import {
   hasZodFastifySchemaValidationErrors,
@@ -64,6 +65,8 @@ const skemaSatuan = z.object({
   harga: skemaHarga,
   /** K-20: false = tombol beli nonaktif, tidak bisa masuk keranjang/grup. */
   tersedia: z.boolean(),
+  /** T-019: `HABIS` (stok 0) dibedakan dari `TIDAK_DIKETAHUI` (data stok basi / belum disinkron). */
+  statusStok: z.enum(STATUS_STOK_TAMPIL),
   labelStok: z.string().nullable(),
 });
 
@@ -77,6 +80,7 @@ const skemaKartu = z.object({
   satuan: skemaSatuan,
   jumlahPilihanSatuan: z.number().int().positive(),
   tersedia: z.boolean(),
+  statusStok: z.enum(STATUS_STOK_TAMPIL),
   labelStok: z.string().nullable(),
   /** Promo terpisah dari harga (T-032). Belum ada aturan promo → null. */
   promo: z.null(),
@@ -91,6 +95,7 @@ const skemaDetail = z.object({
   subkategori: skemaRingkasKategori.nullable(),
   satuanUtamaId: z.string(),
   tersedia: z.boolean(),
+  statusStok: z.enum(STATUS_STOK_TAMPIL),
   labelStok: z.string().nullable(),
   varian: z.array(
     z.object({
@@ -149,6 +154,7 @@ function keSatuan(s: SatuanTampil) {
     isi: s.isi,
     harga: { hargaSatuan: s.harga.hargaSatuan, hargaBelanjaBareng: s.harga.hargaBelanjaBareng },
     tersedia: s.stok.tersedia,
+    statusStok: s.stok.status,
     labelStok: s.stok.label,
   };
 }
@@ -164,6 +170,7 @@ export function keKartu(p: ProdukTampil): z.infer<typeof skemaKartu> {
     satuan: keSatuan(p.utama),
     jumlahPilihanSatuan: p.varian.reduce((n, v) => n + v.satuan.length, 0),
     tersedia: p.stok.tersedia,
+    statusStok: p.stok.status,
     labelStok: p.stok.label,
     promo: null,
   };
@@ -180,6 +187,7 @@ export function keDetail(p: ProdukTampil): z.infer<typeof skemaDetail> {
     subkategori: p.subkategori,
     satuanUtamaId: p.utama.id,
     tersedia: p.stok.tersedia,
+    statusStok: p.stok.status,
     labelStok: p.stok.label,
     varian: p.varian.map((v) => ({
       skuId: v.skuId,
