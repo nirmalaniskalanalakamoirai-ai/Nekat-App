@@ -6,7 +6,7 @@
 | 2 | Nilai final KPI COD (usulan ada di keputusan.md #2) | Randy | **DIPUTUSKAN 18 Nov: setuju — nilai KPI COD final = usulan di keputusan.md #2 (issue #5)** |
 | 3 | Koordinat gudang pusat & titik drop point pertama | Joseph | **DIPUTUSKAN 12 Nov: akan diisi kemudian setelah aplikasi jadi (issue #7)** |
 | 4 | Tarif ongkir: per kg, per km, tarif dasar tiap armada | Efan | **DIPUTUSKAN 12 Nov: nanti diintegrasikan dengan aplikasi eksternal (tarif tidak diisi manual sekarang) (issue #6)** |
-| 5 | Nama badan usaha, kontak, dan bagian [kurung siku] di docs/legal | Randy | belum |
+| 5 | Nama badan usaha, kontak, dan bagian [kurung siku] di docs/legal | Randy | **DIPUTUSKAN 20 Nov: lanjutkan dulu dengan [kurung siku] kosong, nama badan usaha & kontak ditambahkan nanti (issue #5)** |
 | 6 | Domain aplikasi (contoh nekat.id) | Joseph | **DIPUTUSKAN 12 Nov: belum ada, akan diinput ketika aplikasi jadi (issue #7)** |
 
 Catatan: bagian di bawah ditambahkan oleh sesi Build otomatis 10–11 Nov 2026. Detail opsi, rekomendasi, dan DEFAULT SEMENTARA ada di dokumen sumber: PR #1 (T-001), PR #2 (T-002), PR #3 (T-003). Isi kolom Status dengan jawaban, atau tulis keputusan di `keputusan.md`.
@@ -44,25 +44,25 @@ Catatan: bagian di bawah ditambahkan oleh sesi Build otomatis 10–11 Nov 2026. 
 | F-07 | Batas akhir pembatalan setelah bayar; boleh kurangi kuantitas sebagian? admin boleh memajukan cut-off? | Randy | **DIPUTUSKAN 18 Nov: tidak bisa batal setelah bayar (pesanan sudah masuk fase diproses); bayar sendiri: akun yang belum lunas 60 menit sejak tagihan terbit dikeluarkan, dana yang sudah dibayar (bila grup batal) masuk loyalty point (16 Nov) (issue #5)** — bertentangan dengan K-30 → K-40 |
 | F-08 | Harga modal berubah saat grup berjalan (snapshot saat grup dibuka atau tahan grup); MOQ di-snapshot per grup? | Efan | **DIPUTUSKAN 12 Nov: ya, snapshot saat grup dibuka (issue #6)** |
 | F-09 | Stok parsial: urutan alokasi, harga tetap terkunci, dan bila tersisa <3 akun | Efan | **DIPUTUSKAN 12 Nov: setuju default dokumen (PR #2 §12) (issue #6)** |
-| F-10 | Dana akun ganda/curang & evaluasi ulang grup | Randy | belum |
+| F-10 | Dana akun ganda/curang & evaluasi ulang grup | Randy | **DIPUTUSKAN 25 Nov: setuju rekomendasi — dana akun curang ditahan, barang tetap dikirim (group-order §12) (issue #5)** |
 | F-11 | Basis waktu pembayaran terlambat: `paid_at` gateway atau waktu webhook diterima | Joseph | **DIPUTUSKAN 12 Nov: setuju rekomendasi: waktu bayar dari Xendit (paid_at); kedua waktu tetap disimpan (issue #7)** |
 | F-12 | Drop point & antar rumah dalam satu grup atau terpisah (interaksi harga Mitra) | Efan | **DIPUTUSKAN 12 Nov: satu grup (drop point & antar rumah digabung) (issue #6)** |
-| F-13 | Grup yang masih DITAHAN saat cut-off | Randy | belum |
-| F-14 | Satu grup atau beberapa per produk × zona × slot | Randy | belum |
-| F-15 | Istilah resmi ≥3 akun: "terbuka" (keputusan #3) atau "aktif" (S&K §4.2) | Randy | belum |
-| F-16 | Boleh ikut produk yang sama di slot berbeda | Randy | belum |
-| F-17 | Penerima pengingat (termasuk yang belum bayar?) & batas frekuensi WhatsApp | Randy | belum |
-| F-18 | Daftar tunggu untuk pengguna di luar semua zona | Randy + Efan | belum |
-| F-19 | Pengguna zona lain membuka link grup | Randy | belum |
+| F-13 | Grup yang masih DITAHAN saat cut-off | Randy | **DIPUTUSKAN 25 Nov: setuju rekomendasi — grup DITAHAN sampai sebelum picking slot → BATAL + refund saldo (issue #5)** |
+| F-14 | Satu grup atau beberapa per produk × zona × slot | Randy | **DIPUTUSKAN 25 Nov: per keranjang campur produk (sejalan G-01) (issue #5)** |
+| F-15 | Istilah resmi ≥3 akun: "terbuka" (keputusan #3) atau "aktif" (S&K §4.2) | Randy | **DIPUTUSKAN 25 Nov: istilah resmi "terbuka" (menggantikan jawaban 20 Nov "aktif"; S&K §4.2 perlu diselaraskan) (issue #5)** |
+| F-16 | Boleh ikut produk yang sama di slot berbeda | Randy | **DIPUTUSKAN 25 Nov: setuju — boleh ikut produk yang sama di slot berbeda (20 Nov: "Boleh") (issue #5)** |
+| F-17 | Penerima pengingat (termasuk yang belum bayar?) & batas frekuensi WhatsApp | Randy | **DIPUTUSKAN 25 Nov: setuju rekomendasi/default di docs/flow/group-order.md (issue #5)** |
+| F-18 | Daftar tunggu untuk pengguna di luar semua zona | Randy + Efan | **DIPUTUSKAN 25 Nov: setuju rekomendasi — daftar tunggu WhatsApp untuk pengguna di luar zona (T-007 §9 varian A) (issue #5)** |
+| F-19 | Pengguna zona lain membuka link grup | Randy | **DIPUTUSKAN 25 Nov: setuju rekomendasi/default di docs/flow/group-order.md (issue #5)** |
 | F-20 | Ongkir saat sebagian baris pesanan batal / grup gagal / alokasi parsial | Efan + Operations | **DIPUTUSKAN 12 Nov: gudang/toko cabang yang terpilih sebagai penerima pesanan dicek dulu ketersediaan barangnya sebelum pesanan diterima/diproses; ongkir baru diberlakukan setelah terkunci; dibayar di muka (issue #6)** |
-| F-21 | Slot kirim dibatalkan karena operasional setelah harga dikunci | Randy + Operations | belum |
-| F-22 | Atribusi pengundang (parameter ref) pada link grup | Randy + Growth | belum |
-| F-23 | Versi S&K / Kebijakan Privasi berubah: wajib persetujuan ulang? | Randy | belum |
-| F-24 | Keluhan barang rusak/kurang setelah diterima | Randy | belum |
-| F-25 | Ganti alamat/zona setelah ikut grup | Randy + Operations | belum |
+| F-21 | Slot kirim dibatalkan karena operasional setelah harga dikunci | Randy + Operations | **DIPUTUSKAN 20 Nov: sesuai rekomendasi — admin memindahkan slot, harga tetap, anggota boleh minta batal → saldo pembayar (issue #5)** |
+| F-22 | Atribusi pengundang (parameter ref) pada link grup | Randy + Growth | **DIPUTUSKAN 20 Nov: sesuai rekomendasi/default di docs/flow/group-order.md (issue #5)** |
+| F-23 | Versi S&K / Kebijakan Privasi berubah: wajib persetujuan ulang? | Randy | **DIPUTUSKAN 20 Nov: sesuai rekomendasi — persetujuan ulang wajib sebelum gabung berikutnya (issue #5)** |
+| F-24 | Keluhan barang rusak/kurang setelah diterima | Randy | **DIPUTUSKAN 20 Nov: sesuai rekomendasi/default di docs/flow/group-order.md (issue #5)** |
+| F-25 | Ganti alamat/zona setelah ikut grup | Randy + Operations | **DIPUTUSKAN 20 Nov: sesuai rekomendasi — ganti alamat setelah invoice tidak bisa; dalam zona sama sebelum checkout boleh (issue #5)** |
 | F-26 | Lama batas bayar (TTL invoice Xendit) per metode | Randy + Joseph | **DIPUTUSKAN 12 Nov: 60 menit (issue #5)** |
-| F-27 | Ada/tidaknya jalur "beli biasa" di luar grup | Randy | belum |
-| F-28 | Barang di drop point tidak diambil: status akhir peserta/grup dan perlakuan dana (refund ke saldo, biaya simpan, batas hari) — terkait T-006 (sesi QA 11 Nov) | Randy + Operations | belum |
+| F-27 | Ada/tidaknya jalur "beli biasa" di luar grup | Randy | **DIPUTUSKAN 20 Nov: sesuai rekomendasi — ada jalur "Beli sendiri" (T-007 §9 varian A) (issue #5)** |
+| F-28 | Barang di drop point tidak diambil: status akhir peserta/grup dan perlakuan dana (refund ke saldo, biaya simpan, batas hari) — terkait T-006 (sesi QA 11 Nov) | Randy + Operations | **DIPUTUSKAN 20 Nov: barang yang sudah dikirim ke drop point dan pesanan berstatus selesai dianggap berhasil diterima (issue #5)** |
 
 ## Dari spesifikasi engine harga (T-003) — `docs/spec/engine-harga.md` §11
 
@@ -84,14 +84,14 @@ Catatan: bagian di bawah ditambahkan oleh sesi Build otomatis 10–11 Nov 2026. 
 | P-14 | Perlu pagar harga antar kemasan (dus vs pcs)? | Efan | **DIPUTUSKAN 16 Nov: perlu — pagar harga antar kemasan (dus vs pcs) diterapkan (issue #6)** |
 | P-15 | Pembulatan diskon persen; boleh diskon menumpuk? | Efan | **DIPUTUSKAN 14 Nov: diskon tidak boleh menumpuk; diskon dihitung secara keseluruhan (issue #6)**; pembulatan mengikuti H6 (tanpa pembulatan) — arti "keseluruhan" lihat K-21 |
 | P-16 | Margin nol diizinkan? | Efan | **DIPUTUSKAN 14 Nov: tidak — diskon/harga tidak boleh membuat margin 0; bila perlu, kekurangan dimasukkan sebagai biaya admin (issue #6)** |
-| P-17 | Harga coret = harga 1 pcs riil? | Randy + Efan | belum |
-| P-18 | Batas COD dibandingkan dengan total sebelum atau sesudah saldo | Randy + Joseph | belum |
+| P-17 | Harga coret = harga 1 pcs riil? | Randy + Efan | **DIPUTUSKAN 20 Nov: benar — harga coret = harga satuan riil (issue #5)** |
+| P-18 | Batas COD dibandingkan dengan total sebelum atau sesudah saldo | Randy + Joseph | **DIPUTUSKAN 20 Nov: sesuai rekomendasi — dibandingkan dengan total sebelum saldo (issue #5)** |
 | P-19 | Siapa menanggung bila harga final > harga dibayar tapi masih ≥ modal | Efan + Randy | **DIPUTUSKAN 18 Nov: pembeli tidak pernah ditagih tambahan — pembeli hanya bisa bayar setelah harga final; tagihan = harga final + biaya + ongkir; perubahan harga saat tagihan terbit tidak memengaruhi tagihan itu; selisih ditanggung NEKAT selama harga ≥ modal + ongkir (Efan 16 Nov) (issue #5, #6)** |
 | P-20 | Cara alokasi subsidi gratis ongkir ke baris pesanan untuk pagar modal | Efan + Joseph | **DIPUTUSKAN 16 Nov: setuju — subsidi gratis ongkir dibagi ke baris menurut harga barang (issue #6)** |
 | P-21 | Tier grup (mis. 12+) boleh opsional per produk? | Efan | **DIPUTUSKAN 16 Nov: setuju — tier grup boleh dipilih per produk oleh admin; harga satuan wajib ada (issue #6)** |
 | P-22 | Cakupan pagar "individu ≥ Mitra ≥ Franchise": pagar KETAT wajib (CLAUDE.md); yang diputuskan hanya apakah ditambah pemeriksaan per tier (`KETAT_PLUS_PER_TIER`). Opsi "per tier saja" dihapus di sesi QA 11 Nov karena melanggar CLAUDE.md | Efan | **DIPUTUSKAN 12 Nov: pagar KETAT (default), tanpa pemeriksaan per tier (issue #6)** |
 | P-23 | Promo saat checkout lalu harga turun di cut-off: batasi kredit selisih agar bersih ≥ modal? | Efan + Randy | **DIPUTUSKAN 14 Nov: ya, dibatasi (A), dengan keterangan tambahan sebagai biaya admin (issue #6)** |
-| P-24 | Cakupan kategori terlarang Fase 1 (hanya rokok & bir, atau semua tembakau/nikotin & alkohol) | Randy | belum |
+| P-24 | Cakupan kategori terlarang Fase 1 (hanya rokok & bir, atau semua tembakau/nikotin & alkohol) | Randy | **DIPUTUSKAN 20 Nov: sesuai rekomendasi — semua tembakau/nikotin & alkohol (issue #5)** |
 | P-25 | Modal saat mode Gudang: boleh ditimpa dari panel/CSV? | Joseph + Efan | **DIPUTUSKAN 12 Nov: boleh (issue #7)** |
 | P-26 | Grup DITAHAN bila nilai bersih setelah promo & subsidi ongkir < modal saat cut-off (perluasan P-09) | Efan + Randy | **DIPUTUSKAN 14 Nov: setuju rekomendasi A (issue #6)** |
 | P-27 | Satu baris gagal pagar modal saat gratis ongkir: batalkan gratis ongkir seluruh pesanan? | Efan | **DIPUTUSKAN 14 Nov: jangan langsung dibatalkan; tampilkan keterangan "tidak memenuhi syarat" beserta alasannya dan rekomendasi jalan keluar agar pembeli bisa meneruskan pesanan grup (issue #6)** |
@@ -156,10 +156,10 @@ Catatan: bagian di bawah ditambahkan oleh sesi Build otomatis 10–11 Nov 2026. 
 | K-40 | (19 Nov) Konflik K-30 vs F-07: K-30 "setuju" (anggota yang sudah bayar boleh batal sebelum grup tutup, dana ke saldo) vs F-07 "tidak bisa batal setelah bayar". Mana yang berlaku? S&K §7.1 perlu disesuaikan | Randy | **DIPUTUSKAN 19 Nov: ikut F-07 — tidak bisa batal setelah bayar; S&K §7.1 disesuaikan; dana kembali ke saldo hanya bila grup batal / stok habis (issue #5)** |
 | K-41 | (19 Nov, T-020) Batas bawah margin 5% (P-07/K-16) hanya untuk promo & gratis ongkir, atau juga untuk harga dasar yang diisi admin per level? | Efan | **DIPUTUSKAN 19 Nov: ikut default — margin minimum 5% tidak berlaku untuk harga dasar; cukup harga > modal (issue #6)** |
 | K-42 | (19 Nov, T-020) Bila pagar dilanggar (Mitra Grosir > harga satuan, atau harga per pcs kemasan besar > kemasan kecil), engine tidak tahu harga mana yang salah: tahan **kedua** harga (produk/satuan bisa tidak tayang) atau hanya yang lebih besar? | Efan | **DIPUTUSKAN 19 Nov: tahan kedua harga dan laporkan ke admin (issue #6)** |
-| K-43 | (22 Nov, T-048) H12 = data di region Indonesia. Apakah juga berlaku untuk log & error tracking SaaS (H8, mis. Sentry) yang PII-nya sudah disamarkan? | Joseph | belum — rekomendasi: boleh SaaS luar negeri dengan scrubbing PII aktif; data transaksi & PII tetap di region Indonesia |
-| K-44 | (22 Nov, T-013b) Ongkir "dibagi rata" (K-25) bisa menghasilkan rupiah pecahan (mis. Rp10.000 ÷ 3), padahal H6 tanpa pembulatan. Sisa pembagian dibebankan ke siapa? Dibagi ke semua anggota atau hanya yang diantar ke rumah? | Efan | belum — rekomendasi: sisa rupiah dibebankan ke host; ongkir dibagi hanya ke anggota yang memilih antar rumah |
-| K-45 | (22 Nov, T-013b) Bila grup batal setelah sebagian anggota lunas: tagihan (invoice) yang sudah LUNAS tetap berstatus LUNAS (dana kembali ke saldo lewat refund) atau diubah jadi DIBATALKAN? | Randy | belum — DEFAULT SEMENTARA di skema: tetap LUNAS sebagai bukti bayar, dana kembali lewat ledger REFUND |
-| K-46 | (22 Nov, T-025) Tarif & DPP PPN (G-04) belum diisi di konfigurasi. Selama kosong, katalog hanya menampilkan produk bertanda "bebas PPN". Siapa mengisi dan kapan? | Efan | belum — rekomendasi: Efan/konsultan pajak mengisi tarif & DPP yang berlaku lewat panel admin (T-037) sebelum pilot |
+| K-43 | (22 Nov, T-048) H12 = data di region Indonesia. Apakah juga berlaku untuk log & error tracking SaaS (H8, mis. Sentry) yang PII-nya sudah disamarkan? | Joseph | **DIPUTUSKAN 24 Nov: ikut rekomendasi — log & error tracking SaaS luar negeri boleh dengan penyamaran PII aktif; data transaksi & PII tetap di region Indonesia (issue #7)** |
+| K-44 | (22 Nov, T-013b) Ongkir "dibagi rata" (K-25) bisa menghasilkan rupiah pecahan (mis. Rp10.000 ÷ 3), padahal H6 tanpa pembulatan. Sisa pembagian dibebankan ke siapa? Dibagi ke semua anggota atau hanya yang diantar ke rumah? | Randy (dialihkan dari Efan) | belum — 26 Nov Efan: "ikut jawaban Randy" → dialihkan ke issue #5. rekomendasi: sisa rupiah dibebankan ke host; ongkir dibagi hanya ke anggota yang memilih antar rumah |
+| K-45 | (22 Nov, T-013b) Bila grup batal setelah sebagian anggota lunas: tagihan (invoice) yang sudah LUNAS tetap berstatus LUNAS (dana kembali ke saldo lewat refund) atau diubah jadi DIBATALKAN? | Randy | **DIPUTUSKAN 25 Nov: setuju — invoice LUNAS tetap LUNAS sebagai bukti bayar; dana kembali lewat ledger REFUND (issue #5)** |
+| K-46 | (22 Nov, T-025) Tarif & DPP PPN (G-04) belum diisi di konfigurasi. Selama kosong, katalog hanya menampilkan produk bertanda "bebas PPN". Siapa mengisi dan kapan? | Efan | **DIPUTUSKAN 26 Nov: ikut rekomendasi — Efan/konsultan pajak mengisi tarif & DPP PPN lewat panel admin (T-037) sebelum pilot; sampai itu hanya produk bebas PPN tayang (issue #6)** |
 Catatan: tim memakai satu akun GitHub bersama (dikonfirmasi pemilik 12 Nov malam); jawaban dari akun itu sah sebagai jawaban pemilik.
 
 
@@ -182,3 +182,5 @@ Catatan 19 Nov (sesi Build): 33 jawaban 16–19 Nov dicatat dari issue #5/#6/#7 
 Catatan 19 Nov sore (sesi Build): 5 jawaban dicatat dari issue #5/#6/#7 (H12, K-39, K-40 → K-30, K-41, K-42).
 
 Catatan 22 Nov (sesi Build): baru K-43 (Joseph), K-44, K-46 (Efan), K-45 (Randy) dari T-013b, T-025, T-048. Pemindahan jawaban 19 Nov sore (H12, K-39, K-40, K-41, K-42) ke keputusan.md menunggu PR gabungan berikutnya.
+
+Catatan 26 Nov (sesi Build): dicatat dari issue — Randy (20/23/25 Nov; bila dua jawaban dipakai yang terakhir): 5, F-10, F-13–F-19, F-21–F-25, F-27, F-28, P-17, P-18, P-24, K-45; Joseph (24 Nov): K-43; Efan (26 Nov): K-46. K-44 dialihkan ke Randy (Efan: "ikut jawaban Randy", Randy belum menjawab K-44). Pemindahan ke keputusan.md lewat PR gabungan.
