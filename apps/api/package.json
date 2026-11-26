@@ -7,7 +7,8 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
-    "admin:buat": "node dist/cli-admin.js buat"
+    "admin:buat": "node dist/cli-admin.js buat",
+    "admin:buka-kunci": "node dist/cli-admin.js buka-kunci"
   },
   "dependencies": {
     "@nekat/adapters": "workspace:*",

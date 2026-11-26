@@ -208,10 +208,15 @@ export const sesi = pgTable(
     reauthPada: ts("reauth_pada"),
     kedaluwarsaPada: ts("kedaluwarsa_pada").notNull(),
     dicabutPada: ts("dicabut_pada"),
+    // T-036: batas idle sesi admin (disentuh tiap permintaan, dibatasi 1x/menit).
+    aktifTerakhirPada: ts("aktif_terakhir_pada").notNull().defaultNow(),
+    // T-036: percobaan faktor kedua per sesi pra (dibatasi; habis → sesi pra dicabut).
+    percobaanFaktorKedua: smallint("percobaan_faktor_kedua").notNull().default(0),
     ...kolomDibuat,
   },
   (t) => [
     check("sesi_satu_pemilik", sql`num_nonnulls(akun_id, admin_id) = 1`),
+    check("sesi_percobaan_nonneg", sql`percobaan_faktor_kedua >= 0`),
     index("sesi_akun_idx").on(t.akunId),
     index("sesi_admin_idx").on(t.adminId),
   ],

@@ -226,7 +226,10 @@ export function normalisasiKodePemulihan(kode: string): string {
   return kode.replace(/[\s-]/g, "").toUpperCase();
 }
 
-/** Hash kode pemulihan terikat admin (garam = admin_id). Entropi kode tinggi → SHA-256 cukup. */
-export function hashKodePemulihan(adminId: string, kode: string): Buffer {
-  return sha256(`pemulihan|${adminId}|${normalisasiKodePemulihan(kode)}`);
+/**
+ * Hash kode pemulihan: HMAC-SHA256 dengan pepper ADMIN_HMAC_KUNCI (bocornya DB saja tidak cukup
+ * untuk menebak offline), terikat admin_id. Ganti ADMIN_HMAC_KUNCI = semua kode pemulihan batal.
+ */
+export function hashKodePemulihan(kunciHmac: Buffer, adminId: string, kode: string): Buffer {
+  return hmac(kunciHmac, "pemulihan", `${adminId}|${normalisasiKodePemulihan(kode)}`);
 }

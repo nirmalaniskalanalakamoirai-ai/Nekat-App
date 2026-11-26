@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { cekKataSandi, uuidV7 } from "./buat-admin.js";
 import { BatasLaju, bacaCookie, cookieSesi } from "./http-util.js";
-import { bacaKonfigAdmin, KonfigAdminTidakValidError } from "./konfig.js";
+import { alamatAtauCidr, bacaKonfigAdmin, KonfigAdminTidakValidError } from "./konfig.js";
+import { GalatSibuk, Semafor } from "./semafor.js";
 import {
   base32,
   buatKodePemulihan,
@@ -94,10 +95,12 @@ describe("kode pemulihan", () => {
   it("format XXXX-XXXX-XXXX tanpa karakter ambigu; hash terikat admin & tak peka huruf", () => {
     const k = buatKodePemulihan();
     expect(k).toMatch(/^[2-9A-HJKMNP-Z]{4}-[2-9A-HJKMNP-Z]{4}-[2-9A-HJKMNP-Z]{4}$/);
-    expect(
-      hashKodePemulihan("a", k).equals(hashKodePemulihan("a", k.toLowerCase().replace(/-/g, " "))),
-    ).toBe(true);
-    expect(hashKodePemulihan("a", k).equals(hashKodePemulihan("b", k))).toBe(false);
+    const p1 = Buffer.alloc(32, 1);
+    const h = (kunci: Buffer, id: string, kode: string) => hashKodePemulihan(kunci, id, kode);
+    expect(h(p1, "a", k).equals(h(p1, "a", k.toLowerCase().replace(/-/g, " ")))).toBe(true);
+    expect(h(p1, "a", k).equals(h(p1, "b", k))).toBe(false);
+    // Pepper (ADMIN_HMAC_KUNCI) beda → hash beda: DB bocor saja tidak cukup.
+    expect(h(p1, "a", k).equals(h(Buffer.alloc(32, 2), "a", k))).toBe(false);
   });
 });
 
@@ -142,11 +145,28 @@ describe("cookie & batas laju", () => {
 
 describe("konfigurasi admin dari env", () => {
   const k32 = Buffer.alloc(32, 1).toString("base64");
+  const k32b = Buffer.alloc(32, 2).toString("base64");
+  it("kunci TOTP = kunci HMAC ditolak; idle bawaan 30 menit", () => {
+    expect(() => bacaKonfigAdmin({ ADMIN_TOTP_KUNCI: k32, ADMIN_HMAC_KUNCI: k32 })).toThrow(
+      /ADMIN_HMAC_KUNCI/,
+    );
+    expect(bacaKonfigAdmin({ ADMIN_TOTP_KUNCI: k32, ADMIN_HMAC_KUNCI: k32b })?.sesiIdleMenit).toBe(
+      30,
+    );
+  });
+  it("TRUST_PROXY hanya alamat/CIDR (bukan hop/kata kunci)", () => {
+    for (const ok of ["127.0.0.1", "10.0.0.0/8", "::1", "fd00::/8"]) {
+      expect(alamatAtauCidr(ok)).toBe(true);
+    }
+    for (const salah of ["1", "true", "loopback", "10.0.0.0/33", "300.1.1.1", "1.2.3.4/8/1"]) {
+      expect(alamatAtauCidr(salah)).toBe(false);
+    }
+  });
   it("tanpa kunci → null (panel 503); lengkap → valid; sebagian/salah → galat sebut nama saja", () => {
     expect(bacaKonfigAdmin({})).toBeNull();
     const k = bacaKonfigAdmin({
       ADMIN_TOTP_KUNCI: k32,
-      ADMIN_HMAC_KUNCI: k32,
+      ADMIN_HMAC_KUNCI: k32b,
       APP_BASE_URL: "https://nekat.contoh/x",
     });
     expect(k?.originDiizinkan).toEqual(["https://nekat.contoh"]);
@@ -162,5 +182,31 @@ describe("konfigurasi admin dari env", () => {
       expect(pesan).toContain("ADMIN_SESI_MENIT");
       expect(pesan).not.toContain("rahasia-pendek");
     }
+  });
+});
+
+describe("semafor scrypt (DoS)", () => {
+  it("maks bersamaan dihormati; antrean penuh / tunggu habis → GalatSibuk", async () => {
+    const sem = new Semafor({ maks: 1, maksAntre: 1, tungguMs: 50 });
+    let lepas: () => void = () => undefined;
+    const pertama = sem.jalankan(
+      () =>
+        new Promise<string>((s) => {
+          lepas = () => {
+            s("a");
+          };
+        }),
+    );
+    const kedua = sem.jalankan(() => Promise.resolve("b")); // antre
+    await expect(sem.jalankan(() => Promise.resolve("c"))).rejects.toBeInstanceOf(GalatSibuk);
+    expect(sem.berjalan).toBe(1);
+    lepas();
+    expect(await pertama).toBe("a");
+    expect(await kedua).toBe("b");
+    // Tunggu habis.
+    const lama = sem.jalankan(() => new Promise((s) => setTimeout(s, 200)));
+    await expect(sem.jalankan(() => Promise.resolve(1))).rejects.toBeInstanceOf(GalatSibuk);
+    await lama;
+    expect(sem.berjalan).toBe(0);
   });
 });

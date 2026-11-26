@@ -15,7 +15,7 @@ import {
 } from "@nekat/db";
 import { KONFIGURASI_HARGA_BAWAAN, type PenyimpanIdempotensi } from "@nekat/domain";
 import { z } from "zod";
-import { bacaKonfigAdmin, type KonfigAdmin } from "./admin/konfig.js";
+import { alamatAtauCidr, bacaKonfigAdmin, type KonfigAdmin } from "./admin/konfig.js";
 import { LayananAuthAdmin } from "./admin/layanan-auth.js";
 import type { OpsiRuteAdmin } from "./admin/rute.js";
 import { buatApp } from "./app.js";
@@ -44,10 +44,17 @@ const skemaEnv = z.object({
     (v) => (v === "" ? undefined : v),
     z.coerce.number().int().min(0).max(300).default(10),
   ),
-  // Jumlah reverse proxy tepercaya di depan API (untuk IP klien: batas laju & ip_hmac admin).
+  // Alamat/CIDR reverse proxy tepercaya, dipisah koma (mis. "127.0.0.1" atau "10.0.0.0/8").
+  // Kosong = X-Forwarded-For diabaikan. Lihat .env.example (wajib HOST=127.0.0.1 / firewall).
   TRUST_PROXY: z.preprocess(
-    (v) => (v === "" ? undefined : v),
-    z.coerce.number().int().min(0).max(5).default(0),
+    (v) =>
+      typeof v === "string"
+        ? v
+            .split(",")
+            .map((x) => x.trim())
+            .filter((x) => x !== "")
+        : [],
+    z.array(z.string().refine(alamatAtauCidr)).max(16),
   ),
 });
 

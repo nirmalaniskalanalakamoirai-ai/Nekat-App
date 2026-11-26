@@ -315,7 +315,13 @@ describe.skipIf(!URL_ADMIN)("panel admin (PostgreSQL nyata)", () => {
   });
 
   it("stok lokal: set absolut, alasan wajib, log sebelum/sesudah", async () => {
-    const body = { skuId: id["sku"], gudangId: id["gudang"], tersedia: 40, alasan: "stok awal" };
+    const body = {
+      skuId: id["sku"],
+      gudangId: id["gudang"],
+      tersedia: 40,
+      tersediaSebelum: null as number | null,
+      alasan: "stok awal",
+    };
     expect(
       (await app.inject({ method: "PUT", url: "/api/admin/stok", headers: h(), payload: body }))
         .statusCode,
@@ -326,7 +332,7 @@ describe.skipIf(!URL_ADMIN)("panel admin (PostgreSQL nyata)", () => {
           method: "PUT",
           url: "/api/admin/stok",
           headers: h(),
-          payload: { ...body, tersedia: 35, alasan: "opname" },
+          payload: { ...body, tersedia: 35, tersediaSebelum: 40, alasan: "opname" },
         })
       ).statusCode,
     ).toBe(204);
@@ -345,6 +351,29 @@ describe.skipIf(!URL_ADMIN)("panel admin (PostgreSQL nyata)", () => {
     const isi = r.json<{ stok: { tersedia: number | null }[]; dapatDiubah: boolean }>();
     expect(isi.dapatDiubah).toBe(true);
     expect(isi.stok[0]?.tersedia).toBe(35);
+
+    // Kunci optimistik: nilai "sebelum" basi → 409, stok tidak tertimpa, tanpa baris log.
+    const basi = await app.inject({
+      method: "PUT",
+      url: "/api/admin/stok",
+      headers: h(),
+      payload: { ...body, tersedia: 1, tersediaSebelum: 40, alasan: "basi" },
+    });
+    expect(basi.statusCode).toBe(409);
+    expect(basi.json<{ kode: string }>().kode).toBe("KONFLIK");
+
+    // Dua admin menyimpan paralel dari nilai yang sama → tepat satu berhasil.
+    const paralel = await Promise.all(
+      [30, 31, 32, 33].map((t) =>
+        app.inject({
+          method: "PUT",
+          url: "/api/admin/stok",
+          headers: h(),
+          payload: { ...body, tersedia: t, tersediaSebelum: 35, alasan: "paralel" },
+        }),
+      ),
+    );
+    expect(paralel.map((x) => x.statusCode).sort()).toEqual([204, 409, 409, 409]);
   });
 
   it("log_admin: setiap perubahan tercatat (siapa, izin, sebelum/sesudah, alasan), tanpa rahasia, append-only", async () => {
@@ -365,10 +394,10 @@ describe.skipIf(!URL_ADMIN)("panel admin (PostgreSQL nyata)", () => {
     expect(jenis.filter((j) => j === "produk")).toHaveLength(3);
     expect(jenis.filter((j) => j === "sku")).toHaveLength(1);
     expect(jenis.filter((j) => j === "satuan_jual")).toHaveLength(3);
-    expect(jenis.filter((j) => j === "stok_lokasi")).toHaveLength(2);
+    expect(jenis.filter((j) => j === "stok_lokasi")).toHaveLength(3); // 2 + 1 pemenang paralel
     expect(log.every((l) => l.adminId === ownerId)).toBe(true);
 
-    const stok = log.filter((l) => l.entitasJenis === "stok_lokasi");
+    const stok = log.filter((l) => l.entitasJenis === "stok_lokasi").slice(1);
     expect(stok[0]).toMatchObject({
       izinKode: "stok.ubah",
       sebelum: { tersedia: 40 },
@@ -394,22 +423,142 @@ describe.skipIf(!URL_ADMIN)("panel admin (PostgreSQL nyata)", () => {
     expect(perEntitas.json<{ log: unknown[] }>().log).toHaveLength(2);
   });
 
+  it("isi DUS tidak bisa diubah setelah ada modal; berat tetap boleh", async () => {
+    await q(
+      `INSERT INTO modal_satuan_jual (satuan_jual_id, modal_rp, sumber) VALUES ('${id["dus"] ?? ""}', 50000, 'MANUAL')`,
+    );
+    const isi = await app.inject({
+      method: "PATCH",
+      url: `/api/admin/satuan/${id["dus"] ?? ""}`,
+      headers: h(),
+      payload: { isiSatuanDasar: 6 },
+    });
+    expect(isi.statusCode).toBe(422);
+    expect(isi.body).toContain("Buat satuan jual baru");
+    const berat = await app.inject({
+      method: "PATCH",
+      url: `/api/admin/satuan/${id["dus"] ?? ""}`,
+      headers: h(),
+      payload: { beratGram: 42_000 },
+    });
+    expect(berat.statusCode).toBe(204);
+    const beratNol = await app.inject({
+      method: "POST",
+      url: `/api/admin/sku/${id["sku"] ?? ""}/satuan`,
+      headers: h(),
+      payload: { jenis: "LUSIN", beratGram: 0 },
+    });
+    expect(beratNol.statusCode).toBe(400);
+  });
+
+  it("produk di kategori yang kemudian nonaktif tetap bisa dinonaktifkan, tapi tidak diaktifkan", async () => {
+    const baru = await app.inject({
+      method: "POST",
+      url: "/api/admin/produk",
+      headers: h(),
+      payload: { kategoriId: id["beras"], nama: "Beras Kategori Mati" },
+    });
+    const pid = baru.json<{ id: string }>().id;
+    await q("UPDATE kategori SET aktif = false WHERE kode = 'beras'");
+    try {
+      const nonaktif = await app.inject({
+        method: "PATCH",
+        url: `/api/admin/produk/${pid}`,
+        headers: h(),
+        payload: { aktif: false },
+      });
+      expect(nonaktif.statusCode).toBe(204);
+      const aktifLagi = await app.inject({
+        method: "PATCH",
+        url: `/api/admin/produk/${pid}`,
+        headers: h(),
+        payload: { aktif: true },
+      });
+      expect(aktifLagi.statusCode).toBe(422);
+    } finally {
+      await q("UPDATE kategori SET aktif = true WHERE kode = 'beras'");
+    }
+  });
+
+  it("tebakan PARALEL: kata sandi & TOTP hanya dievaluasi sebanyak jatah (S1)", async () => {
+    const repo = buatRepoAuthAdmin(db);
+    await repo.resetGagal(ownerId);
+    const layanan = new LayananAuthAdmin({
+      repo,
+      konfig: KONFIG_UJI,
+      scrypt: SCRYPT_UJI,
+      semaforScrypt: { maks: 4, maksAntre: 100, tungguMs: 10_000 },
+    });
+    const ip = layanan.ipHmac("192.0.2.1");
+    const auditSalah = async (alasan: string) =>
+      Number(
+        (
+          await q(
+            `SELECT count(*)::int AS n FROM log_audit WHERE ref_id = '${ownerId}' AND data->>'alasan' = '${alasan}'`,
+          )
+        )[0]?.["n"],
+      );
+
+    // 40 kode TOTP salah paralel di satu sesi pra → paling banyak 3 dievaluasi (batas per sesi pra).
+    const pra = await layanan.masukKataSandi("+6281300000001", SANDI, ip);
+    expect(pra.ok).toBe(true);
+    const tokenPra = pra.ok ? pra.token : "";
+    const benar = new Set([-1, 0, 1].map((d) => kodeTotp(rahasia, langkahTotp(new Date()) + d)));
+    const salah: string[] = [];
+    for (let i = 0; salah.length < 40; i++) {
+      const c = String(100000 + i);
+      if (!benar.has(c)) salah.push(c);
+    }
+    const sebelumTotp = await auditSalah("TOTP_SALAH");
+    const hasil = await Promise.all(
+      salah.map((kode) => layanan.masukFaktorKedua(tokenPra, { kode }, ip)),
+    );
+    expect(hasil.every((x) => !x.ok)).toBe(true);
+    expect((await auditSalah("TOTP_SALAH")) - sebelumTotp).toBeLessThanOrEqual(3);
+    const [a1] = await q(`SELECT gagal_beruntun FROM admin WHERE id = '${ownerId}'`);
+    expect(Number(a1?.["gagal_beruntun"])).toBeLessThanOrEqual(3);
+    // Sesi pra dicabut setelah jatahnya habis.
+    expect(await layanan.adaSesiPra(tokenPra)).toBe(false);
+
+    // 40 kata sandi salah paralel → tepat 5 dievaluasi, lalu terkunci.
+    await repo.resetGagal(ownerId);
+    const sebelumSandi = await auditSalah("KATA_SANDI_SALAH");
+    await Promise.all(
+      Array.from({ length: 40 }, (_, i) =>
+        layanan.masukKataSandi("+6281300000001", `salah-${String(i)}-xxxxxxxx`, ip),
+      ),
+    );
+    expect((await auditSalah("KATA_SANDI_SALAH")) - sebelumSandi).toBe(5);
+    const [a2] = await q(
+      `SELECT gagal_beruntun, dikunci_sampai FROM admin WHERE id = '${ownerId}'`,
+    );
+    expect(Number(a2?.["gagal_beruntun"])).toBe(5);
+    expect(a2?.["dikunci_sampai"]).not.toBeNull();
+    // Terkunci → semua sesi admin (termasuk sesi penuh tes ini) dicabut.
+    expect(
+      (await app.inject({ method: "GET", url: "/api/admin/saya", headers: h() })).statusCode,
+    ).toBe(401);
+    await repo.resetGagal(ownerId);
+  });
+
   it("repo: penguncian atomik saat gagal paralel & TOTP anti pakai ulang paralel", async () => {
     const repo = buatRepoAuthAdmin(db);
     const kini = new Date();
+    // 20 pemesanan jatah paralel → hanya 5 yang mendapat jatah (batas), sisanya ditolak.
     const hasil = await Promise.all(
-      Array.from({ length: 5 }, () => repo.catatGagal(ownerId, kini, KEBIJAKAN_KUNCI_BAWAAN)),
+      Array.from({ length: 20 }, () => repo.pesanPercobaan(ownerId, kini, KEBIJAKAN_KUNCI_BAWAAN)),
     );
-    expect(Math.max(...hasil.map((x) => x.gagalBeruntun))).toBe(5);
+    expect(hasil.filter((x) => x !== null)).toHaveLength(5);
     const [a] = await q(`SELECT gagal_beruntun, dikunci_sampai FROM admin WHERE id = '${ownerId}'`);
     expect(a?.["gagal_beruntun"]).toBe(5);
     expect(a?.["dikunci_sampai"]).not.toBeNull();
     // Kunci lewat → hitungan mulai dari 1.
     const nanti = new Date(kini.getTime() + 16 * 60_000);
-    expect(await repo.catatGagal(ownerId, nanti, KEBIJAKAN_KUNCI_BAWAAN)).toEqual({
+    expect(await repo.pesanPercobaan(ownerId, nanti, KEBIJAKAN_KUNCI_BAWAAN)).toEqual({
       gagalBeruntun: 1,
       dikunciSampai: null,
     });
+    await repo.resetGagal(ownerId);
 
     const langkah = langkahTotp(new Date()) + 1000;
     const terima = await Promise.all(
@@ -420,6 +569,27 @@ describe.skipIf(!URL_ADMIN)("panel admin (PostgreSQL nyata)", () => {
   });
 
   it("keluar mencabut sesi di DB", async () => {
+    // Sesi sebelumnya dicabut oleh tes penguncian: masuk ulang.
+    // Langkah TOTP harus melewati langkah "masa depan" yang diterima tes repo di atas (+1000).
+    jam = new Date(Date.now() + 1002 * 30_000);
+    const r1 = await app.inject({
+      method: "POST",
+      url: "/api/admin/masuk",
+      payload: { nomorHp: "+6281300000001", kataSandi: SANDI },
+    });
+    const pra = cookieDari(r1.headers["set-cookie"], COOKIE_PRA);
+    const r2 = await app.inject({
+      method: "POST",
+      url: "/api/admin/masuk/totp",
+      headers: {
+        cookie: `${COOKIE_PRA}=${pra}`,
+        "x-csrf-token": r1.json<{ csrfToken: string }>().csrfToken,
+      },
+      payload: { kode: kodeTotp(rahasia, langkahTotp(jam)) },
+    });
+    expect(r2.statusCode).toBe(200);
+    sesi = cookieDari(r2.headers["set-cookie"], COOKIE_SESI);
+    csrf = r2.json<{ csrfToken: string }>().csrfToken;
     const r = await app.inject({ method: "POST", url: "/api/admin/keluar", headers: h() });
     expect(r.statusCode).toBe(204);
     const [s] = await q(

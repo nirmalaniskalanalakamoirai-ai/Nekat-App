@@ -1,9 +1,12 @@
 // CLI pembuatan admin (T-036). Dijalankan operator di server, BUKAN endpoint publik:
 //
-//   node dist/cli-admin.js buat --nama "Nama Admin" --hp +628xxxxxxxxxx --peran owner
+//   pnpm --filter @nekat/api admin:buat --peran owner      (nama & nomor HP ditanyakan)
+//   node dist/cli-admin.js buat [--nama "Nama"] [--hp +628…] [--peran owner|admin]
+//   node dist/cli-admin.js buka-kunci [--hp +628…]           (break-glass: lepas penguncian akun)
 //
-// Kata sandi diketik tersembunyi (2x) bila terminal interaktif; tanpa TTY dibaca dari stdin
-// (baris 1 = kata sandi, baris 2 = kode authenticator). Rahasia TOTP & kode pemulihan
+// Nama & nomor HP sebaiknya diketik saat ditanya (tidak tersimpan di riwayat shell / daftar proses).
+// Kata sandi diketik tersembunyi (2x) bila terminal interaktif; tanpa TTY dibaca dari stdin per baris:
+// [nama bila tak diberi] [hp bila tak diberi] kata sandi, kode authenticator. Rahasia TOTP & kode pemulihan
 // DITAMPILKAN SEKALI dan tidak disimpan dalam bentuk terbaca. Env: DATABASE_URL, ADMIN_TOTP_KUNCI,
 // ADMIN_HMAC_KUNCI (lihat .env.example).
 import { createInterface } from "node:readline";
@@ -68,7 +71,11 @@ function pembacaBaris(): () => Promise<string> {
   };
 }
 
+// pnpm meneruskan "--" apa adanya: buang agar `admin:buat -- --nama …` juga jalan.
+const argumen = process.argv.slice(2);
+while (argumen[0] === "--") argumen.shift();
 const { positionals, values } = parseArgs({
+  args: argumen,
   allowPositionals: true,
   options: {
     nama: { type: "string" },
@@ -77,17 +84,55 @@ const { positionals, values } = parseArgs({
   },
 });
 
-if (positionals[0] !== "buat" || !values.nama || !values.hp) {
+const perintah = positionals[0];
+if (perintah !== "buat" && perintah !== "buka-kunci") {
   keluarGalat(
-    'Pemakaian: cli-admin.js buat --nama "Nama" --hp +628xxxxxxxxxx [--peran owner|admin]',
+    "Pemakaian: cli-admin.js buat [--nama N] [--hp +62…] [--peran owner|admin] | buka-kunci [--hp +62…]",
   );
 }
 const peran = values.peran;
-if (!(PERAN_ADMIN as readonly string[]).includes(peran))
+if (!(PERAN_ADMIN as readonly string[]).includes(peran)) {
   keluarGalat("--peran wajib owner atau admin.");
+}
 
 const url = process.env["DATABASE_URL"];
 if (!url) keluarGalat("DATABASE_URL belum diatur.");
+
+const tty = process.stdin.isTTY;
+const bacaBaris = tty ? null : pembacaBaris();
+const minta = (tanya: string) => (bacaBaris ? bacaBaris() : tanyaTersembunyi(tanya));
+async function mintaTerlihat(tanya: string): Promise<string> {
+  if (bacaBaris) return (await bacaBaris()).trim();
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  const jawab = await new Promise<string>((s) => {
+    rl.question(tanya, s);
+  });
+  rl.close();
+  return jawab.trim();
+}
+const selesaiStdin = () => {
+  if (bacaBaris) process.stdin.destroy();
+};
+
+const db = buatDb(url);
+const repo = buatRepoAuthAdmin(db);
+
+if (perintah === "buka-kunci") {
+  const hp = values.hp ?? (await mintaTerlihat("Nomor HP admin (+62…): "));
+  const a = await repo.cariUntukMasuk(hp);
+  if (!a) {
+    await db.$client.end();
+    selesaiStdin();
+    keluarGalat("Admin tidak ditemukan.");
+  }
+  await repo.resetGagal(a.id);
+  await repo.catatAudit("ADMIN_BUKA_KUNCI_CLI", { gagalSebelum: a.gagalBeruntun }, a.id);
+  console.log(`Penguncian admin ${a.id} dilepas (tercatat di log_audit).`);
+  await db.$client.end();
+  selesaiStdin();
+  process.exit(0);
+}
+
 let konfig;
 try {
   konfig = bacaKonfigAdmin(process.env);
@@ -96,23 +141,21 @@ try {
 }
 if (!konfig) keluarGalat("ADMIN_TOTP_KUNCI dan ADMIN_HMAC_KUNCI wajib diatur.");
 
+const nama = values.nama ?? (await mintaTerlihat("Nama admin: "));
+const hp = values.hp ?? (await mintaTerlihat("Nomor HP admin (+62…): "));
+
 // Cek awal sebelum meminta kata sandi / menampilkan rahasia (diulang lagi saat menyimpan).
-const db = buatDb(url);
-const repo = buatRepoAuthAdmin(db);
 const galatAwal =
   (await repo.jumlahAdmin()) === 0 && peran !== "owner"
     ? "Admin pertama wajib berperan owner."
-    : (await repo.adaNomorHp(values.hp))
+    : (await repo.adaNomorHp(hp))
       ? "Nomor HP sudah dipakai admin lain."
       : null;
 if (galatAwal) {
   await db.$client.end();
+  selesaiStdin();
   keluarGalat(galatAwal);
 }
-
-const tty = process.stdin.isTTY;
-const bacaBaris = tty ? null : pembacaBaris();
-const minta = (tanya: string) => (bacaBaris ? bacaBaris() : tanyaTersembunyi(tanya));
 
 const sandi = await minta("Kata sandi (min. 12 karakter): ");
 if (tty) {
@@ -128,14 +171,14 @@ console.log(
     .replace(/(.{4})/g, "$1 ")
     .trim()}`,
 );
-console.log(`URI otpauth  : ${uriOtpauth(rahasia, values.nama)}`);
+console.log(`URI otpauth  : ${uriOtpauth(rahasia, nama)}`);
 console.log("Tambahkan ke aplikasi authenticator, lalu masukkan kode 6 digit.\n");
 const kode = (await minta("Kode authenticator: ")).trim();
 
 try {
   const hasil = await buatAdminBaru(repo, konfig, {
-    nama: values.nama,
-    nomorHpE164: values.hp,
+    nama,
+    nomorHpE164: hp,
     peran: peran as PeranAdmin,
     kataSandi: sandi,
     rahasiaTotp: rahasia,
@@ -150,5 +193,5 @@ try {
 } finally {
   rahasia.fill(0);
   await db.$client.end();
-  if (bacaBaris) process.stdin.destroy();
+  selesaiStdin();
 }

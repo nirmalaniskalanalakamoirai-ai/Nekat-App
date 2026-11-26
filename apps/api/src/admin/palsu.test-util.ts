@@ -16,6 +16,7 @@ export const KONFIG_UJI: KonfigAdmin = {
   kunciTotpVersi: 1,
   kunciHmac: Buffer.alloc(32, 9),
   sesiMenit: 60,
+  sesiIdleMenit: 30,
   originDiizinkan: ["https://nekat.contoh"],
 };
 
@@ -27,6 +28,8 @@ interface AdminPalsu extends AdminUntukMasuk {
 
 interface SesiPalsu {
   adminId: string;
+  aktifTerakhir: Date;
+  percobaan: number;
   faktorKeduaPada: Date | null;
   kedaluwarsaPada: Date;
   dicabutPada: Date | null;
@@ -54,12 +57,38 @@ export class RepoAuthPalsu implements RepoAuthAdmin {
     const a = this.admin.get(id);
     if (a) this.admin.set(id, { ...a, ...ubah });
   }
-  catatGagal(adminId: string, sekarang: Date, k: { batasGagal: number; lamaKunciMenit: number }) {
+  pesanPercobaan(
+    adminId: string,
+    sekarang: Date,
+    k: { batasGagal: number; lamaKunciMenit: number },
+  ) {
     const a = this.admin.get(adminId);
-    if (!a) return Promise.resolve({ gagalBeruntun: 0, dikunciSampai: null });
+    if (!a) return Promise.resolve(null);
+    const lewat = a.dikunciSampai !== null && a.dikunciSampai <= sekarang;
+    if (!lewat && (a.dikunciSampai !== null || a.gagalBeruntun >= k.batasGagal)) {
+      return Promise.resolve(null);
+    }
     const st = setelahGagal(a, sekarang, k);
     this.#ubah(adminId, st);
     return Promise.resolve(st);
+  }
+  kembalikanPercobaan(adminId: string, k: { batasGagal: number }) {
+    const a = this.admin.get(adminId);
+    if (a && a.gagalBeruntun > 0) {
+      const g = a.gagalBeruntun - 1;
+      this.#ubah(adminId, {
+        gagalBeruntun: g,
+        dikunciSampai: g < k.batasGagal ? null : a.dikunciSampai,
+      });
+    }
+    return Promise.resolve();
+  }
+  pesanPercobaanPra(idHash: Buffer, batas: number) {
+    const s = this.sesi.get(idHash.toString("hex"));
+    if (!s || s.dicabutPada || s.faktorKeduaPada || s.percobaan >= batas)
+      return Promise.resolve(null);
+    s.percobaan++;
+    return Promise.resolve(s.percobaan);
   }
   terimaLangkahTotp(adminId: string, langkah: number) {
     const a = this.admin.get(adminId);
@@ -84,14 +113,30 @@ export class RepoAuthPalsu implements RepoAuthAdmin {
     adminId: string;
     faktorKeduaPada: Date | null;
     kedaluwarsaPada: Date;
+    sekarang: Date;
   }) {
-    this.sesi.set(d.idHash.toString("hex"), { ...d, dicabutPada: null });
+    this.sesi.set(d.idHash.toString("hex"), {
+      adminId: d.adminId,
+      faktorKeduaPada: d.faktorKeduaPada,
+      kedaluwarsaPada: d.kedaluwarsaPada,
+      aktifTerakhir: d.sekarang,
+      percobaan: 0,
+      dicabutPada: null,
+    });
     return Promise.resolve();
   }
-  cariSesi(idHash: Buffer, sekarang: Date): Promise<SesiAdminAktif | null> {
+  sentuhSesi(idHash: Buffer, sekarang: Date) {
+    const s = this.sesi.get(idHash.toString("hex"));
+    if (s && s.aktifTerakhir.getTime() < sekarang.getTime() - 60_000) s.aktifTerakhir = sekarang;
+    return Promise.resolve();
+  }
+  cariSesi(idHash: Buffer, sekarang: Date, idleMenit: number): Promise<SesiAdminAktif | null> {
     const s = this.sesi.get(idHash.toString("hex"));
     const a = s ? this.admin.get(s.adminId) : undefined;
     if (!s || !a || s.dicabutPada || s.kedaluwarsaPada <= sekarang) return Promise.resolve(null);
+    if (s.aktifTerakhir.getTime() <= sekarang.getTime() - idleMenit * 60_000) {
+      return Promise.resolve(null);
+    }
     if (a.status !== "AKTIF" || !a.totpAktifPada) return Promise.resolve(null);
     return Promise.resolve({
       adminId: a.id,

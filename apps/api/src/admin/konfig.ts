@@ -1,6 +1,8 @@
 // Konfigurasi panel admin dari environment (T-036). Rahasia hanya dari env (CLAUDE.md #6).
 // Pesan galat hanya menyebut NAMA variabel, tidak pernah nilainya (ADR-0001 §6).
 
+import { isIP } from "node:net";
+
 export interface KonfigAdmin {
   /** AES-256-GCM untuk `admin.totp_rahasia_enc`. */
   readonly kunciTotp: Buffer;
@@ -9,6 +11,8 @@ export interface KonfigAdmin {
   readonly kunciHmac: Buffer;
   /** Umur absolut sesi admin (menit); lebih pendek dari sesi pembeli (ADR §7). */
   readonly sesiMenit: number;
+  /** Sesi admin berakhir bila tidak ada permintaan selama ini (menit). */
+  readonly sesiIdleMenit: number;
   /** Origin yang boleh memanggil API admin (dari APP_BASE_URL). Kosong = harus sama dengan Host. */
   readonly originDiizinkan: readonly string[];
 }
@@ -73,6 +77,11 @@ export function bacaKonfigAdmin(env: Env): KonfigAdmin | null {
   const kunciHmac = kunci(env, "ADMIN_HMAC_KUNCI", 32, false, salah);
   const kunciTotpVersi = bulat(env, "ADMIN_TOTP_KUNCI_VERSI", 1, 1, 32767, salah);
   const sesiMenit = bulat(env, "ADMIN_SESI_MENIT", 240, 5, 720, salah);
+  const sesiIdleMenit = bulat(env, "ADMIN_SESI_IDLE_MENIT", 30, 5, 240, salah);
+  // Dua kunci harus berbeda (pemisahan fungsi enkripsi vs HMAC).
+  if (kunciTotp && kunciHmac && kunciTotp.equals(kunciHmac.subarray(0, kunciTotp.length))) {
+    salah.push("ADMIN_HMAC_KUNCI");
+  }
   const originDiizinkan: string[] = [];
   const base = ambil(env, "APP_BASE_URL");
   if (base !== undefined) {
@@ -83,5 +92,18 @@ export function bacaKonfigAdmin(env: Env): KonfigAdmin | null {
     }
   }
   if (salah.length > 0 || !kunciTotp || !kunciHmac) throw new KonfigAdminTidakValidError(salah);
-  return { kunciTotp, kunciTotpVersi, kunciHmac, sesiMenit, originDiizinkan };
+  return { kunciTotp, kunciTotpVersi, kunciHmac, sesiMenit, sesiIdleMenit, originDiizinkan };
+}
+
+/**
+ * Entri TRUST_PROXY: "a.b.c.d", "::1", atau CIDR "10.0.0.0/8". Jumlah hop / kata kunci
+ * ("loopback", "true") sengaja DITOLAK: mempercayai hop tanpa alamat bisa dipalsukan (XFF spoofing).
+ */
+export function alamatAtauCidr(v: string): boolean {
+  const [ip, prefiks, ...lebih] = v.split("/");
+  const versi = isIP(ip ?? "");
+  if (versi === 0 || lebih.length > 0) return false;
+  if (prefiks === undefined) return true;
+  const n = /^\d{1,3}$/.test(prefiks) ? Number(prefiks) : -1;
+  return n >= 0 && n <= (versi === 4 ? 32 : 128);
 }

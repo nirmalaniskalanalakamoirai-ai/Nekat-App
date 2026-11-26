@@ -1,6 +1,6 @@
 // Masuk admin 2 langkah: nomor HP + kata sandi → kode authenticator (TOTP) atau kode pemulihan.
 import { useState, type SyntheticEvent } from "react";
-import { apiAdmin, aturCsrf, GalatAdmin, nilaiForm } from "./api";
+import { apiAdmin, aturCsrf, GalatAdmin, nilaiForm, normalisasiHp } from "./api";
 
 export function Masuk({ onMasuk }: { onMasuk: (csrf: string) => void }) {
   const [langkah, setLangkah] = useState<"sandi" | "totp">("sandi");
@@ -16,7 +16,7 @@ export function Masuk({ onMasuk }: { onMasuk: (csrf: string) => void }) {
     setGalat(null);
     try {
       const r = await apiAdmin.masuk(
-        nilaiForm(f, "nomorHp").replace(/[\s-]/g, ""),
+        normalisasiHp(nilaiForm(f, "nomorHp")),
         // Kata sandi TIDAK di-trim (spasi bisa bagian dari kata sandi).
         typeof sandi === "string" ? sandi : "",
       );
@@ -69,8 +69,7 @@ export function Masuk({ onMasuk }: { onMasuk: (csrf: string) => void }) {
                 type="tel"
                 inputMode="tel"
                 autoComplete="username"
-                placeholder="+628…"
-                pattern="\+62[0-9 -]{8,16}"
+                placeholder="08… atau +628…"
                 required
               />
             </label>

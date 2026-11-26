@@ -45,14 +45,23 @@ export interface RepoAuthAdmin {
   cariUntukMasuk(nomorHpE164: string): Promise<AdminUntukMasuk | null>;
   cariUntukMasukPerId(id: string): Promise<AdminUntukMasuk | null>;
   /**
-   * Catat satu kegagalan secara ATOMIK (aman terhadap percobaan paralel); semantik sama dengan
-   * domain `setelahGagal`. Mengembalikan status setelahnya.
+   * PESAN satu jatah percobaan secara ATOMIK SEBELUM verifikasi (aman terhadap tebakan paralel):
+   * penghitung naik lebih dulu; percobaan yang lolos lalu mereset (`resetGagal` /
+   * `terimaLangkahTotp`). null = sedang dikunci / jatah habis → tolak tanpa verifikasi.
+   * Semantik penghitung = domain `setelahGagal` (kunci yang sudah lewat → mulai dari 1).
    */
-  catatGagal(
+  pesanPercobaan(
     adminId: string,
     sekarang: Date,
     kebijakan: { readonly batasGagal: number; readonly lamaKunciMenit: number },
-  ): Promise<{ gagalBeruntun: number; dikunciSampai: Date | null }>;
+  ): Promise<{ gagalBeruntun: number; dikunciSampai: Date | null } | null>;
+  /**
+   * Kembalikan satu jatah (percobaan yang ternyata BENAR kata sandinya, atau gagal karena sistem).
+   * Bila penghitung turun di bawah batas, kunci yang dipasang pemesanan itu dilepas.
+   */
+  kembalikanPercobaan(adminId: string, kebijakan: { readonly batasGagal: number }): Promise<void>;
+  /** Pesan satu percobaan faktor kedua pada sesi pra (atomik). null = jatah sesi habis / dicabut. */
+  pesanPercobaanPra(idHash: Buffer, batas: number): Promise<number | null>;
   /**
    * Terima langkah TOTP secara atomik: hanya bila `langkah` > langkah terakhir (anti pakai ulang).
    * Sekaligus mereset penghitung gagal. false = kode sudah pernah dipakai.
@@ -66,9 +75,16 @@ export interface RepoAuthAdmin {
     adminId: string;
     faktorKeduaPada: Date | null;
     kedaluwarsaPada: Date;
+    /** Waktu dibuat (jam aplikasi) = aktif terakhir awal. */
+    sekarang: Date;
   }): Promise<void>;
-  /** Sesi admin yang belum dicabut & belum kedaluwarsa, milik admin AKTIF ber-TOTP. */
-  cariSesi(idHash: Buffer, sekarang: Date): Promise<SesiAdminAktif | null>;
+  /**
+   * Sesi admin yang belum dicabut, belum kedaluwarsa, tidak idle lebih dari `idleMenit`, milik
+   * admin AKTIF ber-TOTP.
+   */
+  cariSesi(idHash: Buffer, sekarang: Date, idleMenit: number): Promise<SesiAdminAktif | null>;
+  /** Perbarui waktu aktif terakhir (paling sering 1x/menit per sesi). */
+  sentuhSesi(idHash: Buffer, sekarang: Date): Promise<void>;
   cabutSesi(idHash: Buffer, sekarang: Date): Promise<void>;
   cabutSemuaSesi(adminId: string, sekarang: Date): Promise<void>;
   /** Kejadian login (berhasil/gagal/dikunci) ke `log_audit`, tanpa PII. */
@@ -103,10 +119,11 @@ export function buatRepoAuthAdmin(db: Db): RepoAuthAdmin {
       return a ?? null;
     },
 
-    async catatGagal(adminId, sekarang, k) {
+    async pesanPercobaan(adminId, sekarang, k) {
       const kini = sekarang.toISOString();
       const kunciLewat = sql`(${admin.dikunciSampai} IS NOT NULL AND ${admin.dikunciSampai} <= ${kini}::timestamptz)`;
       const gagalBaru = sql`(CASE WHEN ${kunciLewat} THEN 1 ELSE ${admin.gagalBeruntun} + 1 END)`;
+      // Baris dikunci UPDATE: permintaan paralel diserialkan; hanya `batasGagal` yang mendapat jatah.
       const [b] = await db
         .update(admin)
         .set({
@@ -117,9 +134,41 @@ export function buatRepoAuthAdmin(db: Db): RepoAuthAdmin {
             ELSE ${admin.dikunciSampai} END`,
           diubahPada: sql`now()`,
         })
-        .where(eq(admin.id, adminId))
+        .where(
+          and(
+            eq(admin.id, adminId),
+            or(kunciLewat, and(isNull(admin.dikunciSampai), lt(admin.gagalBeruntun, k.batasGagal))),
+          ),
+        )
         .returning({ gagalBeruntun: admin.gagalBeruntun, dikunciSampai: admin.dikunciSampai });
-      return b ?? { gagalBeruntun: 0, dikunciSampai: null };
+      return b ?? null;
+    },
+
+    async kembalikanPercobaan(adminId, k) {
+      await db
+        .update(admin)
+        .set({
+          gagalBeruntun: sql`GREATEST(${admin.gagalBeruntun} - 1, 0)`,
+          dikunciSampai: sql`CASE WHEN ${admin.gagalBeruntun} - 1 < ${k.batasGagal} THEN NULL ELSE ${admin.dikunciSampai} END`,
+          diubahPada: sql`now()`,
+        })
+        .where(and(eq(admin.id, adminId), gt(admin.gagalBeruntun, 0)));
+    },
+
+    async pesanPercobaanPra(idHash, batas) {
+      const [b] = await db
+        .update(sesi)
+        .set({ percobaanFaktorKedua: sql`${sesi.percobaanFaktorKedua} + 1` })
+        .where(
+          and(
+            eq(sesi.idHash, idHash),
+            isNull(sesi.dicabutPada),
+            isNull(sesi.faktorKeduaPada),
+            lt(sesi.percobaanFaktorKedua, batas),
+          ),
+        )
+        .returning({ n: sesi.percobaanFaktorKedua });
+      return b?.n ?? null;
     },
 
     async terimaLangkahTotp(adminId, langkah) {
@@ -169,10 +218,11 @@ export function buatRepoAuthAdmin(db: Db): RepoAuthAdmin {
         adminId: data.adminId,
         faktorKeduaPada: data.faktorKeduaPada,
         kedaluwarsaPada: data.kedaluwarsaPada,
+        aktifTerakhirPada: data.sekarang,
       });
     },
 
-    async cariSesi(idHash, sekarang) {
+    async cariSesi(idHash, sekarang, idleMenit) {
       const [s] = await db
         .select({
           adminId: admin.id,
@@ -187,6 +237,7 @@ export function buatRepoAuthAdmin(db: Db): RepoAuthAdmin {
             eq(sesi.idHash, idHash),
             isNull(sesi.dicabutPada),
             gt(sesi.kedaluwarsaPada, sekarang),
+            gt(sesi.aktifTerakhirPada, new Date(sekarang.getTime() - idleMenit * 60_000)),
             eq(admin.status, "AKTIF"),
             sql`${admin.totpAktifPada} IS NOT NULL`,
           ),
@@ -202,6 +253,18 @@ export function buatRepoAuthAdmin(db: Db): RepoAuthAdmin {
         ...new Set(baris.map((b) => b.izin).filter((i): i is string => i !== null)),
       ].sort();
       return { ...s, peran, izin };
+    },
+
+    async sentuhSesi(idHash, sekarang) {
+      await db
+        .update(sesi)
+        .set({ aktifTerakhirPada: sekarang })
+        .where(
+          and(
+            eq(sesi.idHash, idHash),
+            lt(sesi.aktifTerakhirPada, new Date(sekarang.getTime() - 60_000)),
+          ),
+        );
     },
 
     async cabutSesi(idHash, sekarang) {

@@ -12,6 +12,7 @@ import {
   type ProdukRingkas,
   type Sku,
 } from "./api";
+import { Paginasi } from "./Paginasi";
 
 const teks = nilaiForm;
 
@@ -47,7 +48,6 @@ export function DaftarProduk() {
     queryKey: ["admin", "produk", cari, halaman],
     queryFn: () => apiAdmin.daftarProduk(cari, halaman),
   });
-  const totalHalaman = q.data ? Math.max(1, Math.ceil(q.data.total / 25)) : 1;
 
   return (
     <section className="l-stack" aria-labelledby="judul-produk">
@@ -113,33 +113,7 @@ export function DaftarProduk() {
           </tbody>
         </table>
       )}
-      {q.data && totalHalaman > 1 && (
-        <nav className="l-cluster" aria-label="Halaman">
-          <button
-            type="button"
-            className="btn btn--secondary"
-            disabled={halaman <= 1}
-            onClick={() => {
-              setHalaman((h) => h - 1);
-            }}
-          >
-            Sebelumnya
-          </button>
-          <span>
-            {halaman} / {totalHalaman}
-          </span>
-          <button
-            type="button"
-            className="btn btn--secondary"
-            disabled={halaman >= totalHalaman}
-            onClick={() => {
-              setHalaman((h) => h + 1);
-            }}
-          >
-            Berikutnya
-          </button>
-        </nav>
-      )}
+      {q.data && <Paginasi halaman={halaman} total={q.data.total} onGanti={setHalaman} />}
     </section>
   );
 }
@@ -275,7 +249,10 @@ export function FormProduk({ sumber = "local" }: { sumber?: "local" | "gudang" }
             </label>
           )}
           <Galat err={simpan.error} />
-          {tersimpan && !simpan.isPending && <p role="status">Tersimpan.</p>}
+          {/* Wilayah live selalu ada agar pembaca layar mengumumkan perubahan isinya. */}
+          <p role="status" aria-live="polite" className="adm-catatan">
+            {tersimpan && !simpan.isPending ? "Tersimpan." : ""}
+          </p>
           <button className="btn btn--primary" disabled={simpan.isPending}>
             {simpan.isPending ? "Menyimpan…" : id ? "Simpan perubahan" : "Buat produk"}
           </button>

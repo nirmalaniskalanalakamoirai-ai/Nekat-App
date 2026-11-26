@@ -37,8 +37,11 @@ export interface OpsiApp {
   readonly katalog?: LayananKatalog | null;
   /** Panel admin (T-036); null/undefined = belum dikonfigurasi (rute /api/admin menjawab 503). */
   readonly admin?: OpsiRuteAdmin | null;
-  /** Jumlah hop proxy tepercaya untuk `req.ip` (X-Forwarded-For). 0 = langsung. */
-  readonly trustProxy?: number;
+  /**
+   * Alamat/CIDR reverse proxy tepercaya (mis. ["127.0.0.1"]). X-Forwarded-For hanya dipakai bila
+   * koneksi datang dari alamat ini. Kosong = XFF diabaikan (req.ip = alamat koneksi).
+   */
+  readonly trustProxy?: readonly string[];
 }
 
 const skemaGalat = z.object({ kode: z.string(), pesan: z.string() });
@@ -93,10 +96,7 @@ export function buatApp(opsi: OpsiApp = {}) {
 
   const app = Fastify({
     logger,
-    // Percayai `trustProxy` hop terdekat saja (mis. 1 = reverse proxy di depan API).
-    ...(opsi.trustProxy
-      ? { trustProxy: (_alamat: string, hop: number) => hop < (opsi.trustProxy ?? 0) }
-      : {}),
+    ...(opsi.trustProxy && opsi.trustProxy.length > 0 ? { trustProxy: [...opsi.trustProxy] } : {}),
   }).withTypeProvider<ZodTypeProvider>();
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);

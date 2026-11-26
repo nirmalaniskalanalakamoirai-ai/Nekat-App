@@ -18,6 +18,16 @@ export function nilaiForm(f: FormData, nama: string): string {
   return typeof v === "string" ? v.trim() : "";
 }
 
+/** Nomor HP ke E.164: "0812…", "62812…", "+62 812-…" → "+62812…". Lainnya apa adanya. */
+export function normalisasiHp(masukan: string): string {
+  const d = masukan.replace(/[\s().-]/g, "");
+  if (d.startsWith("+")) return d;
+  if (d.startsWith("62")) return `+${d}`;
+  if (d.startsWith("0")) return `+62${d.slice(1)}`;
+  if (d.startsWith("8")) return `+62${d}`;
+  return d;
+}
+
 let csrfToken: string | null = null;
 export function aturCsrf(token: string | null): void {
   csrfToken = token;
@@ -182,8 +192,13 @@ export const apiAdmin = {
       "GET",
       `/stok?${new URLSearchParams({ gudangId, ...(cari ? { cari } : {}), halaman: String(halaman) }).toString()}`,
     ),
-  aturStok: (data: { skuId: string; gudangId: string; tersedia: number; alasan: string }) =>
-    minta<undefined>("PUT", "/stok", data),
+  aturStok: (data: {
+    skuId: string;
+    gudangId: string;
+    tersedia: number;
+    tersediaSebelum: number | null;
+    alasan: string;
+  }) => minta<undefined>("PUT", "/stok", data),
 
   log: (sebelumId?: number) =>
     minta<{ log: BarisLog[]; berikutnya: number | null }>(

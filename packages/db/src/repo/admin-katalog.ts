@@ -9,7 +9,12 @@ import type { Db } from "../koneksi.js";
 import {
   admin,
   antreanTinjauan,
+  barisInvoice,
   gudang,
+  hargaLevel,
+  itemKeranjang,
+  modalSatuanJual,
+  modalTimpaan,
   kategori,
   logAdmin,
   produk,
@@ -20,7 +25,7 @@ import {
 
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
-export type KodeGalatRepoAdmin = "TIDAK_ADA" | "DUPLIKAT" | "DITOLAK";
+export type KodeGalatRepoAdmin = "TIDAK_ADA" | "DUPLIKAT" | "DITOLAK" | "KONFLIK";
 
 /** Galat yang aman diteruskan ke rute (tanpa detail SQL). */
 export class GalatRepoAdmin extends Error {
@@ -155,8 +160,8 @@ export interface RepoAdminKatalog {
     ubah: Partial<DataProduk>,
     cek: (
       kategori: KategoriAdmin | null,
-      sebelum: { nama: string; tinjauanKategori: string },
-      namaBaru: string,
+      sebelum: DataProduk & { tinjauanKategori: string },
+      baru: DataProduk,
     ) => CekProdukRepo,
     log: KonteksLog,
   ): Promise<void>;
@@ -184,7 +189,17 @@ export interface RepoAdminKatalog {
     perHalaman: number;
   }): Promise<Halaman<BarisStokAdmin>>;
   /** Set stok absolut (mode lokal). Baris belum ada → dibuat. */
-  aturStok(skuId: string, gudangId: string, tersedia: number, log: KonteksLog): Promise<void>;
+  /**
+   * Set stok absolut (mode lokal) dengan kunci optimistik: `tersediaSebelum` = nilai yang dilihat
+   * admin (null = belum ada baris). Beda dengan nilai saat ini → KONFLIK (tidak menimpa).
+   */
+  aturStok(
+    skuId: string,
+    gudangId: string,
+    tersedia: number,
+    tersediaSebelum: number | null,
+    log: KonteksLog,
+  ): Promise<void>;
   daftarLog(q: {
     entitasJenis?: string | undefined;
     entitasId?: string | undefined;
@@ -478,7 +493,7 @@ export function buatRepoAdminKatalog(db: Db): RepoAdminKatalog {
               .for("update");
             if (!lama) throw new GalatRepoAdmin("TIDAK_ADA", "Produk tidak ditemukan.");
             const baru = { ...lama, ...ubah };
-            const hasil = cek(await kategoriPerId(tx, baru.kategoriId), lama, baru.nama);
+            const hasil = cek(await kategoriPerId(tx, baru.kategoriId), lama, baru);
             if (!hasil.ok) throw new GalatRepoAdmin("DITOLAK", hasil.alasan);
             const sesudah = { ...baru, tinjauanKategori: hasil.tinjauanKategori };
             await tx
@@ -582,6 +597,28 @@ export function buatRepoAdminKatalog(db: Db): RepoAdminKatalog {
             if (!lama) throw new GalatRepoAdmin("TIDAK_ADA", "Satuan jual tidak ditemukan.");
             const h = hitung(lama);
             if (!h.ok) throw new GalatRepoAdmin("DITOLAK", h.alasan);
+            if (h.isiSatuanDasar !== lama.isiSatuanDasar) {
+              // Isi menentukan modal/harga per satuan (K-01) & riwayat transaksi: tidak boleh berubah
+              // setelah satuan punya modal/harga, tayang, atau sudah masuk keranjang/tagihan.
+              const [pakai] = await tx
+                .execute<{ dipakai: boolean }>(
+                  sql`SELECT (
+                EXISTS (SELECT 1 FROM ${satuanJual} WHERE ${satuanJual.id} = ${id} AND ${satuanJual.tayang})
+                OR EXISTS (SELECT 1 FROM ${modalSatuanJual} WHERE ${modalSatuanJual.satuanJualId} = ${id} AND ${modalSatuanJual.modalRp} IS NOT NULL)
+                OR EXISTS (SELECT 1 FROM ${modalTimpaan} WHERE ${modalTimpaan.satuanJualId} = ${id})
+                OR EXISTS (SELECT 1 FROM ${hargaLevel} WHERE ${hargaLevel.satuanJualId} = ${id})
+                OR EXISTS (SELECT 1 FROM ${itemKeranjang} WHERE ${itemKeranjang.satuanJualId} = ${id})
+                OR EXISTS (SELECT 1 FROM ${barisInvoice} WHERE ${barisInvoice.satuanJualId} = ${id})
+              ) AS dipakai`,
+                )
+                .then((x) => x.rows);
+              if (pakai?.dipakai) {
+                throw new GalatRepoAdmin(
+                  "DITOLAK",
+                  "Isi satuan ini tidak bisa diubah karena sudah punya modal/harga atau sudah dibeli. Buat satuan jual baru.",
+                );
+              }
+            }
             await tx
               .update(satuanJual)
               .set({
@@ -643,11 +680,17 @@ export function buatRepoAdminKatalog(db: Db): RepoAdminKatalog {
       return { isi: isi.map((b) => ({ ...b, gudangId: q.gudangId })), total: jumlah?.n ?? 0 };
     },
 
-    async aturStok(skuId, gudangId, tersedia, log) {
+    async aturStok(skuId, gudangId, tersedia, tersediaSebelum, log) {
       await terjemahGalat(
         () =>
           db.transaction(async (tx) => {
-            const [s] = await tx.select({ id: sku.id }).from(sku).where(eq(sku.id, skuId));
+            // Kunci baris SKU (NO KEY: tidak menghalangi FK) → semua ubah stok SKU ini berurutan,
+            // termasuk saat baris stok belum ada.
+            const [s] = await tx
+              .select({ id: sku.id })
+              .from(sku)
+              .where(eq(sku.id, skuId))
+              .for("no key update");
             const [g] = await tx
               .select({ id: gudang.id })
               .from(gudang)
@@ -658,6 +701,12 @@ export function buatRepoAdminKatalog(db: Db): RepoAdminKatalog {
               .from(stokLokasi)
               .where(and(eq(stokLokasi.skuId, skuId), eq(stokLokasi.gudangId, gudangId)))
               .for("update");
+            if ((lama?.tersedia ?? null) !== tersediaSebelum) {
+              throw new GalatRepoAdmin(
+                "KONFLIK",
+                "Stok sudah diubah orang lain sejak halaman dimuat. Muat ulang lalu coba lagi.",
+              );
+            }
             await tx
               .insert(stokLokasi)
               .values({

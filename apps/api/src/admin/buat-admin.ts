@@ -101,7 +101,7 @@ export async function buatAdminBaru(
     // Kode konfirmasi tidak bisa dipakai ulang untuk masuk.
     totpLangkahTerakhir: langkah,
     peran: [input.peran],
-    kodePemulihanHash: kodePemulihan.map((k) => hashKodePemulihan(id, k)),
+    kodePemulihanHash: kodePemulihan.map((k) => hashKodePemulihan(konfig.kunciHmac, id, k)),
   });
   return { id, kodePemulihan };
 }

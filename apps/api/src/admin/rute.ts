@@ -55,6 +55,8 @@ export interface OpsiRuteAdmin {
   /** Batas laju (untuk tes). */
   readonly batasMasukPerMenit?: number;
   readonly batasUmumPerMenit?: number;
+  /** Batas laju masuk GLOBAL (semua IP), membatasi beban scrypt saat serangan terdistribusi. */
+  readonly batasMasukGlobalPerMenit?: number;
 }
 
 const GALAT = {
@@ -84,6 +86,15 @@ const GALAT = {
   STOK_HANYA_BACA: {
     kode: "STOK_HANYA_BACA",
     pesan: "Stok diambil dari Gudang (INVENTORY_SOURCE=gudang) dan hanya bisa dilihat di sini.",
+  },
+  SIBUK: {
+    kode: "SERVER_SIBUK",
+    pesan: "Server sedang sibuk memproses login. Coba lagi sebentar lagi.",
+  },
+  SKU_GUDANG: {
+    kode: "SKU_DARI_GUDANG",
+    pesan:
+      "Sumber stok = Gudang: SKU baru harus berasal dari Gudang (pemetaan SKU belum tersedia di panel).",
   },
   HANYA_LOKAL: {
     kode: "HANYA_MODE_LOKAL",
@@ -185,7 +196,7 @@ const skemaSkuUbah = z
   })
   .strict();
 
-const berat = z.number().int().min(0).max(1_000_000);
+const berat = z.number().int().positive().max(1_000_000);
 const skemaSatuanBaru = z
   .object({
     jenis: z.enum(JENIS_SATUAN_JUAL_ADMIN),
@@ -207,6 +218,8 @@ const skemaStok = z
     skuId: uuid,
     gudangId: uuid,
     tersedia: z.number().int().min(0).max(1_000_000_000_000),
+    /** Nilai stok yang dilihat admin (null = belum ada); beda dengan DB → 409 (kunci optimistik). */
+    tersediaSebelum: z.number().int().min(0).max(1_000_000_000_000).nullable(),
     alasan: z.string().trim().min(3).max(500),
   })
   .strict();
@@ -235,6 +248,10 @@ export const ruteAdmin: FastifyPluginCallbackZod<OpsiRuteAdmin> = (r, opsi, sele
   const { auth, katalog } = opsi;
   const batasMasuk = new BatasLaju({ maks: opsi.batasMasukPerMenit ?? 10, jendelaMs: 60_000 });
   const batasUmum = new BatasLaju({ maks: opsi.batasUmumPerMenit ?? 300, jendelaMs: 60_000 });
+  const batasMasukGlobal = new BatasLaju({
+    maks: opsi.batasMasukGlobalPerMenit ?? 60,
+    jendelaMs: 60_000,
+  });
 
   r.decorateRequest("adminSesi", null);
 
@@ -246,7 +263,12 @@ export const ruteAdmin: FastifyPluginCallbackZod<OpsiRuteAdmin> = (r, opsi, sele
       return reply.code(400).send({ ...GALAT.INPUT, isian });
     }
     if (err instanceof GalatRepoAdmin) {
-      const status = err.kode === "TIDAK_ADA" ? 404 : err.kode === "DUPLIKAT" ? 409 : 422;
+      const status =
+        err.kode === "TIDAK_ADA"
+          ? 404
+          : err.kode === "DUPLIKAT" || err.kode === "KONFLIK"
+            ? 409
+            : 422;
       return reply.code(status).send({ kode: err.kode, pesan: err.alasan });
     }
     const e = err as { statusCode?: number };
@@ -260,6 +282,10 @@ export const ruteAdmin: FastifyPluginCallbackZod<OpsiRuteAdmin> = (r, opsi, sele
   r.addHook("onRequest", async (req, reply) => {
     void reply.header("cache-control", "no-store");
     void reply.header("x-content-type-options", "nosniff");
+    // Anti clickjacking (halaman /admin sendiri: header sama di reverse proxy, lihat .env.example).
+    void reply.header("content-security-policy", "frame-ancestors 'none'");
+    void reply.header("x-frame-options", "DENY");
+    void reply.header("referrer-policy", "no-referrer");
     if (!batasUmum.ambil(req.ip)) {
       void reply.header("retry-after", String(batasUmum.sisaDetik(req.ip)));
       return reply.code(429).send(GALAT.TERLALU_SERING);
@@ -286,8 +312,8 @@ export const ruteAdmin: FastifyPluginCallbackZod<OpsiRuteAdmin> = (r, opsi, sele
     }
   });
 
-  // Lapis 2: sesi, CSRF, izin.
-  r.addHook("preHandler", async (req, reply) => {
+  // Lapis 2: sesi, CSRF, izin — di preValidation agar tanpa sesi selalu 401 (bukan 400 validasi).
+  r.addHook("preValidation", async (req, reply) => {
     if (!auth || !katalog) return reply.code(503).send(GALAT.BELUM_SIAP);
     if (req.routeOptions.config.publikAdmin) return;
     const token = bacaCookie(req.headers.cookie, COOKIE_SESI);
@@ -309,13 +335,13 @@ export const ruteAdmin: FastifyPluginCallbackZod<OpsiRuteAdmin> = (r, opsi, sele
     req.adminSesi = { ...s, token };
   });
 
-  /** Dipanggil setelah preHandler: sesi pasti ada. */
+  /** Dipanggil setelah preValidation: sesi pasti ada. */
   function sesiDari(req: FastifyRequest): SesiAdminAktif & { token: string } {
-    if (!req.adminSesi) throw new Error("adminSesi kosong setelah preHandler");
+    if (!req.adminSesi) throw new Error("adminSesi kosong setelah preValidation");
     return req.adminSesi;
   }
   function wajib<T>(v: T | null): T {
-    if (v === null) throw new Error("dependensi admin kosong setelah preHandler");
+    if (v === null) throw new Error("dependensi admin kosong setelah preValidation");
     return v;
   }
   function konteks(req: FastifyRequest, izinKode: string, alasanTeks?: string) {
@@ -328,10 +354,17 @@ export const ruteAdmin: FastifyPluginCallbackZod<OpsiRuteAdmin> = (r, opsi, sele
     };
   }
   function batasMasukLewat(req: FastifyRequest, reply: FastifyReply): boolean {
-    if (batasMasuk.ambil(req.ip)) return false;
-    void reply.header("retry-after", String(batasMasuk.sisaDetik(req.ip)));
-    void reply.code(429).send(GALAT.TERLALU_SERING);
-    return true;
+    if (!batasMasuk.ambil(req.ip)) {
+      void reply.header("retry-after", String(batasMasuk.sisaDetik(req.ip)));
+      void reply.code(429).send(GALAT.TERLALU_SERING);
+      return true;
+    }
+    if (!batasMasukGlobal.ambil("global")) {
+      void reply.header("retry-after", String(batasMasukGlobal.sisaDetik("global")));
+      void reply.code(503).send(GALAT.SIBUK);
+      return true;
+    }
+    return false;
   }
 
   // ---------- Masuk / keluar ----------
@@ -346,6 +379,7 @@ export const ruteAdmin: FastifyPluginCallbackZod<OpsiRuteAdmin> = (r, opsi, sele
           200: z.object({ langkah: z.literal("TOTP"), csrfToken: z.string() }),
           401: skemaGalat,
           429: skemaGalat,
+          503: skemaGalat,
         },
       },
     },
@@ -353,6 +387,7 @@ export const ruteAdmin: FastifyPluginCallbackZod<OpsiRuteAdmin> = (r, opsi, sele
       if (batasMasukLewat(req, reply)) return reply;
       const a = wajib(auth);
       const h = await a.masukKataSandi(req.body.nomorHp, req.body.kataSandi, a.ipHmac(req.ip));
+      if (!h.ok && h.sibuk) return reply.code(503).send(GALAT.SIBUK);
       if (!h.ok) return reply.code(401).send(GALAT.MASUK_GAGAL);
       void reply.header("set-cookie", cookieSesi(COOKIE_PRA, h.token, PRA_MENIT * 60));
       return { langkah: "TOTP" as const, csrfToken: a.csrf(h.token) };
@@ -370,6 +405,7 @@ export const ruteAdmin: FastifyPluginCallbackZod<OpsiRuteAdmin> = (r, opsi, sele
           401: skemaGalat,
           403: skemaGalat,
           429: skemaGalat,
+          503: skemaGalat,
         },
       },
     },
@@ -524,10 +560,14 @@ export const ruteAdmin: FastifyPluginCallbackZod<OpsiRuteAdmin> = (r, opsi, sele
       await wajib(katalog).ubahProduk(
         req.params.id,
         tanpaUndefined(b),
-        (k, sebelum, namaBaru) =>
+        (k, sebelum, baru) =>
           cekKeRepo(
             cekProduk({
-              nama: namaBaru,
+              nama: baru.nama,
+              // Aturan kategori hanya saat ganti kategori atau mengaktifkan: menonaktifkan/mengedit
+              // produk yang kategorinya kemudian nonaktif/terlarang tetap boleh.
+              periksaKategori:
+                baru.kategoriId !== sebelum.kategoriId || (baru.aktif && !sebelum.aktif),
               kategori: k && {
                 id: k.id,
                 kode: k.kode,
@@ -551,9 +591,8 @@ export const ruteAdmin: FastifyPluginCallbackZod<OpsiRuteAdmin> = (r, opsi, sele
     { config: { izinAdmin: P }, schema: { params: z.object({ id: uuid }), body: skemaSkuBaru } },
     async (req, reply) => {
       const { alasan: a, aktif, ...b } = req.body;
-      if (!aktif && opsi.sumberInventori !== "local") {
-        return reply.code(409).send(GALAT.HANYA_LOKAL);
-      }
+      // Mode Gudang: SKU wajib berasal dari Gudang + pemetaan_sku_sumber (UI pemetaan menyusul).
+      if (opsi.sumberInventori !== "local") return reply.code(409).send(GALAT.SKU_GUDANG);
       const id = await wajib(katalog).buatSku(
         req.params.id,
         {
@@ -656,7 +695,13 @@ export const ruteAdmin: FastifyPluginCallbackZod<OpsiRuteAdmin> = (r, opsi, sele
   r.put("/stok", { config: { izinAdmin: S }, schema: { body: skemaStok } }, async (req, reply) => {
     if (opsi.sumberInventori !== "local") return reply.code(409).send(GALAT.STOK_HANYA_BACA);
     const b = req.body;
-    await wajib(katalog).aturStok(b.skuId, b.gudangId, b.tersedia, konteks(req, S, b.alasan));
+    await wajib(katalog).aturStok(
+      b.skuId,
+      b.gudangId,
+      b.tersedia,
+      b.tersediaSebelum,
+      konteks(req, S, b.alasan),
+    );
     return reply.code(204).send();
   });
 

@@ -1,5 +1,5 @@
 {
-  "id": "5eac968a-44e2-46eb-9ba5-cf2d3afc1d4d",
+  "id": "f881eb76-010d-48a2-8857-e9588df4c9c4",
   "prevId": "97f0cf5b-157a-42e7-882d-89dc27f83189",
   "version": "7",
   "dialect": "postgresql",
@@ -1093,6 +1093,20 @@
           "primaryKey": false,
           "notNull": false
         },
+        "aktif_terakhir_pada": {
+          "name": "aktif_terakhir_pada",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "percobaan_faktor_kedua": {
+          "name": "percobaan_faktor_kedua",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
         "dibuat_pada": {
           "name": "dibuat_pada",
           "type": "timestamp with time zone",
@@ -1160,6 +1174,10 @@
         "sesi_satu_pemilik": {
           "name": "sesi_satu_pemilik",
           "value": "num_nonnulls(akun_id, admin_id) = 1"
+        },
+        "sesi_percobaan_nonneg": {
+          "name": "sesi_percobaan_nonneg",
+          "value": "percobaan_faktor_kedua >= 0"
         }
       },
       "isRLSEnabled": false

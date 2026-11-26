@@ -6,6 +6,7 @@ import { buatAdminBaru } from "./buat-admin.js";
 import { COOKIE_PRA, COOKIE_SESI } from "./http-util.js";
 import { buatRahasiaTotp, kodeTotp, langkahTotp, type ParameterScrypt } from "./kripto.js";
 import { LayananAuthAdmin } from "./layanan-auth.js";
+import type { OpsiSemafor } from "./semafor.js";
 import { KONFIG_UJI, RepoAuthPalsu, repoKatalogPalsu } from "./palsu.test-util.js";
 import type { OpsiRuteAdmin } from "./rute.js";
 
@@ -27,6 +28,7 @@ interface Lingkungan {
 async function siapkan(
   opsiRute: Partial<OpsiRuteAdmin> = {},
   peran: "owner" | "admin" = "owner",
+  ekstra: { semafor?: OpsiSemafor; trustProxy?: string[] } = {},
 ): Promise<Lingkungan> {
   let jam = new Date("2026-11-27T03:00:00Z");
   const repo = new RepoAuthPalsu();
@@ -66,9 +68,11 @@ async function siapkan(
     konfig: KONFIG_UJI,
     sekarang: () => jam,
     scrypt: SCRYPT_UJI,
+    ...(ekstra.semafor ? { semaforScrypt: ekstra.semafor } : {}),
   });
   const app = buatApp({
     logger: false,
+    ...(ekstra.trustProxy ? { trustProxy: ekstra.trustProxy } : {}),
     admin: {
       auth,
       katalog,
@@ -443,6 +447,7 @@ describe("RBAC per izin", () => {
         skuId: "00000000-0000-7000-8000-000000000021",
         gudangId: "00000000-0000-7000-8000-000000000020",
         tersedia: 5,
+        tersediaSebelum: null,
         alasan: "uji",
       },
     });
@@ -487,6 +492,7 @@ describe("mode stok & batas laju & belum dikonfigurasi", () => {
         skuId: "00000000-0000-7000-8000-000000000021",
         gudangId: "00000000-0000-7000-8000-000000000020",
         tersedia: 5,
+        tersediaSebelum: null,
         alasan: "uji",
       },
     });
@@ -514,5 +520,152 @@ describe("mode stok & batas laju & belum dikonfigurasi", () => {
     const app = buatApp({ logger: false });
     const r = await app.inject({ method: "GET", url: "/api/admin/saya" });
     expect(r.statusCode).toBe(503);
+  });
+});
+
+describe("perbaikan audit S1–S7", () => {
+  async function pra(l: Lingkungan) {
+    const r1 = await langkah1(l);
+    expect(r1.statusCode).toBe(200);
+    return {
+      cookie: `${COOKIE_PRA}=${cookieDari(r1.headers["set-cookie"], COOKIE_PRA) ?? ""}`,
+      "x-csrf-token": r1.json<{ csrfToken: string }>().csrfToken,
+    };
+  }
+  const kodeSalah = (l: Lingkungan) => (l.kodeSekarang() === "000000" ? "111111" : "000000");
+
+  it("maks 3 percobaan faktor kedua per sesi pra, lalu sesi pra dicabut (kode benar pun ditolak)", async () => {
+    const l = await siapkan();
+    l.majukan(30);
+    const h = await pra(l);
+    for (let i = 0; i < 3; i++) {
+      const r = await l.app.inject({
+        method: "POST",
+        url: "/api/admin/masuk/totp",
+        headers: h,
+        payload: { kode: kodeSalah(l) },
+      });
+      expect(r.statusCode).toBe(401);
+    }
+    const benar = await l.app.inject({
+      method: "POST",
+      url: "/api/admin/masuk/totp",
+      headers: h,
+      payload: { kode: l.kodeSekarang() },
+    });
+    expect(benar.statusCode).toBe(401);
+    expect(benar.json<{ kode: string }>().kode).toBe("SESI_PRA_HABIS");
+  });
+
+  it("kata sandi benar tidak memakan jatah; akun terkunci mencabut sesi penuh yang aktif", async () => {
+    const l = await siapkan();
+    const { sesi } = await masukPenuh(l);
+    for (let i = 0; i < 3; i++) await langkah1(l); // kata sandi benar berulang
+    expect(l.repo.admin.get(l.adminId)?.gagalBeruntun).toBe(0);
+    for (let i = 0; i < 5; i++) await langkah1(l, `salah-salah-${String(i)}-xx`);
+    const saya = await l.app.inject({
+      method: "GET",
+      url: "/api/admin/saya",
+      headers: { cookie: `${COOKIE_SESI}=${sesi}` },
+    });
+    expect(saya.statusCode).toBe(401);
+  });
+
+  it("sesi idle > ADMIN_SESI_IDLE_MENIT berakhir; aktivitas memperpanjang", async () => {
+    const l = await siapkan();
+    const { sesi } = await masukPenuh(l);
+    const saya = () =>
+      l.app.inject({
+        method: "GET",
+        url: "/api/admin/saya",
+        headers: { cookie: `${COOKIE_SESI}=${sesi}` },
+      });
+    l.majukan(20 * 60);
+    expect((await saya()).statusCode).toBe(200); // disentuh
+    l.majukan(20 * 60);
+    expect((await saya()).statusCode).toBe(200); // 20 menit sejak sentuhan terakhir
+    l.majukan(KONFIG_UJI.sesiIdleMenit * 60 + 1);
+    expect((await saya()).statusCode).toBe(401);
+  });
+
+  it("header anti clickjacking & 401 sebelum validasi body", async () => {
+    const l = await siapkan();
+    const r = await l.app.inject({
+      method: "POST",
+      url: "/api/admin/produk",
+      payload: { bukan: "skema" },
+    });
+    expect(r.statusCode).toBe(401);
+    expect(r.headers["content-security-policy"]).toBe("frame-ancestors 'none'");
+    expect(r.headers["x-frame-options"]).toBe("DENY");
+  });
+
+  it("scrypt di bawah semafor: kelebihan beban → 503 SERVER_SIBUK", async () => {
+    const l = await siapkan({}, "owner", { semafor: { maks: 1, maksAntre: 0, tungguMs: 10 } });
+    const hasil = await Promise.all(Array.from({ length: 4 }, () => langkah1(l)));
+    const kode = hasil.map((x) => x.statusCode);
+    expect(kode).toContain(200);
+    expect(kode).toContain(503);
+    // Percobaan yang ditolak karena sibuk tidak memakan jatah penguncian.
+    expect(l.repo.admin.get(l.adminId)?.gagalBeruntun).toBe(0);
+  });
+
+  it("batas laju masuk global (semua IP) → 503", async () => {
+    const l = await siapkan({ batasMasukGlobalPerMenit: 2 });
+    const kode: number[] = [];
+    for (let i = 0; i < 3; i++) {
+      kode.push(
+        (
+          await l.app.inject({
+            method: "POST",
+            url: "/api/admin/masuk",
+            remoteAddress: `198.51.100.${String(i)}`,
+            payload: { nomorHp: HP, kataSandi: "salah-salah-salah" },
+          })
+        ).statusCode,
+      );
+    }
+    expect(kode).toEqual([401, 401, 503]);
+  });
+
+  it("X-Forwarded-For hanya dipercaya dari proxy terdaftar (anti spoofing batas laju)", async () => {
+    const coba = async (trustProxy: string[] | undefined, dari: string) => {
+      const l = await siapkan({ batasMasukPerMenit: 2 }, "owner", trustProxy ? { trustProxy } : {});
+      const kode: number[] = [];
+      for (let i = 0; i < 3; i++) {
+        kode.push(
+          (
+            await l.app.inject({
+              method: "POST",
+              url: "/api/admin/masuk",
+              remoteAddress: dari,
+              headers: { "x-forwarded-for": `203.0.113.${String(i)}` },
+              payload: { nomorHp: HP, kataSandi: "salah-salah-salah" },
+            })
+          ).statusCode,
+        );
+      }
+      return kode;
+    };
+    // Tanpa proxy tepercaya: XFF palsu diabaikan → IP sama → kena batas.
+    expect(await coba(undefined, "192.0.2.9")).toEqual([401, 401, 429]);
+    // Koneksi bukan dari proxy terdaftar: XFF diabaikan.
+    expect(await coba(["127.0.0.1"], "192.0.2.9")).toEqual([401, 401, 429]);
+    // Dari proxy terdaftar: IP klien dari XFF → tiap klien berbeda.
+    expect(await coba(["127.0.0.1"], "127.0.0.1")).toEqual([401, 401, 401]);
+  });
+
+  it("mode Gudang: SKU baru dari panel ditolak (409) sampai ada pemetaan SKU", async () => {
+    const l = await siapkan({ sumberInventori: "gudang" });
+    const { sesi, csrf } = await masukPenuh(l);
+    const r = await l.app.inject({
+      method: "POST",
+      url: "/api/admin/produk/00000000-0000-7000-8000-000000000001/sku",
+      headers: { cookie: `${COOKIE_SESI}=${sesi}`, "x-csrf-token": csrf },
+      payload: { kodeSku: "ABC-1", satuanDasar: "pcs" },
+    });
+    expect(r.statusCode).toBe(409);
+    expect(r.json<{ kode: string }>().kode).toBe("SKU_DARI_GUDANG");
+    expect(l.katalog.panggilan).not.toContain("buatSku");
   });
 });

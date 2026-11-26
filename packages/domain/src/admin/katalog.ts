@@ -107,6 +107,8 @@ export type HasilCekProduk =
  * - Kategori wajib subkategori aktif dengan induk aktif; kode kategori/induk terlarang → ditolak.
  * - Nama berisi kata mencurigakan → `MENUNGGU` (tidak tayang). Status `DISETUJUI` hanya
  *   dipertahankan bila nama tidak berubah; nama baru yang aman → `TIDAK_PERLU`.
+ * - `periksaKategori=false` (ubah tanpa ganti kategori & tanpa mengaktifkan): aturan kategori
+ *   dilewati, agar produk di kategori yang kemudian nonaktif/terlarang tetap bisa dinonaktifkan/diedit.
  */
 export function cekProduk(input: {
   readonly nama: string;
@@ -115,18 +117,32 @@ export function cekProduk(input: {
     readonly nama: string;
     readonly tinjauanKategori: TinjauanKategoriProduk;
   };
+  readonly periksaKategori?: boolean;
 }): HasilCekProduk {
-  const k = input.kategori;
-  if (!k) return { ok: false, galat: "KATEGORI_TIDAK_ADA" };
-  if (kategoriTerlarangAdmin(k.kode) || (k.induk && kategoriTerlarangAdmin(k.induk.kode))) {
-    return { ok: false, galat: "KATEGORI_TERLARANG" };
+  if (input.periksaKategori !== false) {
+    const g = galatKategori(input.kategori);
+    if (g) return { ok: false, galat: g };
   }
-  if (!k.induk) return { ok: false, galat: "KATEGORI_BUKAN_SUBKATEGORI" };
-  if (!k.aktif || !k.induk.aktif) return { ok: false, galat: "KATEGORI_NONAKTIF" };
+  return cekNama(input.nama, input.sebelum);
+}
 
-  const kataMencurigakan = kataTerlarangDiNama(input.nama);
-  const sebelum = input.sebelum?.nama === input.nama ? input.sebelum : undefined;
-  const namaSama = sebelum !== undefined;
+/** Aturan kategori produk (P-24 + subkategori aktif). */
+export function galatKategori(k: KategoriUntukProduk | null): GalatProduk | null {
+  if (!k) return "KATEGORI_TIDAK_ADA";
+  if (kategoriTerlarangAdmin(k.kode) || (k.induk && kategoriTerlarangAdmin(k.induk.kode))) {
+    return "KATEGORI_TERLARANG";
+  }
+  if (!k.induk) return "KATEGORI_BUKAN_SUBKATEGORI";
+  if (!k.aktif || !k.induk.aktif) return "KATEGORI_NONAKTIF";
+  return null;
+}
+
+function cekNama(
+  nama: string,
+  sebelumInput?: { readonly nama: string; readonly tinjauanKategori: TinjauanKategoriProduk },
+): HasilCekProduk {
+  const kataMencurigakan = kataTerlarangDiNama(nama);
+  const sebelum = sebelumInput?.nama === nama ? sebelumInput : undefined;
   let tinjauanKategori: TinjauanKategoriProduk;
   if (sebelum) {
     tinjauanKategori = sebelum.tinjauanKategori;
@@ -135,7 +151,7 @@ export function cekProduk(input: {
   } else {
     tinjauanKategori = "TIDAK_PERLU";
   }
-  return { ok: true, tinjauanKategori, kataMencurigakan: namaSama ? [] : kataMencurigakan };
+  return { ok: true, tinjauanKategori, kataMencurigakan: sebelum ? [] : kataMencurigakan };
 }
 
 export const JENIS_SATUAN_JUAL_ADMIN = ["PCS_1", "PCS_3", "LUSIN", "DUS", "KOLI"] as const;

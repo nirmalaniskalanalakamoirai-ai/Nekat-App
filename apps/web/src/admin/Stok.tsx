@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { apiAdmin, GalatAdmin, nilaiForm, type BarisStok } from "./api";
+import { Paginasi } from "./Paginasi";
 
 const fmtWaktu = new Intl.DateTimeFormat("id-ID", {
   dateStyle: "medium",
@@ -14,10 +15,11 @@ export function HalamanStok() {
   const gudang = useQuery({ queryKey: ["admin", "gudang"], queryFn: apiAdmin.gudang });
   const [gudangId, setGudangId] = useState<string | null>(null);
   const [cari, setCari] = useState("");
+  const [halaman, setHalaman] = useState(1);
   const pilihan = gudangId ?? gudang.data?.gudang[0]?.id ?? null;
   const stok = useQuery({
-    queryKey: ["admin", "stok", pilihan, cari],
-    queryFn: () => apiAdmin.stok(pilihan ?? "", cari, 1),
+    queryKey: ["admin", "stok", pilihan, cari, halaman],
+    queryFn: () => apiAdmin.stok(pilihan ?? "", cari, halaman),
     enabled: pilihan !== null,
   });
 
@@ -34,6 +36,7 @@ export function HalamanStok() {
               value={pilihan ?? ""}
               onChange={(e) => {
                 setGudangId(e.target.value);
+                setHalaman(1);
               }}
             >
               {gudang.data.gudang.map((g) => (
@@ -50,6 +53,7 @@ export function HalamanStok() {
             onSubmit={(e) => {
               e.preventDefault();
               setCari(nilaiForm(new FormData(e.currentTarget), "cari"));
+              setHalaman(1);
             }}
           >
             <label className="adm-field">
@@ -90,11 +94,7 @@ export function HalamanStok() {
           </tbody>
         </table>
       )}
-      {stok.data && stok.data.total > stok.data.stok.length && (
-        <p className="adm-catatan">
-          Menampilkan {stok.data.stok.length} dari {stok.data.total}. Persempit dengan pencarian.
-        </p>
-      )}
+      {stok.data && <Paginasi halaman={halaman} total={stok.data.total} onGanti={setHalaman} />}
     </section>
   );
 }
@@ -127,6 +127,8 @@ function BarisStokAdmin({ b, dapatDiubah }: { b: BarisStok; dapatDiubah: boolean
                 skuId: b.skuId,
                 gudangId: b.gudangId,
                 tersedia: Number(f.get("tersedia")),
+                // Kunci optimistik: nilai yang sedang dilihat (409 bila sudah diubah orang lain).
+                tersediaSebelum: b.tersedia,
                 alasan: nilaiForm(f, "alasan"),
               });
             }}
@@ -152,6 +154,9 @@ function BarisStokAdmin({ b, dapatDiubah }: { b: BarisStok; dapatDiubah: boolean
             <button className="btn btn--secondary" disabled={simpan.isPending}>
               Simpan
             </button>
+            <span role="status" aria-live="polite" className="adm-catatan">
+              {simpan.isSuccess ? "Tersimpan." : ""}
+            </span>
             {simpan.error && (
               <span className="adm-galat" role="alert">
                 {simpan.error instanceof GalatAdmin ? simpan.error.message : "Gagal menyimpan."}

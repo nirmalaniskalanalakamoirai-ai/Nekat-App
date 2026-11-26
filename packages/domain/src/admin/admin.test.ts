@@ -169,3 +169,17 @@ describe("akses: RBAC, penguncian, redaksi log", () => {
     expect(bedaField({ a: 1, b: "x" }, { a: 2, b: "x", c: null })).toEqual(["a", "c"]);
   });
 });
+
+describe("periksaKategori (ubah tanpa ganti kategori)", () => {
+  it("kategori nonaktif/terlarang dilewati bila periksaKategori=false; nama tetap dicek", () => {
+    const mati = { ...sub("beras"), aktif: false };
+    expect(cekProduk({ nama: "Beras", kategori: mati })).toMatchObject({ ok: false });
+    expect(cekProduk({ nama: "Beras", kategori: mati, periksaKategori: false })).toMatchObject({
+      ok: true,
+      tinjauanKategori: "TIDAK_PERLU",
+    });
+    expect(
+      cekProduk({ nama: "Rokok X", kategori: sub("kretek"), periksaKategori: false }),
+    ).toMatchObject({ ok: true, tinjauanKategori: "MENUNGGU" });
+  });
+});
