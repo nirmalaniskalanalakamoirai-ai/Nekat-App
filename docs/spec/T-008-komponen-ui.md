@@ -185,8 +185,6 @@ Pita memakai `.progress` dua batang: orang (`n/minAkun`) dan total (`totalGrup/m
 | `harga.status.GRUP_BATAL` | "Grup batal" |
 | `harga.status.HARGA_TIDAK_TERSEDIA` | "Harga belum tersedia" |
 | `harga.status.*` lain (kode tak dikenal) | tidak menampilkan teks; log peringatan (tanpa PII) |
-
-Kode `teksStatus` di atas = semua nilai yang dipakai engine-harga §5.1 / TC-HE-38. `MENUNGGU_PELUNASAN`, `MENUNGGU_CUTOFF`, `HARGA_FINAL_TERKUNCI`, `GRUP_DIPROSES` datang **bersama** `hargaAktif` (D atau F) → tampil berdua (aturan §1.4 no. 3). `DIPERIKSA`, `GRUP_BATAL`, `HARGA_TIDAK_TERSEDIA` datang dengan `hargaAktif = null` → teks saja.
 | `stok.habis` | "Stok habis, segera distok" |
 | `stok.habisPendek` | "Stok habis" |
 | `stok.sisa` | "Sisa {n} {satuanPendek}" |
@@ -195,6 +193,8 @@ Kode `teksStatus` di atas = semua nilai yang dipakai engine-harga §5.1 / TC-HE-
 | `kartu.ditambahkan` | "Ditambahkan 1 {satuanPendek}" · tautan "Ganti satuan" |
 | `kartu.gagalTambah` | "Gagal menambah. Coba lagi." |
 | `umum.offline` | "Kamu sedang offline. Harga akan muncul lagi saat tersambung." |
+
+Kode `teksStatus` di atas = semua nilai yang dipakai engine-harga §5.1 / TC-HE-38. `MENUNGGU_PELUNASAN`, `MENUNGGU_CUTOFF`, `HARGA_FINAL_TERKUNCI`, `GRUP_DIPROSES` datang **bersama** `hargaAktif` (D atau F) → tampil berdua (aturan §1.4 no. 3). `DIPERIKSA`, `GRUP_BATAL`, `HARGA_TIDAK_TERSEDIA` datang dengan `hargaAktif = null` → teks saja.
 
 ### 1.9 Aksesibilitas
 - `article` + `h3` nama; satu tautan (foto + nama) agar pembaca layar tidak membaca dua tautan sama.
@@ -329,7 +329,7 @@ Urutan tampil **selalu** `PCS_1, PCS_3, LUSIN, DUS, KOLI` (klien mengurutkan ula
     "tampilanHarga": { "idVersiHarga": "v-f1", "hargaAktif": 2222, "hargaGrup": 1111, "hargaCoret": null, "teksStatus": null, "promo": null },
     "keteranganHarga": null, "setaraPerPcs": null, "stok": { "status": "TERSEDIA", "sisa": null } },
   { "_catatan": "FIKTIF", "idSatuanJual": "sj_f02", "kode": "DUS", "isi": 24,
-    "tampilanHarga": { "idVersiHarga": "v-f2", "hargaAktif": 99999, "hargaGrup": null, "hargaCoret": null, "teksStatus": null, "promo": null },
+    "tampilanHarga": { "idVersiHarga": "v-f2", "hargaAktif": 44444, "hargaGrup": null, "hargaCoret": null, "teksStatus": null, "promo": null },
     "keteranganHarga": null, "setaraPerPcs": null, "stok": { "status": "HABIS", "sisa": 0 } }
 ]
 ```
