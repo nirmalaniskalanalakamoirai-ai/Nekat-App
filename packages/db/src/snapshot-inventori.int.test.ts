@@ -308,6 +308,45 @@ describe.skipIf(!URL_ADMIN)("snapshot inventori & outbox picking (PostgreSQL nya
           `SELECT ref_id, data FROM log_audit WHERE jenis = 'MODAL_NAIK_HARGA_RUPIAH_TIDAK_TAYANG'`,
         ),
       ).toEqual([{ ref_id: v("a1"), data: { modalBaruRp: 18000, level: ["SATUAN"] } }]);
+      // Clock skew: snapshot bertanggal "masa depan"; pengosongan (null) tetap diterapkan,
+      // nilai bukan-null yang lebih tua tetap tidak menimpa.
+      await q(
+        `UPDATE modal_satuan_jual SET data_pada = '2027-01-01T00:00:00Z' WHERE satuan_jual_id = '${v("a1")}'`,
+      );
+      const tuaIsi = await r.simpanModal(
+        [v("a")],
+        [
+          {
+            skuId: v("a"),
+            satuan: "PCS_1",
+            modalPerSatuan: keRupiah(19_000),
+            dataPada: "2026-11-26T05:02:00Z",
+          },
+        ],
+        W,
+      );
+      expect(tuaIsi.disimpan).toBe(0);
+      expect(
+        await q(
+          `SELECT modal_rp::int AS m FROM modal_satuan_jual WHERE satuan_jual_id = '${v("a1")}'`,
+        ),
+      ).toEqual([{ m: 18000 }]);
+      const kosongkan = await r.simpanModal(
+        [v("a")],
+        [
+          {
+            skuId: v("a"),
+            satuan: "PCS_1",
+            modalPerSatuan: null,
+            dataPada: "2026-11-26T05:02:00Z",
+          },
+        ],
+        W,
+      );
+      expect(kosongkan.dikosongkan).toBeGreaterThanOrEqual(1);
+      expect(
+        await q(`SELECT modal_rp FROM modal_satuan_jual WHERE satuan_jual_id = '${v("a1")}'`),
+      ).toEqual([{ modal_rp: null }]);
       // Pulihkan untuk tes pembaca.
       await q(`DELETE FROM harga_level`);
       await q(`UPDATE modal_satuan_jual SET modal_rp = 15000, modal_gudang_rp = 15000, data_pada = '2026-11-26T04:58:00Z'

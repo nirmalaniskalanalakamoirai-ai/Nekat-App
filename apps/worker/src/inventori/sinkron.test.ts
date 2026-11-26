@@ -3,7 +3,7 @@ import type { InventorySource, RepoSinkronInventori, TinjauanSinkron } from "@ne
 import { InventoryError, type ModalSumber, type StokSumber } from "@nekat/shared";
 import { describe, expect, it } from "vitest";
 import { cronSinkron, daftarkanJobInventori } from "../worker.js";
-import { PengumpulPeristiwaSinkron, sinkronInventori } from "./sinkron.js";
+import { maksNonaktifSku, PengumpulPeristiwaSinkron, sinkronInventori } from "./sinkron.js";
 
 const SKU = Array.from(
   { length: 201 },
@@ -194,6 +194,14 @@ describe("sinkronInventori", () => {
     expect(catatan.penuh).toEqual([true]);
     expect(h.gagal).toContainEqual({ bagian: "sku", kode: "ANOMALI_PENONAKTIFAN" });
     expect(catatan.audit[0]?.jenis).toBe("SINKRON_GUDANG_SEBAGIAN");
+  });
+
+  it("ambang untuk katalog kecil: lantai 1 (bukan 0); jumlah 0 = penonaktifan dimatikan", () => {
+    const b = { jumlah: 50, persen: 20 };
+    expect([0, 1, 2, 4, 5, 10, 1000].map((n) => maksNonaktifSku(n, b))).toEqual([
+      1, 1, 1, 1, 1, 2, 50,
+    ]);
+    expect(maksNonaktifSku(3, { jumlah: 0, persen: 20 })).toBe(0);
   });
 
   it("respons stok `data: []` untuk permintaan tak kosong → anomali, BUKAN stok 0", async () => {

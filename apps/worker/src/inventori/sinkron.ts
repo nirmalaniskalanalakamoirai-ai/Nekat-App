@@ -60,6 +60,18 @@ export interface OpsiSinkron {
 
 export const BATAS_NONAKTIF_BAWAAN = { jumlah: 50, persen: 20 } as const;
 
+/**
+ * Jumlah maksimum SKU yang boleh dinonaktifkan dalam satu sinkron penuh:
+ * min(jumlah, max(1, floor(terpetakan × persen / 100))). Lantai 1 agar katalog kecil (< 5 SKU pada
+ * 20 %) tetap bisa menonaktifkan SKU yang benar-benar hilang; `jumlah = 0` mematikan penonaktifan.
+ */
+export function maksNonaktifSku(
+  terpetakan: number,
+  batas: { readonly jumlah: number; readonly persen: number },
+): number {
+  return Math.min(batas.jumlah, Math.max(1, Math.floor((terpetakan * batas.persen) / 100)));
+}
+
 export interface HasilSinkron {
   readonly sku: {
     diubah: number;
@@ -116,7 +128,7 @@ export async function sinkronInventori(o: OpsiSinkron): Promise<HasilSinkron> {
       gagal.push({ bagian: "sku", kode: "BARIS_SKU_TIDAK_VALID" });
     }
     const batas = o.batasNonaktif ?? BATAS_NONAKTIF_BAWAAN;
-    const maksNonaktif = Math.min(batas.jumlah, Math.floor((skuIds.length * batas.persen) / 100));
+    const maksNonaktif = maksNonaktifSku(skuIds.length, batas);
     hasilSku = await o.repo.terapkanSku(daftar, { penuh, maksNonaktif, waktu: sekarang() });
     if (hasilSku.ditahan) gagal.push({ bagian: "sku", kode: "ANOMALI_PENONAKTIFAN" });
   } catch (e) {

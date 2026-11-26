@@ -348,9 +348,11 @@ export function buatRepoSinkronInventori(db: Db): RepoSinkronInventori {
           for (const s of sj) {
             const m = masuk.get(`${s.skuId}\u0000${s.jenis}`);
             const dataPada = m ? new Date(m.dataPada) : waktu;
-            // Pagar urutan: data sumber yang lebih tua dari snapshot tidak menimpa (sama dengan stok).
-            if (s.dataPadaLama !== null && dataPada < s.dataPadaLama) continue;
             const baru = m?.modalPerSatuan ?? null;
+            // Pagar urutan: nilai modal dari data yang lebih tua dari snapshot tidak menimpa (sama
+            // dengan stok). Pengosongan (null) TIDAK dikenai pagar: jam Gudang yang maju (clock skew)
+            // tidak boleh membuat modal lama yang sudah tidak valid tetap dipakai (arah aman).
+            if (baru !== null && s.dataPadaLama !== null && dataPada < s.dataPadaLama) continue;
             const lama = s.modalGudangLama;
             if (baru === null) r.dikosongkan++;
             else r.disimpan++;
@@ -395,7 +397,7 @@ export function buatRepoSinkronInventori(db: Db): RepoSinkronInventori {
                 disinkronPada: sql`excluded.disinkron_pada`,
               },
               // Pertahanan berlapis untuk proses paralel: data lebih tua tidak menimpa.
-              setWhere: sql`${modalSatuanJual.dataPada} IS NULL OR ${modalSatuanJual.dataPada} <= excluded.data_pada`,
+              setWhere: sql`excluded.modal_rp IS NULL OR ${modalSatuanJual.dataPada} IS NULL OR ${modalSatuanJual.dataPada} <= excluded.data_pada`,
             });
         }
         return r;
