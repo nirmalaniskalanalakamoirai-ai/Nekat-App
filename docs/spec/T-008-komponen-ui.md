@@ -3,7 +3,7 @@
 | Atribut | Nilai |
 |---|---|
 | Task | T-008 (`task/T-008-komponen-ui`) |
-| Versi | 0.1 — Draf |
+| Versi | 0.2 — Draf (perbaikan review Code Reviewer, 15 temuan) |
 | Tanggal | 26 Nov 2026 |
 | Penyusun | UI Designer (squad Produk & flow, pemilik: Randy) |
 | Sumber wajib | `project-specs/keputusan.md` (menang bila bertentangan); `docs/spec/T-007-ux-halaman.md` + `T-007-tokens.css`; `docs/spec/engine-harga.md` §5.1, §7; `docs/flow/group-order.md` §1, B-01, B-02, §8; `docs/spec/T-004-model-data.md` (`slot_kirim`); `keputusan-terbuka.md` (F-15, F-16, F-22, F-27, P-17, K-20, K-27, K-38 per 26 Nov) |
@@ -33,7 +33,7 @@ Notasi: `{x}` = nilai dari server/konfigurasi. `Rp —` = nominal dari server. *
 | R13 | Harga tidak dihitung di klien (ADR-0001, T-007 A20); offline = harga disembunyikan | Semua harga dari `TampilanHarga`. Pengecualian terbatas: U-04. |
 | R14 | Setelah tagihan terbit tidak bisa tambah anggota/barang (K-22) | "+" ke grup itu & tombol ajak disembunyikan/nonaktif setelah tagihan terbit. |
 
-**Temuan judul task:** judul T-008/T-027 "progress grup *X/Y di zona kamu · Z lagi → harga*" dan T-028 "pilih satuan jual (1 pcs, grup 6+, grup 12+)" **tidak cocok lagi** dengan G-01/K-09/K-14: tidak ada tangga kuantitas dan tidak ada progres per produk per zona (satu zona × slot bisa punya banyak grup). Pengganti di dokumen ini: `ProgresGrupRingkas` "Grup {nama}: {n}/3 orang · Rp — dari {min_grup}" (§1.6) dan pemilih satuan P-03 (§2). Judul backlog T-027/T-028 perlu diselaraskan PM (U-02).
+**Temuan judul task:** judul T-008/T-027 "progress grup *X/Y di zona kamu · Z lagi → harga*" dan T-028 "pilih satuan jual (1 pcs, grup 6+, grup 12+)" **tidak cocok lagi** dengan G-01/K-09/K-14: tidak ada tangga kuantitas dan tidak ada progres per produk per zona (satu zona × slot bisa punya banyak grup). Pengganti di dokumen ini: `ProgresGrupRingkas` "Grup {nama}: {n}/{minAkun} orang · Rp — dari {min_grup}" (§1.6) dan pemilih satuan P-03 (§2). Judul backlog T-027/T-028 perlu diselaraskan PM (U-02).
 
 **Token:** semua komponen hanya memakai token `T-007-tokens.css` (`apps/web/src/styles/tokens.css`). **Tidak ada warna baru.** Pemetaan warna per komponen ada di masing-masing bagian.
 
@@ -78,13 +78,20 @@ interface KartuProdukData {                 // GET /katalog?zona=&kategori=&q=&h
   satuanDefault: { idSatuanJual: string; kode: KodeSatuan; isi: number };  // satuan terkecil yang tersedia
   jumlahSatuan: number;                     // >1 → snackbar "Ganti satuan"
   tampilanHarga: TampilanHarga;             // untuk satuanDefault & konteks sesi (KATALOG / GRUP)
+  keteranganHarga: KeteranganHarga;         // turunan SERVER (usulan §7), lihat §1.4
+  promoPerProduk: boolean;                  // SERVER: true bila promo berlaku per produk (nominal boleh tampil, U-09)
   stok: { status: 'TERSEDIA' | 'TERBATAS' | 'HABIS'; sisa: number | null };  // sisa dalam satuanDefault
   bebasPpn: boolean;                        // tidak ditampilkan di kartu (detail saja)
 }
+type KeteranganHarga =
+  | 'GRUP_BERLAKU'                          // konteks GRUP, syarat terpenuhi, hargaAktif = harga Mitra Grosir
+  | 'GROSIR_TIDAK_TERSEDIA'                 // konteks GRUP, syarat terpenuhi, satuan tanpa sel Mitra Grosir (K-27) → harga satuan
+  | null;                                   // lainnya (KATALOG, GRUP belum terpenuhi, setelah tagihan)
 interface KonteksBelanja {                  // GET /sesi/konteks (usulan) — satu kali per halaman, bukan per kartu
   grupAktif: Array<{
     kode: string; nama: string; status: StatusGrup;
     syarat: StatusSyaratGrup;               // engine-harga §7
+    minAkun: number;                        // konfigurasi grup.min_akun — JANGAN hardcode 3
     minTotal: Rupiah; tagihanTerbit: boolean; slot: RingkasSlot;
   }>;                                       // bisa > 1 (F-16)
   qtyDiKeranjang: Record<string /*idSatuanJual*/, number>;
@@ -92,8 +99,9 @@ interface KonteksBelanja {                  // GET /sesi/konteks (usulan) — sa
 }
 interface KartuProdukProps {
   data: KartuProdukData; konteks: KonteksBelanja;
-  onTambah(idSatuanJual: string): Promise<void>;
-  onUbahQty(idSatuanJual: string, qty: number): Promise<void>;
+  // Respons server setelah tambah/ubah = KonteksBelanja terbaru (qty terkonfirmasi + syarat grup)
+  onTambah(idSatuanJual: string): Promise<KonteksBelanja>;
+  onUbahQty(idSatuanJual: string, qty: number): Promise<KonteksBelanja>;
 }
 ```
 Label satuan: `PCS_1` "1 pcs" (pendek "pcs") · `PCS_3` "3 pcs" ("3 pcs") · `LUSIN` "lusin (isi {isi})" ("lusin") · `DUS` "dus (isi {isi})" ("dus") · `KOLI` "koli (isi {isi})" ("koli").
@@ -104,16 +112,17 @@ Label satuan: `PCS_1` "1 pcs" (pendek "pcs") · `PCS_3` "3 pcs" ("3 pcs") · `LU
 | `tampilan` | `TampilanHarga` | satu-satunya sumber angka |
 | `satuan` | `{ kode, isi }` | untuk "/pcs", "/dus" |
 | `varian` | `'kartu' \| 'detail' \| 'opsi' \| 'baris'` | ukuran: `.price--card` (18 px) / `.price--detail` (24 px) / `--text-base` / `--text-base` |
-| `konteks` | `'KATALOG' \| 'GRUP'` | menentukan baris Belanja Bareng |
+| `keterangan` | `KeteranganHarga` | field turunan server per satuan (§1.3); `Harga` **tidak** menebak dari `syarat`/`peringatan` |
 
-Aturan tampil:
-1. `hargaCoret` ≠ null → `<s class="price--strike">` dengan awalan sr-only "Harga satuan" (P-17). Ditaruh **sebelum** harga aktif.
-2. `hargaAktif` → `.price` + satuan pendek. `null` → tampilkan teks `teksStatus` (tabel 1.8), bukan angka.
-3. Konteks KATALOG dan `hargaGrup` ≠ null → chip `.chip--group` "Harga Belanja Bareng Rp —" (K-38). `hargaGrup` null (K-27) → tanpa chip.
-4. Konteks GRUP, syarat terpenuhi → `hargaAktif` sudah harga grup; tampilkan label kecil `--color-price-group` "Harga Belanja Bareng" di atas angka; coret = harga satuan.
-5. Konteks GRUP, satuan tanpa Mitra Grosir (`peringatan` berisi `GROSIR_TIDAK_TERSEDIA`) → keterangan `--color-text-muted` "Tidak dapat Harga Belanja Bareng".
-6. Promo **tidak pernah** di dalam `Harga`; induk merender chip promo terpisah.
-7. Sebelum tagihan terbit, varian `detail` menambah catatan "Harga bisa berubah sampai tagihan terbit" (T-007 A10). Kartu tidak (ruang sempit).
+Aturan tampil (hanya membaca `tampilan` + `keterangan`):
+1. `hargaCoret` ≠ null → `<s class="price--strike">` (P-17). Ditaruh **sebelum** harga aktif.
+2. `hargaAktif` ≠ null → `.price` + satuan pendek. `hargaAktif` = null → hanya teks `teksStatus` (tabel 1.8), tanpa angka.
+3. `teksStatus` ≠ null dan `hargaAktif` ≠ null → **keduanya** tampil: angka harga lalu baris kecil `--color-text-muted` teks status (mis. "Harga final").
+4. `hargaGrup` ≠ null (artinya KATALOG atau GRUP belum terpenuhi, engine-harga §5.1) → chip `.chip--group` "Harga Belanja Bareng Rp —" (K-38). `hargaGrup` = null → tanpa chip.
+5. `keterangan = 'GRUP_BERLAKU'` → label kecil `--color-price-group` "Harga Belanja Bareng" di atas angka; coret (bila ada) = harga satuan.
+6. `keterangan = 'GROSIR_TIDAK_TERSEDIA'` (K-27) → keterangan `--color-text-muted` "Tidak dapat Harga Belanja Bareng"; tanpa label grup; `hargaCoret` = null (harga aktif = harga satuan) sehingga tanpa `<s>`.
+7. Promo **tidak pernah** di dalam `Harga`; induk merender chip promo terpisah.
+8. Sebelum tagihan terbit, varian `detail` menambah catatan "Harga bisa berubah sampai tagihan terbit" (T-007 A10). Kartu tidak (ruang sempit).
 
 ### 1.5 State
 | State | Pemicu | Tampilan | Tombol "+" |
@@ -121,34 +130,39 @@ Aturan tampil:
 | Default (katalog) | `stok.status = TERSEDIA`, online | Harga aktif + chip Belanja Bareng bila ada | aktif |
 | Memuat | data belum ada | Skeleton seukuran kartu: kotak 1:1, 2 baris nama, 1 baris harga (`.skeleton`, statis bila reduced-motion) | tidak dirender |
 | Tanpa promo | `promo = null` | Chip promo tidak dirender, **tanpa ruang kosong**; tinggi kartu disamakan oleh grid (`align-items: stretch`, blok harga menempel bawah) | aktif |
-| Dengan promo | `promo ≠ null` | Chip `.chip--promo` di baris sendiri di bawah `Harga` | aktif |
-| Tanpa harga grup (K-27) | `hargaGrup = null` | Tanpa chip Belanja Bareng | aktif |
+| Dengan promo | `promo ≠ null` | Chip `.chip--promo` di baris sendiri di bawah `Harga`: `promo.label` (+ "s.d. {tanggal}" bila `berlakuSampai`); nominal `hargaSetelahPromo` **hanya** bila `promoPerProduk = true` (U-09) | aktif |
+| Tanpa harga grup (K-27), katalog | `hargaGrup = null`, `keteranganHarga = null` | Tanpa chip Belanja Bareng | aktif |
 | Stok terbatas | `TERBATAS`, `sisa` | "Sisa {n} {satuanPendek}" `--color-warning` | aktif; stepper maks `sisa` |
-| **Stok habis** (K-20) | `HABIS` | Foto `filter: grayscale(1)` (gambar saja, teks tetap kontras penuh, **bukan** `opacity` pada teks); chip netral `.chip` "Stok habis, segera distok" di atas foto; harga tetap tampil | diganti `<span>` teks "Stok habis" dalam kotak 48 px `aria-disabled`, tidak bisa ditekan |
-| Konteks grup, syarat belum | grup DIBUKA, `syarat.terpenuhi = false` | Harga satuan + chip Belanja Bareng + `ProgresGrupRingkas` chip | aktif → ke grup (U-03) |
-| Konteks grup, syarat terpenuhi | `terpenuhi = true` | Label "Harga Belanja Bareng", harga grup, coret harga satuan | aktif |
-| Tagihan grup terbit (K-22) | `tagihanTerbit = true` | Harga dari server (`D`) | ke grup: tidak; DEFAULT SEMENTARA U-03: ke keranjang biasa + snackbar |
-| Harga tidak tersedia | `hargaAktif = null` di konteks GRUP (DITAHAN/BATAL) | Teks `teksStatus` | nonaktif |
-| Error tambah | API `onTambah` gagal | Stepper kembali ke nilai sebelumnya; snackbar `role="alert"` "Gagal menambah. Coba lagi." | aktif |
+| **Stok habis** (K-20) | `HABIS`, `qtyDiKeranjang = 0` | Foto `filter: grayscale(1)` (gambar saja, teks tetap kontras penuh, **bukan** `opacity` pada teks); chip netral `.chip` "Stok habis, segera distok" di atas foto; harga tetap tampil | **tidak ada tombol**: diganti teks biasa `<p>` "Stok habis" di kotak 48 px (tidak fokusable, tidak bisa ditekan) |
+| Stok habis, barang sudah di keranjang | `HABIS`, `qtyDiKeranjang > 0` | Seperti stok habis + stepper tetap tampil | "+" `<button disabled>` (label "Stok habis"); "−"/hapus **tetap aktif** agar pembeli bisa mengurangi/menghapus |
+| Konteks grup, syarat belum | grup DIBUKA, `syarat.terpenuhi = false` | Harga satuan + chip Belanja Bareng (`hargaGrup`) + `ProgresGrupRingkas` chip | aktif → ke grup (U-03) |
+| Konteks grup, syarat terpenuhi | `keteranganHarga = GRUP_BERLAKU` | Label "Harga Belanja Bareng", harga grup, coret harga satuan | aktif |
+| Grup terpenuhi, satuan tanpa Mitra Grosir (K-27) | `keteranganHarga = GROSIR_TIDAK_TERSEDIA` | Harga satuan + "Tidak dapat Harga Belanja Bareng"; tanpa `<s>`, tanpa chip grup | aktif |
+| Tagihan grup terbit (K-22) | `tagihanTerbit = true` | Harga `D` + teks status (`MENUNGGU_PELUNASAN` / `MENUNGGU_CUTOFF`) | ke grup: tidak; DEFAULT SEMENTARA U-03: ke keranjang biasa + snackbar |
+| Harga final | `HARGA_FINAL_TERKUNCI` / `GRUP_DIPROSES` | Harga `F` + teks status | ke grup: tidak (seperti baris atas) |
+| Harga tidak tersedia | `hargaAktif = null` di konteks GRUP (DITAHAN/BATAL) | Teks `teksStatus` saja | nonaktif |
+| Syarat grup berubah | respons `onTambah`/`onUbahQty` membawa `syarat.terpenuhi` berbeda dari sebelumnya (mis. akun ke-3 menambah barang) | Katalog & detail yang terbuka **memuat ulang** `tampilanHarga` + `keteranganHarga` dari server; selama memuat, angka harga diganti skeleton baris harga (bukan angka lama) | aktif |
+| Error tambah | API `onTambah`/`onUbahQty` gagal | Stepper kembali ke **qty terakhir yang dikonfirmasi server** (bukan nilai optimistis antara); snackbar `role="alert"` "Gagal menambah. Coba lagi." | aktif |
 | Offline | `online = false` | Harga diganti "—", chip promo & Belanja Bareng disembunyikan, stok disembunyikan | nonaktif, `aria-describedby` → pita offline |
 | Di luar zona | `dalamZona = false` | Harga tampil (mode lihat) | nonaktif + "NEKAT belum melayani lokasimu" (sekali di atas grid, bukan per kartu) |
 | Tidak tayang (defensif) | `hargaAktif = null` di KATALOG | Kartu tidak dirender | — |
 
 ### 1.6 `ProgresGrupRingkas`
-Pengganti "X/Y di zona kamu · Z lagi → harga" (R1). Data: `grupAktif[i].syarat` + `minTotal`. Satu sumber untuk semua kartu; dirender **lengkap sekali** di pita grup aktif di atas grid, dan sebagai **chip pendek** di kartu (DEFAULT SEMENTARA U-02).
+Pengganti "X/Y di zona kamu · Z lagi → harga" (R1). Data: `grupAktif[i].syarat` + `minAkun` + `minTotal` (angka "3" di teks di bawah = `{minAkun}`, tidak di-hardcode). Satu sumber untuk semua kartu; dirender **lengkap sekali** di pita grup aktif di atas grid, dan sebagai **chip pendek** di kartu (DEFAULT SEMENTARA U-02).
 
 | Kondisi (`syarat`) | Pita (lengkap) | Chip kartu |
 |---|---|---|
-| `kurangAkun > 0`, `kurangRupiah > 0` | "Grup {nama}: {n}/3 orang · Rp — dari {min_grup} · kurang {kurangAkun} orang dan Rp — lagi" | "Kurang {kurangAkun} orang" |
-| `kurangAkun > 0`, `kurangRupiah = 0` | "Grup {nama}: {n}/3 orang · kurang {kurangAkun} orang lagi. Ajak tetangga!" | "Kurang {kurangAkun} orang" |
+| `kurangAkun > 0`, `kurangRupiah > 0` | "Grup {nama}: {n}/{minAkun} orang · Rp — dari {min_grup} · kurang {kurangAkun} orang dan Rp — lagi" | "Kurang {kurangAkun} orang" |
+| `kurangAkun > 0`, `kurangRupiah = 0` | "Grup {nama}: {n}/{minAkun} orang · kurang {kurangAkun} orang lagi. Ajak tetangga!" | "Kurang {kurangAkun} orang" |
 | `kurangAkun = 0`, `kurangRupiah > 0` | "Grup {nama} terbuka · tambah belanja Rp — lagi agar dapat Harga Belanja Bareng" | "Tambah Rp — lagi" |
 | terpenuhi | "Grup {nama} terbuka · Harga Belanja Bareng berlaku untuk semua barang" | "Harga Belanja Bareng berlaku" (`.chip--success` + ikon centang) |
 
-Pita memakai `.progress` dua batang: orang (`n/3`) dan total (`totalGrup/minTotal`, maks 100%), masing-masing `role="progressbar"` dengan `aria-valuenow/min/max` dan `aria-valuetext` = teks lengkap. Nominal Rupiah dari server (`kurangRupiah`, `totalGrup`); klien tidak mengurangkan.
+Pita memakai `.progress` dua batang: orang (`n/minAkun`) dan total (`totalGrup/minTotal`, maks 100%), masing-masing `role="progressbar"` dengan `aria-valuenow/min/max` dan `aria-valuetext` = teks lengkap. Nominal Rupiah dari server (`kurangRupiah`, `totalGrup`); klien tidak mengurangkan.
 
 ### 1.7 Perilaku & interaksi
 - Ketuk foto/nama → `/p/{slug}` dengan satuan default terpilih.
-- "+" → `onTambah(satuanDefault)` optimistis: tombol jadi stepper `− 1 +` (tiap tombol 44 px, jarak 8 px), `aria-live="polite"` "{nama} ditambahkan, jumlah 1". Gagal → rollback.
+- "+" → `onTambah(satuanDefault)` optimistis: tombol jadi stepper `− 1 +` (tiap tombol 44 px, jarak 8 px), `aria-live="polite"` "{nama} ditambahkan, jumlah 1". Gagal → rollback ke qty terakhir terkonfirmasi server.
+- Respons `onTambah`/`onUbahQty` = `KonteksBelanja` terbaru. Klien menyimpan `qtyDiKeranjang` dari respons itu sebagai nilai terkonfirmasi. Bila `syarat.terpenuhi` salah satu grup berubah (mis. akun ke-3 menambah barang, atau total melewati `minTotal`), halaman yang terbuka (katalog/detail) memuat ulang `tampilanHarga` + `keteranganHarga` dari server. Klien **tidak** mengganti harga sendiri.
 - `jumlahSatuan > 1` → snackbar "Ditambahkan 1 {satuanPendek} · Ganti satuan" (tautan ke detail).
 - Stepper "−" di qty 1 berubah ikon tempat sampah, label "Hapus {nama} dari keranjang"; hapus memberi "Urungkan" 5 detik.
 - Ketukan beruntun digabung (debounce 300 ms) jadi satu `onUbahQty`.
@@ -163,9 +177,16 @@ Pita memakai `.progress` dua batang: orang (`n/3`) dan total (`totalGrup/minTota
 | `harga.tidakDapatGrup` | "Tidak dapat Harga Belanja Bareng" |
 | `harga.srCoret` | "Harga satuan" |
 | `harga.berubahSampaiTagihan` | "Harga bisa berubah sampai tagihan terbit" |
+| `harga.status.MENUNGGU_PELUNASAN` | "Harga sudah terkunci di tagihan" |
+| `harga.status.MENUNGGU_CUTOFF` | "Harga di tagihan · menunggu grup tutup" |
+| `harga.status.HARGA_FINAL_TERKUNCI` | "Harga final" |
+| `harga.status.GRUP_DIPROSES` | "Harga final · pesanan sedang disiapkan" |
 | `harga.status.DIPERIKSA` | "Harga sedang kami periksa" |
 | `harga.status.GRUP_BATAL` | "Grup batal" |
 | `harga.status.HARGA_TIDAK_TERSEDIA` | "Harga belum tersedia" |
+| `harga.status.*` lain (kode tak dikenal) | tidak menampilkan teks; log peringatan (tanpa PII) |
+
+Kode `teksStatus` di atas = semua nilai yang dipakai engine-harga §5.1 / TC-HE-38. `MENUNGGU_PELUNASAN`, `MENUNGGU_CUTOFF`, `HARGA_FINAL_TERKUNCI`, `GRUP_DIPROSES` datang **bersama** `hargaAktif` (D atau F) → tampil berdua (aturan §1.4 no. 3). `DIPERIKSA`, `GRUP_BATAL`, `HARGA_TIDAK_TERSEDIA` datang dengan `hargaAktif = null` → teks saja.
 | `stok.habis` | "Stok habis, segera distok" |
 | `stok.habisPendek` | "Stok habis" |
 | `stok.sisa` | "Sisa {n} {satuanPendek}" |
@@ -177,7 +198,7 @@ Pita memakai `.progress` dua batang: orang (`n/3`) dan total (`totalGrup/minTota
 
 ### 1.9 Aksesibilitas
 - `article` + `h3` nama; satu tautan (foto + nama) agar pembaca layar tidak membaca dua tautan sama.
-- Harga dibaca utuh lewat `aria-label` pada blok `Harga`: "Harga satuan Rp12.345, sekarang Rp11.111 per pcs. Harga Belanja Bareng Rp11.111" (contoh FIKTIF).
+- Harga dibaca utuh lewat **satu** `<span class="sr-only">` di awal blok `Harga` berisi kalimat lengkap, mis. "Harga satuan Rp2.222, sekarang Rp1.111 per pcs, Harga Belanja Bareng." (contoh FIKTIF). Semua angka & label visual di blok itu (`<s>`, `.price`, label grup) diberi `aria-hidden="true"` agar tidak dibaca dua kali. Tidak memakai `aria-label` pada elemen non-interaktif. Chip "Harga Belanja Bareng Rp —" (katalog) ikut masuk kalimat sr-only yang sama.
 - "+" `<button>` 48 × 48 px (`--tap-comfort`); stepper `role="group"` `aria-label="Jumlah {nama}"`, angka `aria-live="polite"`.
 - Kontras (T-007 §8.2): harga `--color-price` 16.9:1; coret `--color-price-strike` (= muted) 7.9:1; chip grup 5.6:1; chip promo 6.9:1; peringatan stok `--color-warning` di `--color-surface` 6.8:1 (terang) / 9.2:1 (gelap), dihitung WCAG 2.1.
 - Stok habis tidak hanya abu: ada teks. Chip status pakai ikon + teks (AX7).
@@ -191,8 +212,9 @@ Pita memakai `.progress` dua batang: orang (`n/3`) dan total (`totalGrup/minTota
   "foto": { "url": "/fiktif/minyak.webp", "alt": "Botol minyak goreng contoh 1 liter" },
   "satuanDefault": { "idSatuanJual": "sj_f01", "kode": "PCS_1", "isi": 1 },
   "jumlahSatuan": 3,
-  "tampilanHarga": { "idVersiHarga": "v-fiktif", "hargaAktif": 12345, "hargaGrup": 11111,
+  "tampilanHarga": { "idVersiHarga": "v-fiktif", "hargaAktif": 2222, "hargaGrup": 1111,
                      "hargaCoret": null, "teksStatus": null, "promo": null },
+  "keteranganHarga": null, "promoPerProduk": false,
   "stok": { "status": "TERBATAS", "sisa": 4 }, "bebasPpn": true
 }
 ```
@@ -200,18 +222,26 @@ Pita memakai `.progress` dua batang: orang (`n/3`) dan total (`totalGrup/minTota
 ### 1.11 Kriteria terima / kasus uji
 | ID | Kasus | Hasil yang diharapkan |
 |---|---|---|
-| TC-UI-01 | Kartu & detail, satuan default & konteks sama | `idVersiHarga`, `hargaAktif`, `hargaCoret`, `hargaGrup` identik di DOM keduanya (E2E, sejalan TC-HE-14) |
+| TC-UI-01 | Kartu & detail, satuan default & konteks sama | E2E mencegat respons API katalog & detail: `idVersiHarga`, `hargaAktif`, `hargaCoret`, `hargaGrup`, `keteranganHarga` identik (sejalan TC-HE-14); teks harga yang tampil (nama aksesibel blok `Harga`) identik. `idVersiHarga` **tidak** dirender di DOM |
 | TC-UI-02 | `promo = null` | Tidak ada elemen chip promo; tidak ada ruang kosong |
 | TC-UI-03 | `promo ≠ null` | Chip promo di luar elemen `Harga`; angka harga aktif tidak berubah |
 | TC-UI-04 | Katalog, `hargaCoret = null` | Tidak ada `<s>` |
-| TC-UI-05 | Grup terpenuhi, `hargaCoret` = harga satuan | `<s>` berisi harga satuan, sr-only "Harga satuan" terbaca |
-| TC-UI-06 | `stok.status = HABIS` | Teks "Stok habis, segera distok"; tidak ada `<button>` tambah aktif; API tambah tidak dipanggil |
+| TC-UI-05 | Grup terpenuhi, `hargaCoret` = harga satuan | `<s>` (aria-hidden) berisi harga satuan; kalimat `.sr-only` diawali "Harga satuan Rp…" |
+| TC-UI-06 | `stok.status = HABIS`, belum di keranjang | Teks "Stok habis, segera distok" + teks "Stok habis" di posisi "+"; tidak ada `<button>` tambah; tidak ada elemen `aria-disabled` palsu; API tambah tidak dipanggil |
+| TC-UI-06b | `HABIS`, `qtyDiKeranjang = 2` | "+" `disabled`; "−" aktif → qty 1; hapus aktif |
 | TC-UI-07 | `hargaGrup = null` | Tidak ada teks "Harga Belanja Bareng" di kartu katalog |
 | TC-UI-08 | Seluruh DOM kartu/detail | Tidak mengandung "Mitra", "drop point", "modal", "tier", "MOQ" |
 | TC-UI-09 | `hargaAktif = null` di katalog | Kartu tidak dirender |
 | TC-UI-10 | Offline | Semua harga "—", "+" nonaktif, pita offline tampil |
-| TC-UI-11 | Nominal 1234567 (FIKTIF) | Tampil "Rp1.234.567", bukan "Rp1,2 jt" |
-| TC-UI-12 | "+" gagal (500) | Stepper kembali, snackbar `role="alert"` |
+| TC-UI-11 | Nominal 9999999 (FIKTIF) | Tampil "Rp9.999.999", bukan "Rp10 jt" / "Rp9,9 jt" |
+| TC-UI-12 | "+" gagal (500) | Stepper kembali ke qty terkonfirmasi server, snackbar `role="alert"` |
+| TC-UI-12b | Qty terkonfirmasi 2; ketuk "+" 3× cepat (≤ 300 ms antar ketukan) | Tepat **satu** `onUbahQty(…, 5)`; bila gagal → stepper kembali ke 2 (bukan 3/4) |
+| TC-UI-12c | Grup 2/{minAkun} orang; akun ke-3 menambah barang (respons `syarat.terpenuhi` jadi true) | Katalog memuat ulang harga; kartu & detail produk yang sama sama-sama menampilkan label "Harga Belanja Bareng" + harga grup + coret harga satuan |
+| TC-UI-12d | `keteranganHarga = GROSIR_TIDAK_TERSEDIA` (grup terpenuhi) | "Tidak dapat Harga Belanja Bareng" tampil; tidak ada `<s>`; tidak ada label "Harga Belanja Bareng" |
+| TC-UI-12e | `teksStatus` = `MENUNGGU_PELUNASAN` / `MENUNGGU_CUTOFF` / `HARGA_FINAL_TERKUNCI` / `GRUP_DIPROSES`, `hargaAktif` ≠ null | Per kode: angka harga **dan** teks status persis (§1.8) tampil bersama |
+| TC-UI-12f | `teksStatus` = `DIPERIKSA` / `GRUP_BATAL` / `HARGA_TIDAK_TERSEDIA`, `hargaAktif = null` | Per kode: hanya teks status; tidak ada angka; "+" nonaktif |
+| TC-UI-12g | `grupAktif[0].minAkun = 4` (konfigurasi FIKTIF) | Teks "{n}/4 orang"; tidak ada "/3" |
+| TC-UI-12h | Pembaca layar pada blok `Harga` | Harga dibaca tepat satu kali (satu `.sr-only`, angka visual `aria-hidden`) |
 | TC-UI-13 | Lebar 320 px, zoom 200% | Tidak ada scroll horizontal; "+" tetap 48 px dan tidak menutupi harga |
 | TC-UI-14 | Grup ≥ 3 akun | Kata "terbuka" muncul; grup < 3 akun tidak memakai kata "terbuka" |
 
@@ -241,6 +271,7 @@ Satu satuan saja → tidak ada radiogroup; tampil teks statis "Dijual per {label
 interface OpsiSatuan {                      // GET /produk/{slug} → satuan[] (T-025/T-028)
   idSatuanJual: string; kode: KodeSatuan; isi: number;
   tampilanHarga: TampilanHarga;
+  keteranganHarga: KeteranganHarga;         // §1.3; per satuan (K-27 bisa beda antar satuan)
   setaraPerPcs: Rupiah | null;              // dihitung SERVER; null bila tidak habis dibagi (U-01)
   stok: { status: 'TERSEDIA' | 'TERBATAS' | 'HABIS'; sisa: number | null };  // dalam satuan ini (U-07)
 }
@@ -259,7 +290,7 @@ Urutan tampil **selalu** `PCS_1, PCS_3, LUSIN, DUS, KOLI` (klien mengurutkan ula
 | Memuat | 2 skeleton opsi setinggi 56 px |
 | Opsi stok habis (U-07) | Opsi `disabled`, teks "Stok habis" `--color-text-muted`, tetap terbaca & fokus dilewati |
 | Semua opsi habis (K-20) | Seluruh fieldset nonaktif + teks "Stok habis, segera distok"; CTA detail nonaktif |
-| Tanpa harga grup (K-27) | Opsi itu menampilkan "Tidak dapat Harga Belanja Bareng" |
+| Tanpa harga grup (K-27) | Katalog/grup belum terpenuhi (`hargaGrup = null`): opsi tanpa baris Belanja Bareng. Grup terpenuhi (`keteranganHarga = GROSIR_TIDAK_TERSEDIA`): opsi menampilkan "Tidak dapat Harga Belanja Bareng" |
 | Tanpa promo | Tidak ada chip promo pada opsi; promo (bila ada) tampil sekali di detail, di luar pemilih |
 | `setaraPerPcs = null` | Baris "setara" tidak dirender (U-01) |
 | Offline | Harga "—"; pilihan tetap bisa diganti (tidak memanggil API), CTA nonaktif |
@@ -295,11 +326,11 @@ Urutan tampil **selalu** `PCS_1, PCS_3, LUSIN, DUS, KOLI` (klien mengurutkan ula
 ```json
 [
   { "_catatan": "FIKTIF", "idSatuanJual": "sj_f01", "kode": "PCS_1", "isi": 1,
-    "tampilanHarga": { "idVersiHarga": "v-f1", "hargaAktif": 12345, "hargaGrup": 11111, "hargaCoret": null, "teksStatus": null, "promo": null },
-    "setaraPerPcs": null, "stok": { "status": "TERSEDIA", "sisa": null } },
+    "tampilanHarga": { "idVersiHarga": "v-f1", "hargaAktif": 2222, "hargaGrup": 1111, "hargaCoret": null, "teksStatus": null, "promo": null },
+    "keteranganHarga": null, "setaraPerPcs": null, "stok": { "status": "TERSEDIA", "sisa": null } },
   { "_catatan": "FIKTIF", "idSatuanJual": "sj_f02", "kode": "DUS", "isi": 24,
-    "tampilanHarga": { "idVersiHarga": "v-f2", "hargaAktif": 240000, "hargaGrup": null, "hargaCoret": null, "teksStatus": null, "promo": null },
-    "setaraPerPcs": 10000, "stok": { "status": "HABIS", "sisa": 0 } }
+    "tampilanHarga": { "idVersiHarga": "v-f2", "hargaAktif": 99999, "hargaGrup": null, "hargaCoret": null, "teksStatus": null, "promo": null },
+    "keteranganHarga": null, "setaraPerPcs": null, "stok": { "status": "HABIS", "sisa": 0 } }
 ]
 ```
 
@@ -309,7 +340,8 @@ Urutan tampil **selalu** `PCS_1, PCS_3, LUSIN, DUS, KOLI` (klien mengurutkan ula
 | TC-UI-20 | Respons urutan `KOLI, PCS_1, DUS` | Tampil `1 pcs, Dus, Koli` |
 | TC-UI-21 | Opsi `PCS_1` habis, `PCS_3` tersedia | Bawaan terpilih `3 pcs`; `1 pcs` disabled |
 | TC-UI-22 | Semua opsi habis | "Stok habis, segera distok", CTA nonaktif |
-| TC-UI-23 | `hargaGrup = null` pada `DUS` | Opsi dus menampilkan "Tidak dapat Harga Belanja Bareng" |
+| TC-UI-23 | Grup terpenuhi, `DUS` `keteranganHarga = GROSIR_TIDAK_TERSEDIA`, `PCS_1` `GRUP_BERLAKU` | Opsi dus: "Tidak dapat Harga Belanja Bareng", tanpa `<s>`; opsi 1 pcs: label "Harga Belanja Bareng" |
+| TC-UI-23b | Katalog, `DUS` `hargaGrup = null` | Opsi dus tanpa teks Belanja Bareng apa pun |
 | TC-UI-24 | Satu opsi saja | Tidak ada `role="radiogroup"`; teks "Dijual per 1 pcs" |
 | TC-UI-25 | Harga opsi `PCS_1` = harga kartu produk yang sama | Identik (PG-6) |
 | TC-UI-26 | `setaraPerPcs = null` | Tidak ada teks "setara" |
@@ -339,7 +371,9 @@ Varian `tampil` (anggota / checkout grup): satu baris kartu tanpa radio "Dikirim
 ### 3.3 Props / data
 ```ts
 interface SlotKirim {                       // GET /zona/{id}/slot-kirim?untuk=GRUP|SENDIRI (usulan; tabel slot_kirim T-004)
-  idSlot: string; tanggal: string /*YYYY-MM-DD WIB*/; mulai: string /*HH:mm*/; selesai: string;
+  idSlot: string; tanggal: string /*YYYY-MM-DD WIB*/;
+  mulai: string; selesai: string;           // API "HH:mm" (titik dua, mis. "09:00"); TAMPILAN pakai titik "09.00"
+  kodeGrupSaya: string | null;              // kode grup DIBUKA milik akun sesi di slot ini (F-16, U-03); null bila tidak ada
   cutOffPada: string;                       // ISO-8601 dengan offset
   bisaDipilih: boolean;                     // server: status DIBUKA ∧ kapasitas ∧ cut_off > sekarang + TTL (A-04)
   alasan: 'PENUH' | 'LEWAT_BATAS' | 'DIBATALKAN' | null;
@@ -367,9 +401,9 @@ Klien **tidak** menilai kelayakan slot (kapasitas, A-04); hanya membaca `bisaDip
 | Offline | Daftar terakhir **tidak** dipakai untuk memilih; "Jadwal muncul lagi saat tersambung"; CTA nonaktif |
 
 ### 3.5 Perilaku
-- Waktu tampil WIB, format "hari ini 14.35 WIB" / "besok" / "Kamis, 28 Nov" (T-007 §3.1). Jam dengan titik ("09.00").
+- Waktu tampil WIB, format "hari ini 14.35 WIB" / "besok" / "Kamis, 28 Nov" (T-007 §3.1). API mengirim "HH:mm" (`"09:00"`); klien hanya mengganti `:` menjadi `.` untuk tampilan ("09.00"), tanpa konversi zona waktu (sudah WIB).
 - Host: slot dipilih sekali di Buat Grup; setelah grup dibuat tidak bisa diubah (flow B-01).
-- F-16: daftar slot **tidak** menyembunyikan slot tempat pengguna sudah punya grup; slot itu diberi keterangan "Kamu sudah punya grup di jadwal ini" dan memilihnya membuka grup tersebut (DEFAULT SEMENTARA U-03: maks 1 grup per akun per slot).
+- F-16: daftar slot **tidak** menyembunyikan slot tempat pengguna sudah punya grup; slot dengan `kodeGrupSaya ≠ null` diberi keterangan "Kamu sudah punya grup di jadwal ini" dan memilihnya (varian host, `untuk: 'GRUP'`) membuka `/g/{kodeGrupSaya}`, bukan membuat grup baru (DEFAULT SEMENTARA U-03: maks 1 grup per akun per slot).
 - Tidak ada nominal ongkir di pemilih (K-25: ongkir di tagihan). Tidak ada kata "drop point" (R2).
 
 ### 3.6 Teks persis
@@ -397,10 +431,10 @@ Klien **tidak** menilai kelayakan slot (kapasitas, A-04); hanya membaca `bisaDip
 ### 3.8 Contoh data FIKTIF
 ```json
 [
-  { "_catatan": "FIKTIF", "idSlot": "slot_f1", "tanggal": "2030-01-10", "mulai": "09.00", "selesai": "12.00",
-    "cutOffPada": "2030-01-09T20:00:00+07:00", "bisaDipilih": true, "alasan": null },
-  { "_catatan": "FIKTIF", "idSlot": "slot_f2", "tanggal": "2030-01-10", "mulai": "15.00", "selesai": "18.00",
-    "cutOffPada": "2030-01-10T08:00:00+07:00", "bisaDipilih": false, "alasan": "PENUH" }
+  { "_catatan": "FIKTIF", "idSlot": "slot_f1", "tanggal": "2030-01-10", "mulai": "09:00", "selesai": "12:00",
+    "cutOffPada": "2030-01-09T20:00:00+07:00", "kodeGrupSaya": null, "bisaDipilih": true, "alasan": null },
+  { "_catatan": "FIKTIF", "idSlot": "slot_f2", "tanggal": "2030-01-10", "mulai": "15:00", "selesai": "18:00",
+    "cutOffPada": "2030-01-10T08:00:00+07:00", "kodeGrupSaya": null, "bisaDipilih": false, "alasan": "PENUH" }
 ]
 ```
 
@@ -414,6 +448,10 @@ Klien **tidak** menilai kelayakan slot (kapasitas, A-04); hanya membaca `bisaDip
 | TC-UI-34 | Varian `tampil` | Tidak ada radio; teks `slot.tampil` |
 | TC-UI-35 | DOM pemilih | Tidak ada nominal ongkir, "Mitra", "drop point" |
 | TC-UI-36 | Daftar kosong | Teks kosong + "Muat ulang" |
+| TC-UI-37 | `untuk: 'SENDIRI'` (checkout Beli sendiri) | Teks "Pesan sebelum {hari} {jam} WIB" (bukan "Grup tutup"); keterangan `kodeGrupSaya` tidak tampil |
+| TC-UI-38 | Offline saat daftar sudah dimuat | Opsi tidak bisa dipilih, teks "Jadwal muncul lagi saat tersambung", CTA nonaktif; online lagi → daftar dimuat ulang |
+| TC-UI-39 | API `"mulai": "09:00"` | Tampil "09.00"; nama aksesibel "09.00 sampai …" |
+| TC-UI-39b | Slot dengan `kodeGrupSaya = "AB12CD"` (FIKTIF), varian host | Keterangan "Kamu sudah punya grup di jadwal ini"; memilih → navigasi ke `/g/AB12CD`, POST grup tidak dipanggil |
 
 ---
 
@@ -428,7 +466,7 @@ button.btn.btn--primary|--secondary  [ikon chat generik] "Ajak tetangga lewat Wh
 → LembarBagikan (bottom sheet, --radius-xl, --shadow-3)
   ├─ h2 "Ajak tetangga"
   ├─ textarea.input  pratinjau pesan (bisa diubah, U-05)
-  ├─ p.link  "{link}"  (selalu ditambahkan di akhir pesan, tidak ikut textarea)
+  ├─ p.link  grup.link  (tampil terpisah; ditambahkan klien SEKALI di akhir pesan saat kirim, tidak ada di textarea/templat)
   ├─ button.btn--primary.btn--block  "Kirim lewat WhatsApp"
   ├─ button.btn--secondary.btn--block "Salin link"
   └─ button.btn--ghost.btn--block    "Bagikan lainnya"   [hanya bila navigator.share ada]
@@ -470,9 +508,10 @@ Disusun klien dari data server; nominal Rupiah **tidak** dicantumkan (T-007: har
 Yuk ikut Belanja Bareng di Grup {nama_grup} di NEKAT!
 {baris_status}
 Grup tutup {hari_relatif} {jam_tutup} WIB, dikirim {hari_kirim} {mulai}–{selesai} WIB.
-Ikut gratis, bayar nanti setelah tagihan terbit.
-{link}
+Gabung dulu tanpa bayar, bayar setelah tagihan terbit.
 ```
+Templat di atas = **isi textarea** (tanpa link). Saat kirim, klien menyusun `teksAkhir = isiTextarea.trimEnd() + "\n" + grup.link` — link hanya ditambahkan **di sini, satu kali**.
+
 | Kondisi | `{baris_status}` |
 |---|---|
 | `kurangAkun > 0` | "Kurang {kurangAkun} orang lagi biar semua dapat Harga Belanja Bareng." |
@@ -481,8 +520,8 @@ Ikut gratis, bayar nanti setelah tagihan terbit.
 
 - `{hari_relatif}`: "hari ini" / "besok" / "Kamis, 28 Nov" (dari `waktuServer`).
 - `{nama_grup}`: sudah difilter server (maks 30 huruf, kata kasar).
-- Templat admin (bila ada) memakai placeholder yang sama; placeholder tak dikenal dibiarkan apa adanya dan dicatat (tidak mengeksekusi apa pun).
-- **URL WhatsApp:** `https://wa.me/?text=` + `encodeURIComponent(pesan + "\n" + link)`; dibuka dengan `window.location.href` (bukan `window.open`, agar tidak diblokir di in-app browser). `Bagikan lainnya`: `navigator.share({ text: pesan, url: link })`.
+- Templat admin (bila ada) memakai placeholder yang sama: `{nama_grup}`, `{baris_status}`, `{hari_relatif}`, `{jam_tutup}`, `{hari_kirim}`, `{mulai}`, `{selesai}`. **Tidak ada placeholder `{link}`**; bila templat admin memuatnya, `{link}` dihapus dari teks (link tetap ditambahkan klien di akhir) dan dicatat sebagai peringatan. Placeholder tak dikenal lain dibiarkan apa adanya dan dicatat (tidak mengeksekusi apa pun).
+- **URL WhatsApp:** `https://wa.me/?text=` + `encodeURIComponent(teksAkhir)`; dibuka dengan `window.location.href` (bukan `window.open`, agar tidak diblokir di in-app browser). `Bagikan lainnya`: `navigator.share({ text: isiTextarea, url: grup.link })` (link hanya di `url`, tidak di `text`).
 - Panjang pesan bawaan < 400 karakter; textarea dibatasi 500 karakter.
 
 Contoh FIKTIF hasil akhir:
@@ -490,7 +529,7 @@ Contoh FIKTIF hasil akhir:
 Yuk ikut Belanja Bareng di Grup Bu Sari di NEKAT!
 Kurang 1 orang lagi biar semua dapat Harga Belanja Bareng.
 Grup tutup hari ini 20.00 WIB, dikirim besok 09.00–12.00 WIB.
-Ikut gratis, bayar nanti setelah tagihan terbit.
+Gabung dulu tanpa bayar, bayar setelah tagihan terbit.
 https://contoh.invalid/g/AB12CD
 ```
 (`contoh.invalid` = domain FIKTIF; nilai asli dari konfigurasi.)
@@ -523,7 +562,9 @@ https://contoh.invalid/g/AB12CD
 | TC-UI-43 | `tagihanTerbit = true` | Tombol tidak ada di DOM |
 | TC-UI-44 | Kode sumber web | Tidak ada string domain produksi hard-code (grep `nekat.id` di `apps/web/src` = 0) |
 | TC-UI-45 | `navigator.share` tidak ada | "Bagikan lainnya" tidak dirender |
-| TC-UI-46 | Pesan | Tidak memuat "Mitra", "drop point", nomor HP, nama anggota lain |
+| TC-UI-46 | Pesan | Tidak memuat "Mitra", "drop point", "gratis", "Rp", nomor HP, nama anggota lain |
+| TC-UI-48 | Kirim lewat WhatsApp dengan (a) templat bawaan, (b) templat admin yang memuat `{link}` | Pada (a) dan (b): `grup.link` muncul **tepat satu kali** di parameter `text` URL wa.me (setelah decode), di baris terakhir |
+| TC-UI-49 | `navigator.share` | `url` = `grup.link`; `text` tidak memuat link |
 | TC-UI-47 | Tutup lembar dengan Esc | Fokus kembali ke tombol pemicu |
 
 ---
@@ -542,7 +583,7 @@ section.card[role=region aria-label="Pasang aplikasi NEKAT"]   (di alur halaman,
    ├─ button.btn--primary  "Pasang" (Android/Chrome)  |  "Lihat caranya" (iOS)
    └─ button.btn--ghost    "Nanti saja"
 → iOS: LembarPetunjukPasang (dialog): 2 langkah bergambar orisinal
-   1. "Ketuk ikon Bagikan di bawah layar."
+   1. "Ketuk ikon Bagikan (kotak dengan panah ke atas) di bawah layar; di iPad, di kanan atas."
    2. "Pilih 'Tambah ke Layar Utama', lalu ketuk 'Tambah'."
    [Mengerti]
 ```
@@ -583,7 +624,7 @@ interface BannerPasangProps {
 | `pasang.tombol` / `pasang.iosTombol` | "Pasang" / "Lihat caranya" |
 | `pasang.nanti` | "Nanti saja" |
 | `pasang.iosJudul` | "Cara pasang di iPhone" |
-| `pasang.iosLangkah1` | "Ketuk ikon Bagikan di bawah layar." |
+| `pasang.iosLangkah1` | "Ketuk ikon Bagikan (kotak dengan panah ke atas) di bawah layar; di iPad, di kanan atas." |
 | `pasang.iosLangkah2` | "Pilih 'Tambah ke Layar Utama', lalu ketuk 'Tambah'." |
 | `pasang.mengerti` | "Mengerti" |
 | `pasang.terpasang` | "NEKAT sudah terpasang" |
@@ -603,6 +644,7 @@ interface BannerPasangProps {
 | TC-UI-54 | iPadOS (UA Macintosh, touch) | Varian iOS |
 | TC-UI-55 | `localStorage` melempar | Tidak crash |
 | TC-UI-56 | Lebar 320 px | Banner tidak menutupi CTA bawah |
+| TC-UI-57 | iOS: ketuk "Lihat caranya" | Dialog terbuka, fokus ke judul "Cara pasang di iPhone"; Tab terjebak di dalam dialog; "Mengerti"/Esc menutup dan fokus kembali ke "Lihat caranya" |
 
 ---
 
@@ -632,6 +674,9 @@ interface BannerPasangProps {
 3. **Backlog T-027/T-028** masih "X/Y di zona kamu · Z lagi → harga" dan "grup 6+, grup 12+" (lihat U-02).
 4. **Istilah saldo**: T-007 "Saldo NEKAT" vs flow §1 "Poin NEKAT (1 poin = Rp1)". Komponen di dokumen ini tidak menampilkan saldo; diselaraskan di T-033/T-021.
 5. Endpoint `GET /sesi/konteks`, `GET /zona/{id}/slot-kirim`, bentuk `KartuProdukData`/`OpsiSatuan` adalah **usulan** untuk Backend Architect (T-022/T-025); `TampilanHarga` dan `StatusSyaratGrup` tidak diubah.
+6. **Usulan ke Backend Architect — field turunan per satuan:** respons katalog/detail menambah `keteranganHarga: 'GRUP_BERLAKU' | 'GROSIR_TIDAK_TERSEDIA' | null` (diturunkan server dari `jenisHargaBaris` + `peringatan` `GROSIR_TIDAK_TERSEDIA`, engine-harga §5.2), `promoPerProduk: boolean`, dan `minAkun` di konteks grup. Alasan: di engine-harga §7 `peringatan` hanya ada di `Hasil<T>`, bukan di `TampilanHarga`; dan pada grup terpenuhi `hargaGrup = null`, sehingga UI tidak bisa membedakan "harga grup berlaku" dari "K-27 harga satuan" tanpa field ini.
+7. **Kontradiksi kecil engine-harga §7 / TC-HE-14:** `idVersiHarga` ada di `TampilanHarga` dan diuji "identik di kartu, detail, grup", sementara UI tidak boleh merender penanda internal itu. Penerapan di sini: `idVersiHarga` **dibawa di respons API saja**; TC-UI-01 membandingkannya dari respons yang dicegat E2E, DOM membandingkan teks harga. Mohon engine-harga §9 TC-HE-14 menyebut "di respons API", bukan "di tampilan".
+8. **Refresh setelah syarat grup berubah:** API tambah/ubah keranjang perlu mengembalikan `KonteksBelanja` terbaru (qty terkonfirmasi + `syarat`), agar klien tahu kapan memuat ulang `tampilanHarga` (§1.7).
 
 ---
 
@@ -642,14 +687,14 @@ ID sementara; koordinator memberi ID resmi di `keputusan-terbuka.md`. Semua **DE
 | ID | Pertanyaan | Pemilik | Rekomendasi | DEFAULT SEMENTARA |
 |---|---|---|---|---|
 | U-01 | "Setara Rp — /pcs" untuk lusin/dus/koli bisa menghasilkan rupiah pecahan, padahal tanpa pembulatan (H6, K-28). Tampilkan bagaimana? | Efan | Server mengirim `setaraPerPcs` hanya bila habis dibagi `isi`; selain itu baris "setara" tidak tampil (tanpa "±"/pembulatan) | Sama dengan rekomendasi |
-| U-02 | Judul T-008/T-027 "X/Y di zona kamu · Z lagi → harga" tidak cocok dengan G-01. Di mana progres grup tampil di katalog? | Randy | Progres lengkap ("Grup {nama}: {n}/3 orang · Rp — dari {min_grup}") hanya di pita grup aktif, keranjang & halaman grup; kartu cukup chip pendek ("Kurang 1 orang" / "Harga Belanja Bareng berlaku"); kata "di zona kamu" dihapus; PM menyelaraskan judul T-027/T-028 | Sama dengan rekomendasi |
+| U-02 | Judul T-008/T-027 "X/Y di zona kamu · Z lagi → harga" tidak cocok dengan G-01. Di mana progres grup tampil di katalog? | Randy | Progres lengkap ("Grup {nama}: {n}/{minAkun} orang · Rp — dari {min_grup}") hanya di pita grup aktif, keranjang & halaman grup; kartu cukup chip pendek ("Kurang 1 orang" / "Harga Belanja Bareng berlaku"); kata "di zona kamu" dihapus; PM menyelaraskan judul T-027/T-028 | Sama dengan rekomendasi |
 | U-03 | F-16 membuat satu akun bisa punya > 1 grup (beda slot). Tombol "+" / "Belanja Bareng" memasukkan barang ke mana, dan bagaimana setelah tagihan grup terbit (K-22)? Bolehkah > 1 grup di slot yang sama? | Randy | 1 grup DIBUKA → langsung ke grup itu; > 1 → lembar bawah "Masukkan ke mana?" (daftar grup + jadwal + "Keranjang biasa"), pilihan diingat selama sesi; grup bertagihan tidak jadi pilihan → barang ke keranjang biasa + snackbar "Tagihan Grup {nama} sudah terbit. Barang masuk keranjang biasa."; maks 1 grup per akun per slot | Sama dengan rekomendasi |
-| U-04 | Total di bawah stepper detail (harga × jumlah): boleh dikalikan di klien dari `hargaAktif` server, atau wajib dari server? | Joseph | Klien boleh mengalikan integer `hargaAktif × qty` (bukan menghitung harga; tanpa pembulatan hasilnya identik); total keranjang, perbandingan grup vs sendiri, dan tagihan tetap dari server | Sama dengan rekomendasi |
+| U-04 | Total di bawah stepper detail (harga × jumlah): boleh dikalikan di klien dari `hargaAktif` server, atau wajib dari server? | Joseph | Klien boleh mengalikan integer `hargaAktif × qty` (bukan menghitung harga; tanpa pembulatan hasilnya identik), **hanya** dari `tampilanHarga` terbaru; bila respons tambah/ubah mengubah `syarat.terpenuhi`, total disembunyikan (skeleton) sampai `tampilanHarga` dimuat ulang, agar tidak pernah mengalikan harga lama. Total keranjang, perbandingan grup vs sendiri, dan tagihan tetap dari server | Sama dengan rekomendasi |
 | U-05 | Pesan ajakan WhatsApp: boleh diubah pengguna? Boleh memuat nominal harga? | Randy (+ Growth Hacker) | Boleh diubah (maks 500 karakter); link selalu ditambahkan otomatis di akhir dan tidak bisa dihapus; tanpa nominal harga; teks bawaan dari Pengaturan > Template WhatsApp | Sama dengan rekomendasi; templat bawaan §4.5 |
 | U-06 | Pemilih slot: slot yang tidak bisa dipilih (penuh / lewat batas A-04 / dibatalkan) ditampilkan nonaktif atau disembunyikan? Tampilkan sisa kapasitas? Berapa hari ke depan? | Efan (+ Operations Manager) | Tampil nonaktif dengan alasan; tanpa angka sisa kapasitas (hanya "Penuh"); 7 hari ke depan | Sama dengan rekomendasi |
 | U-07 | Stok cukup untuk pcs tetapi tidak untuk satu dus/koli. Teks & perilaku per satuan? | Efan + Randy | Opsi satuan itu nonaktif dengan "Stok habis"; label produk "Stok habis, segera distok" (K-20) hanya bila semua satuan tidak bisa dipenuhi | Sama dengan rekomendasi |
 | U-08 | F-15: "terbuka" = grup ≥ 3 akun. Sebutan UI untuk grup < 3 akun? (T-007 H-05 & S&K §4.2 perlu diselaraskan) | Randy | < 3 akun: "Kurang {x} orang" (tanpa kata "terbuka"/"aktif"); ≥ 3 akun: "Grup terbuka" | Sama dengan rekomendasi |
-| U-09 | Chip promo di kartu: tampilkan nominal "jadi Rp —" atau label saja? Diskon K-21 dihitung atas total tagihan, jadi harga per produk setelah promo bisa menyesatkan | Efan | Label saja (+ "s.d. {tanggal}"); nominal hanya untuk promo per produk yang server tandai, tetap di chip terpisah | Label saja |
+| U-09 | Chip promo di kartu: tampilkan nominal "jadi Rp —" atau label saja? Diskon K-21 dihitung atas total tagihan, jadi harga per produk setelah promo bisa menyesatkan | Efan | Label saja (+ "s.d. {tanggal}"); nominal hanya bila server menandai `promoPerProduk = true`, tetap di chip terpisah | Label saja; server mengirim `promoPerProduk = false` sampai dijawab |
 
 ---
 
