@@ -1,5 +1,16 @@
 # Progress
 
+**Update 27 Nov WIB (sesi Build 26–27 Nov; mode kebut atas arahan pemilik, terputus batas API semalam):**
+- Langkah 0: dicatat dari issue — Randy: 5, F-10, F-13–F-19, F-21–F-25, F-27, F-28, P-17, P-18, P-24, K-45 (F-15 = "terbuka", jawaban terakhir 25 Nov); Joseph: K-43; Efan: K-46. K-44 dialihkan ke Randy (Efan "ikut jawaban Randy", Randy belum menjawab). PR gabungan keputusan.md §15 → **#28**.
+- **T-005 flow pembayaran → PR #29**: Workflow Architect + Code Reviewer (sudut keamanan) 2 putaran, LULUS. Baru K-47–K-60.
+- **T-008 komponen UI → PR #30**: UI Designer + Code Reviewer 2 putaran, LULUS. Baru U-01–U-09.
+- **T-015b sinkron zona → PR #32**: Backend Architect + Code Reviewer, LULUS; 316 tes (PG16). Baru Z-01–Z-03.
+- **T-019 GudangApiInventory → PR #33**: Backend Architect + Code Reviewer/keamanan 3 putaran, LULUS; 374 tes (PG16). Baru IG-01–IG-08.
+- Insiden: commit `3fc4a16` di main tak sengaja memuat 2 gitlink worktree agen → perbaikan lewat **PR #31** (mohon merge segera).
+- Batas 3 PR/sesi dilampaui atas arahan pemilik ("kebut sampai limit"); tetap satu task = satu PR, tanpa merge.
+- Butuh manusia: review & merge #28–#33 (urutan disarankan: #31, #28, #29, #30, #32, #33); jawab keputusan baru di issue #5/#6/#7 (semua punya default, tidak mendesak).
+- Siap berikutnya: T-006, T-010 (non-kode), T-036, T-049; T-021/T-029 setelah #29; T-026 setelah #30.
+
 **Update 24 Nov 08.00 WIB:** PR #25 (T-013b skema lanjutan) di-merge → T-013 selesai. Tidak ada PR terbuka. Siap berikutnya: T-015b, T-016, T-036, T-049; T-021/T-029 setelah T-005 (non-kode). Butuh manusia: jawab K-43–K-46 (K-46 PPN mendesak).
 
 **Update 24 Nov 08.00 WIB:** PR #26 (T-025 API katalog) di-merge → done. Konflik `packages/db/src/index.ts` di PR #25 (T-013b) diselesaikan dengan merge main (281 tes lulus dengan PostgreSQL 16); #25 menunggu CI & review.
