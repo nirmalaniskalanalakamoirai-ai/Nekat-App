@@ -3,7 +3,7 @@
 | Atribut | Nilai |
 |---|---|
 | Task | T-006 (non-kode) |
-| Versi | 0.1 — Draf, 27 Nov 2026 |
+| Versi | 0.2 — Draf, 27 Nov 2026. v0.2: perbaikan review Code Reviewer (11 temuan) |
 | Penyusun | Operations Manager (squad Harga & bisnis, pemilik: Efan) |
 | Sumber wajib | `project-specs/keputusan.md` §4, §5, §11 (#4, F-12, F-20, H6, P-12), §12 (K-05, K-16), §13 (P-13, P-27), §14 (K-25, K-28, K-38, H13, P-19, P-20), §15 (F-13, F-21, F-25, F-28); `project-specs/keputusan-terbuka.md` (K-44, Z-02, Z-03, U-06) |
 | Diselaraskan dengan | `docs/flow/group-order.md` (B-05, B-07, B-08, §6–§8), `docs/flow/pembayaran.md` (§5.6, §8.2, §15 T-1), `docs/spec/engine-harga.md` (§4, §6.3), `docs/spec/T-004-model-data.md` §3.4, §3.12, §3.13, skema `packages/db/src/skema/{lokasi,ongkir-promo-cod,grup,invoice}.ts`, `config/lokasi.example.json`, `packages/domain/src/zona.ts` |
@@ -25,7 +25,7 @@
 | Interaksi gratis ongkir & pagar modal | COD (hanya pesanan individu, K-31) |
 | Daftar antar per slot (H13), cabang gagal, handoff, kasus uji | Pesanan individu "Beli sendiri" (F-27): aturan ongkir sama, alur pesanannya belum punya spec (pembayaran.md T-5) |
 
-Prinsip Operations: (1) satu sumber kebenaran ongkir = server, klien tidak pernah mengirim ongkir; (2) tagihan tidak pernah naik setelah terbit (P-19) — selisih biaya kirim aktual ditanggung NEKAT dan dicatat untuk KPI biaya kirim/order (T-041); (3) tidak ada titik tunggal kegagalan: adapter tarif punya fallback, dan drop point selalu jadi jalan keluar (ongkir 0).
+Prinsip Operations: (1) satu sumber kebenaran ongkir = server, klien tidak pernah mengirim ongkir; (2) tagihan tidak naik setelah terbit (P-19). P-19 membatasi penanggungan NEKAT "selama ≥ modal + ongkir"; apa yang terjadi bila nilai bersih tagihan < modal + ongkir aktual **menunggu O-13**. Setiap penanggungan ongkir oleh NEKAT dicatat per grup (`penanggungan_ongkir`, §2.1) untuk KPI biaya kirim/order (T-041); (3) tidak ada titik tunggal kegagalan: adapter tarif punya fallback, dan drop point selalu jadi jalan keluar (ongkir 0).
 
 ---
 
@@ -35,7 +35,7 @@ Prinsip Operations: (1) satu sumber kebenaran ongkir = server, klien tidak perna
 |---|---|---|
 | `armada` | `kode` (`MOTOR`/`TOSSA`/`PICKUP`), `kapasitas_gram`, `aktif` | Aktif wajib punya kapasitas (CHECK). **Tidak ada kolom volume** → O-06 |
 | `tarif_armada` (versi, append-only) | `tarif_dasar_rp`, `tarif_per_kg_rp`, `tarif_per_km_rp` (NULL semua bawaan), `sumber_adapter`, `ref_eksternal`, `berlaku_mulai`, `diambil_pada` | `sumber_adapter` = nama adapter eksternal atau `ADMIN` (fallback panel) |
-| `kuotasi_ongkir` | `grup_id`, `peserta_id` (NULL = kuotasi grup), `armada_kode`, `berat_gram`, `jarak_meter`, `ongkir_rp`, `sumber_adapter`, `ref_eksternal`, `berlaku_sampai`, `dipakai_di_invoice_id` | Satu baris **per unit armada** (pecah armada = beberapa baris, §4.3) |
+| `kuotasi_ongkir` | `grup_id`, `peserta_id` (NULL = kuotasi grup), `armada_kode`, `berat_gram`, `jarak_meter`, `ongkir_rp`, `sumber_adapter`, `ref_eksternal`, `berlaku_sampai`, `dipakai_di_invoice_id` | Satu baris **per unit armada** (pecah armada = beberapa baris, §4.3). `dipakai_di_invoice_id` tunggal **tidak cukup** untuk mode `SENDIRI` (satu kuotasi grup dipakai beberapa invoice) → tabel tautan `kuotasi_invoice` (§2.1); kolom itu dibiarkan NULL untuk kuotasi grup |
 | `slot_kirim` | `zona_id`, `tanggal`, `mulai`, `selesai`, `cut_off_pada`, `kapasitas_gram` (NULL = tanpa batas, T-004), `status` (`DIBUKA`/`DITUTUP`/`DIBATALKAN`) | `UK (zona_id, tanggal, mulai)` = kunci idempotensi pembuatan slot |
 | `zona`, `drop_point`, `gudang` + `config/lokasi.json` | `zona.gudang_id` (cabang penerima, F-20), `drop_point.zona_id`, `jam_ambil`, koordinat & `radiusMeter` (2000–3000) di config | Radius dari drop point (§5); `tentukanZona`, `jarakMeter` di `packages/domain/src/zona.ts` |
 | `peserta_grup` | `cara_kirim` (`ANTAR_RUMAH`/`DROP_POINT`), `alamat_id` / `drop_point_id`, `alamat_snapshot` [PII] | CHECK: tepat satu dari alamat/drop point sesuai cara kirim |
@@ -50,6 +50,10 @@ Prinsip Operations: (1) satu sumber kebenaran ongkir = server, klien tidak perna
 |---|---|---|
 | Tabel `pola_slot` | `zona_id`, `hari` (1–7, Senin = 1), `mulai`, `selesai`, `cut_off_menit_sebelum` (integer > 0), `kapasitas_gram` NULL, `aktif` (bawaan false); kolom angka kosong bawaan | Pembuatan slot harian otomatis (§5.1) |
 | Tabel `pemakaian_slot` | `slot_id` FK, `grup_id` FK, `berat_gram` ≥ 0, `status` (`AKTIF`/`DILEPAS`); `UK (grup_id) WHERE status='AKTIF'` | Reservasi kapasitas saat tagihan terbit (§5.3) |
+| Tabel `kuotasi_invoice` | `kuotasi_id` FK, `invoice_id` FK, `peserta_id` FK, `baris_invoice_id` FK (baris `ONGKIR`), `bagian_rp` ≥ 0; `UK (kuotasi_id, peserta_id)`; FK komposit grup sama (pola `kuotasi_peserta_grup_fk`) | Mode `SENDIRI` & `HOST`: setiap baris `ONGKIR` peserta merujuk satu baris tautan **per unit kuotasi** grup; Σ `bagian_rp` per kuotasi = `kuotasi_ongkir.ongkir_rp` (dicek domain di transaksi terbit). Bagian per unit = `bagiOngkir` per unit, lalu dijumlah ke satu baris `ONGKIR` per peserta |
+| Kolom `kuotasi_ongkir.dipakai_pada` timestamptz | Diisi saat tagihan grup terbit; update bersyarat `WHERE dipakai_pada IS NULL` | Kuotasi tidak dipakai dua kali |
+| Tabel `penanggungan_ongkir` | `grup_id`, `peserta_id` NULL, `alasan` (`PESERTA_DIKELUARKAN`, `ALOKASI_PARSIAL`, `PECAHAN_DIBUANG`, `ARMADA_AKTUAL_LEBIH_MAHAL`, `GRATIS_ONGKIR`, `ANTAR_GAGAL`), `nilai_rp` ≥ 0; kunci idempotensi `tanggung:{grup_id}:{alasan}:{peserta_id atau -}` | Laporan T-041 (O-13) |
+| Kolom `pemakaian_slot.berat_tidak_lengkap` boolean | true bila ada baris `berat_gram = 0` | §5.3 |
 | Kolom `kuotasi_ongkir.urutan_armada` smallint + `rincian` jsonb | Urutan unit armada dalam satu kuotasi grup; snapshot tarif dasar/kg/km, mode adapter, sisa pecahan (**tanpa PII**) | Pecah armada & audit tarif |
 | Kunci konfigurasi | `ongkir.usia_maks_tarif_menit`, `ongkir.batas_wajar_rp`, `slot.horizon_hari`, `slot.min_menit_grup_baru` — semua kosong bawaan | §3, §5 |
 | Peta kunci ADR §3.2 | Sisipkan `slot_kirim` FOR UPDATE **setelah `grup`, sebelum stok SKU** | Cek kapasitas tanpa balapan |
@@ -88,7 +92,13 @@ Urutan, berhenti di sumber pertama yang valid:
 
 - Respon adapter pecahan, negatif, mata uang lain, atau > `ongkir.batas_wajar_rp` (bila diisi) → **tidak valid**, lanjut sumber berikutnya + log (bukan diterima diam-diam).
 - Panggilan adapter **di luar transaksi DB** (ADR §3.3); hasilnya disimpan sebagai `kuotasi_ongkir` dengan `berlaku_sampai`, lalu dipakai di transaksi penerbitan tagihan.
-- Kunci API adapter dari environment variable (CLAUDE.md #6). Data ke adapter: koordinat & berat saja — **tanpa** nama/HP/alamat teks.
+- Kunci API adapter dari environment variable (CLAUDE.md #6).
+- **Koordinat rumah = data pribadi** (lokasi tempat tinggal; H12, K-43). Syarat adapter sebelum dinyalakan (dicek Joseph + AI-Generated Code Auditor):
+  1. Ada perjanjian pemrosesan data dengan penyedia aplikasi eksternal; region pemrosesan dicatat. H12 mewajibkan data pribadi di region Indonesia — penyedia di luar negeri butuh keputusan pemilik (bagian hukum O-12).
+  2. Payload `ambil()` **hanya** koordinat asal, koordinat tujuan, berat, kode armada, kode zona. **Tanpa** `peserta_id`, `akun_id`, `grup_id`, nama, HP, alamat teks; `ref` permintaan = id acak per panggilan.
+  3. Urutan `tujuan[]` **diacak** sebelum dikirim (tidak membocorkan urutan bergabung); hasil dipetakan balik di server.
+  4. Koordinat & payload **tidak** ditulis ke log aplikasi maupun error tracking (penyamaran H8/K-43 wajib menutup `asal`/`tujuan`); `kuotasi_ongkir.rincian` tidak menyimpan koordinat.
+  5. Fallback garis lurus (O-02) dihitung lokal di server.
 
 ### 3.4 Pecahan rupiah (H6, K-28)
 
@@ -115,6 +125,7 @@ R       = B − n_penuh × Kmax
 unit    = n_penuh × armada terbesar (B_u = Kmax) + (R > 0 ? armada terkecil yang cukup untuk R : —)
 ```
 - Satu unit satuan jual (mis. 1 koli) dengan `berat_gram > Kmax` → `ARMADA_TIDAK_CUKUP` untuk peserta itu: antar rumah tidak bisa dipilih, tawarkan drop point + antrean tinjauan admin.
+- **Keterbatasan sengaja:** pembagian di atas memperlakukan berat sebagai bisa dibelah per gram (tagihan sederhana & deterministik). Satuan jual tak terbelah (mis. koli) bisa membuat muatan nyata butuh unit lebih banyak; selisihnya ditanggung NEKAT (`penanggungan_ongkir` `ARMADA_AKTUAL_LEBIH_MAHAL`). Muatan nyata di daftar antar (§8) disusun *first-fit-decreasing* per unit satuan jual. Bila selisih material di pilot, tagihan boleh diganti ke first-fit-decreasing — perubahan perilaku, perlu persetujuan Efan.
 - Ini **armada tagih** (dasar ongkir). Muatan fisik per slot disusun ulang di daftar antar (§8); selisih biaya aktual vs tagih → laporan T-041, tidak pernah ditagihkan ke pembeli (P-19).
 - Batas jumlah unit per grup: tidak ada di Fase 1; kapasitas slot (§5.3) yang membatasi.
 
@@ -139,13 +150,19 @@ unit    = n_penuh × armada terbesar (B_u = Kmax) + (R > 0 ? armada terkecil yan
 ### 5.3 Kapasitas
 - `kapasitas_gram` per slot; NULL = tanpa batas (T-004) — panel admin menampilkan peringatan "kapasitas belum diisi".
 - Yang dihitung: berat **semua** baris tagihan grup di slot (antar rumah **dan** drop point, karena barang drop point juga diangkut dari gudang). Konservatif.
-- Reservasi di transaksi penerbitan tagihan: kunci `grup` → `slot_kirim` FOR UPDATE → cek `Σ pemakaian_slot AKTIF + B_grup ≤ kapasitas_gram` → insert `pemakaian_slot`. Gagal → seluruh penerbitan rollback, 409 `SLOT_PENUH`.
-- Dilepas/dikurangi di transaksi yang sama dengan: peserta dikeluarkan (K-12), grup batal (K-11, F-13), baris stok habis (K-29), alokasi parsial cut-off (F-09).
+- Reservasi di transaksi penerbitan tagihan, urutan wajib:
+  1. Kunci `grup` FOR UPDATE → `slot_kirim` FOR UPDATE.
+  2. **Cek ulang setelah kunci:** `slot.status = 'DIBUKA'` (bukan → 409 `SLOT_DITUTUP`) dan `sekarang + TTL ≤ cut_off_pada` (gagal → 409 `MELEWATI_BATAS_CHECKOUT`). Cek di luar kunci hanya untuk UI.
+  3. `kapasitas_gram` terisi → cek `Σ pemakaian_slot AKTIF + B_grup ≤ kapasitas_gram`; gagal → rollback, 409 `SLOT_PENUH`.
+  4. Insert `pemakaian_slot` **selalu**, juga saat `kapasitas_gram` NULL (kapasitas yang diisi belakangan langsung menghitung muatan yang sudah ada).
+- Baris `berat_gram = 0` tetap boleh terbit untuk drop point, tetapi masuk antrean `BERAT_KOSONG` dan `pemakaian_slot.berat_tidak_lengkap = true`; panel menandai slot "kapasitas tidak lengkap".
+- Pengurangan **dihitung ulang** dari baris tagihan grup yang masih aktif (`berat_gram = Σ berat × qty aktif/teralokasi`), bukan dikurangi selisih — idempoten saat diulang. Pemicu (transaksi yang sama): peserta dikeluarkan (K-12), baris stok habis (K-29), alokasi parsial cut-off (F-09); grup batal (K-11, F-13) → `status = DILEPAS`.
 - Tampilan slot (U-06): `bisaDipilih = false` + chip "Penuh" bila terpakai ≥ kapasitas; tanpa angka sisa. Grup `DIBUKA` belum mereservasi, jadi slot bisa penuh sebelum tagihan grup terbit → §9 CG-05.
 
 ### 5.4 Batal operasional (F-21)
 1. Admin (TOTP) menandai slot `DIBATALKAN` + alasan wajib + slot pengganti (zona sama). Override kapasitas slot pengganti boleh, tercatat.
-2. Semua grup slot itu dipindah ke slot pengganti dalam satu transaksi per grup; **harga & ongkir tagihan tetap** (F-21, P-19). `pemakaian_slot` dipindah.
+2. Penandaan: kunci `slot_kirim` asal FOR UPDATE, update bersyarat `WHERE status IN ('DIBUKA','DITUTUP')`. Penerbitan tagihan yang menunggu kunci itu gagal di cek ulang §5.3 langkah 2 (`SLOT_DITUTUP`).
+   Pemindahan, satu transaksi per grup: kunci `grup` → kedua `slot_kirim` (asal & tujuan) **berurutan `id` naik** (cegah deadlock pemindahan berlawanan arah) → cek slot tujuan `DIBUKA` dan `Σ AKTIF + berat grup ≤ kapasitas_gram` (gagal → grup tidak dipindah, masuk daftar "perlu slot lain"; admin boleh override dengan alasan, tercatat) → pindah `grup.slot_kirim_id` & `pemakaian_slot`. **Harga & ongkir tagihan tetap** (F-21, P-19).
 3. WA ke semua anggota: jadwal baru + pilihan "Tetap kirim" / "Batalkan pesanan".
 4. Anggota minta batal → refund **seluruh** bagian tagihannya (barang + biaya admin + ongkir − subsidi) ke saldo **pembayar**, kunci `refund:{peserta_id}:SLOT_BATAL:{slot_id}` (pembayaran.md §8.2). Mode `HOST`: anggota tetap boleh minta batal; dana ke saldo host (G-06b). Sisa grup tetap jalan walau < 3 (harga sudah terkunci/terbayar).
 5. Slot batal **sebelum** harga dikunci: **menunggu O-10** (DEFAULT SEMENTARA: perlakuan sama dengan langkah 1–4; grup `DIBUKA` ikut pindah).
@@ -157,7 +174,7 @@ unit    = n_penuh × armada terbesar (B_u = Kmax) + (R > 0 ? armada terkecil yan
 ### 6.1 Ambil di drop point (keputusan §4, F-12)
 - Ongkir ke rumah = **0**; tidak ada baris `ONGKIR` untuk peserta itu; tidak dihitung ke `B` ongkir (tetap dihitung ke kapasitas slot).
 - Drop point harus `aktif` dan di **zona grup** (group-order §8.1), dilayani gudang zona (Z-02).
-- "Tingkat Mitra": di grup, harga grup sudah = Mitra Grosir (K-14) untuk antar rumah maupun drop point; grup < Rp100.000 → harga satuan (K-18) kecuali MOQ grosir (P-05). Cara kirim **tidak** mengubah jenis harga (engine-harga §5.2) — **menunggu O-05** untuk "Beli sendiri" & grup < Rp100.000.
+- "Tingkat Mitra": keputusan §4 berbunyi *"pesanan yang dikumpulkan di drop point dihitung sebagai pesanan tingkat Mitra (harga mengikuti level Mitra bila total memenuhi syarat)"*. "Total" dan "syarat" belum didefinisikan → **menunggu O-05**; dokumen ini tidak memutuskan. Sampai diputuskan, perilaku mengikuti engine-harga §5.2 (cara kirim tidak mengubah jenis harga), dan T-031/T-033 **wajib** menyediakan flag konfigurasi `hargaMitraDropPoint` (**bawaan mati**) sebagai titik sambung tafsiran yang dipilih.
 - Tampilan (K-38, P-28): kata "Mitra" dan info drop point **hanya di checkout**. Kartu/detail/pemilih slot/WA tidak menyebutnya (T-008 R2).
 - Checkout menampilkan perbandingan (K-25): "Antar ke rumah · ongkir perkiraan Rp{x}" vs "Ambil sendiri di {drop point} ({jam_ambil}) · ongkir Rp0". Perkiraan = bagian rata saat ini (§6.2) dan bisa berubah sampai tagihan terbit karena jumlah anggota antar rumah berubah; label "perkiraan" wajib.
 
@@ -175,9 +192,11 @@ bagian(p) = q              untuk semua p
 bagian(penerima_sisa) += r
 ```
 - `penerima_sisa` = host (**DEFAULT SEMENTARA K-44**). Host memilih drop point → **menunggu O-04** (DEFAULT SEMENTARA: peserta antar rumah yang paling awal bergabung).
+- Pembagian dilakukan **per unit kuotasi** (`bagiOngkir` per baris `kuotasi_ongkir`, satu baris `kuotasi_invoice` per unit × peserta), lalu dijumlah menjadi satu baris `ONGKIR` per peserta. Hasil sama dengan membagi ongkir grup sekaligus kecuali sisa: penerima sisa bisa menerima sisa dari beberapa unit (tetap < n per unit).
+- `n = 0` (semua drop point) → tidak ada kuotasi, tidak ada baris `ONGKIR`.
 - Σ bagian = ongkir grup (invarian, diuji).
 - Dihitung **sekali** saat tagihan terbit (K-25), di transaksi penerbitan, dari `kuotasi_ongkir` yang belum kedaluwarsa (kedaluwarsa → minta kuotasi ulang di luar transaksi, lalu ulang).
-- Setelah terbit **tidak dihitung ulang** (P-19 tidak pernah tagih tambahan): peserta dikeluarkan (K-12) → bagiannya tidak dibebankan ke anggota lain; NEKAT menanggung. Alokasi parsial / stok habis sebagian: **menunggu O-07** (DEFAULT SEMENTARA: tidak ada refund ongkir; refund bagian ongkir hanya bila **semua** barang peserta antar rumah batal / alokasi 0, `REFUND_ONGKIR`, kunci `refund_ongkir:{invoice_id}:{peserta_id}`).
+- Setelah terbit **tidak dihitung ulang** (P-19, tanpa tagihan tambahan; batasnya O-13): peserta dikeluarkan (K-12) → bagiannya tidak dibebankan ke anggota lain; NEKAT menanggung dan mencatat `penanggungan_ongkir`. Alokasi parsial / stok habis sebagian: **menunggu O-07** (DEFAULT SEMENTARA: tidak ada refund ongkir; refund bagian ongkir hanya bila **semua** barang peserta antar rumah batal / alokasi 0, `REFUND_ONGKIR`, kunci `refund_ongkir:{invoice_id}:{peserta_id}`).
 - Ganti cara kirim/alamat setelah tagihan terbit: tidak bisa (F-25). Sebelum terbit, dalam zona sama: boleh; kuotasi diulang.
 
 ---
@@ -186,7 +205,8 @@ bagian(penerima_sisa) += r
 
 Dengan K-25 gratis ongkir dievaluasi **saat tagihan terbit** (bukan lagi di invoice ongkir terpisah).
 
-1. Aturan dicek per tagihan akun (mode `HOST`: per bagian akun dalam invoice gabungan, seperti diskon engine-harga §6.1 langkah 5). Hanya peserta antar rumah dengan bagian ongkir > 0.
+1. Aturan dicek per tagihan akun (mode `HOST`: per bagian akun dalam invoice gabungan, seperti diskon engine-harga §6.1 langkah 5). Hanya peserta antar rumah dengan bagian ongkir > 0. Kuota & `maks_per_akun` dihitung per akun peserta.
+   **Mode `HOST` — tampilan & refund:** baris `SUBSIDI_ONGKIR` ditulis **per peserta** (dasar pagar & refund); tagihan host menampilkan **satu angka** "Gratis ongkir −Rp{Σ subsidi}" di bawah satu angka ongkir (K-25, K-37); rincian per anggota (nama samaran) hanya di nota. Refund bagian peserta = bagian ongkir − subsidi peserta itu, ke saldo **host** (G-06b), dengan kunci `docs/flow/pembayaran.md` §8.2 (PR #29): `refund_ongkir:{invoice_id}:{peserta_id}`, `refund:{peserta_id}:SLOT_BATAL:{slot_id}`, `refund:{peserta_id}:GRUP_BATAL:{grup_id}`.
 2. Minimal belanja dihitung **sesudah diskon** (P-13): `Σ(D × q − P)` akun.
 3. Subsidi `S` ≤ bagian ongkir akun (CHECK `subsidi_ongkir_rp ≤ ongkir_rp`); `PENUH` = seluruh bagian, `MAKS` = min(bagian, `subsidi_maks_rp`).
 4. Alokasi `S` ke baris menurut harga barang (P-20, `PROPORSIONAL_NILAI`, sisa terbesar; Σ = S).
@@ -208,6 +228,8 @@ Dibuat job T-040 setelah cut-off slot selesai (semua grup `HARGA_TERKUNCI`/`DITA
 | Serah ke drop point | per drop point: kode paket, nama samaran, jumlah koli | Tidak (nama samaran) |
 
 - Fase 1: admin membagikan daftar ke kurir lokal **tanpa akun kurir** (H13). Penugasan stop ke armada & urutan: admin (manual), sistem hanya mengusulkan.
+- **Yang disimpan** (`daftar_antar` + versi): hanya penugasan `paket_id` → armada, urutan, status — **tanpa PII**. Nama, HP, alamat **dirender saat unduh** dari `peserta_grup.alamat_snapshot`, tidak disimpan di tabel/berkas daftar antar.
+- **Serah di drop point:** setiap paket drop point punya **kode ambil** acak per paket (bukan nomor urut, bukan HP), dikirim ke penerima lewat aplikasi/WA; pengelola drop point mencocokkan kode saat serah, lalu admin menandai DITERIMA (F-28). Kode disimpan sebagai hash; salah berulang → dikunci + tinjauan.
 - Cara berbagi & retensi: **menunggu O-12**. DEFAULT SEMENTARA: hanya unduh/cetak dari panel admin (login TOTP, H9), setiap unduhan tercatat (`log_audit`), **tidak lewat n8n/WA otomatis** (H4: n8n tanpa PII), berkas tidak disimpan di server setelah dibuat.
 - Status antar per paket (Diantar / Diterima / Gagal antar) diubah admin di panel T-039.
 - Daftar picking (gudang) terpisah dan **tanpa PII** (`picking:{grup_id}`, T-009 §2).
@@ -219,13 +241,13 @@ Dibuat job T-040 setelah cut-off slot selesai (semua grup `HARGA_TERKUNCI`/`DITA
 | # | Kondisi | Deteksi | Perilaku | Pemulihan / idempotensi |
 |---|---|---|---|---|
 | CG-01 | Adapter tarif eksternal mati / respon tidak valid | Timeout, 5xx, validasi §3.3 | Turun ke sumber 2 → 3; log peringatan + metrik `ongkir_sumber` | Retry backoff di luar transaksi; alert admin bila sumber 3 dipakai > ambang (T-010) |
-| CG-02 | Semua sumber tarif kosong (belum diisi / adapter mati tanpa fallback) | `ONGKIR_TIDAK_TERSEDIA` | Antar rumah nonaktif di checkout ("Antar ke rumah belum tersedia, ambil sendiri di drop point"); terbit tagihan manual ditahan bila ada peserta antar rumah: "Ongkir sedang dihitung, coba lagi" | Terbit otomatis K-39 di batas waktu: **menunggu O-08** (DEFAULT SEMENTARA: peserta antar rumah dialihkan ke drop point, ongkir 0, WA pemberitahuan) |
+| CG-02 | Semua sumber tarif kosong (belum diisi / adapter mati tanpa fallback) | `ONGKIR_TIDAK_TERSEDIA` | Antar rumah nonaktif di checkout ("Antar ke rumah belum tersedia, ambil sendiri di drop point"); terbit tagihan manual ditahan bila ada peserta antar rumah: "Ongkir sedang dihitung, coba lagi" | Terbit otomatis K-39 di batas waktu: **menunggu O-08** (DEFAULT SEMENTARA: peserta antar rumah dialihkan ke drop point, ongkir 0, WA pemberitahuan; tagihan menampilkan "Cara kirim diubah ke ambil sendiri di {drop point} karena ongkir belum bisa dihitung"; selama tagihan **belum dibayar** dan tarif pulih, peserta boleh kembali memilih antar rumah → tagihan diterbitkan ulang lewat jalur ganti (invoice lama `DIGANTI`, TTL tidak diperpanjang, kapasitas & kuotasi dihitung ulang); setelah bayar tidak bisa (F-25)) |
 | CG-03 | Armada nonaktif semua / kapasitas kosong | Kandidat §4.1 kosong | Sama dengan CG-02 | Admin mengisi armada |
 | CG-04 | Satu unit barang > armada terbesar | §4.3 | `ARMADA_TIDAK_CUKUP` untuk peserta itu; hanya drop point | Antrean tinjauan admin |
 | CG-05 | Slot penuh saat terbit tagihan | `SLOT_PENUH` di transaksi | Tagihan tidak terbit; host diberi tahu | **Menunggu O-09** (DEFAULT SEMENTARA: admin menambah kapasitas atau memindah grup ke slot lain, tercatat; host tidak bisa memindah sendiri) |
 | CG-06 | Alamat di luar radius zona | `tentukanZona` ≠ zona grup | 422/403 `LUAR_ZONA`: "Alamat ini di luar zona {zona}. Pilih drop point atau alamat lain" | Daftar tunggu WA bila di luar semua zona (F-18) |
 | CG-07 | Alamat tanpa koordinat | `lat/lng` NULL | 422 `ALAMAT_BUTUH_TITIK`: minta pin lokasi | — |
-| CG-08 | `berat_gram = 0` pada baris antar rumah | Validasi §3.1 | 422 `BERAT_BELUM_DIISI`; antar rumah tidak bisa untuk keranjang itu; drop point boleh | Antrean tinjauan `BERAT_KOSONG` → admin/CSV (T-038) |
+| CG-08 | `berat_gram = 0` pada baris antar rumah | Validasi §3.1 | 422 `BERAT_BELUM_DIISI`; antar rumah tidak bisa untuk keranjang itu; drop point boleh (tanda kapasitas tidak lengkap, §5.3) | Antrean tinjauan `BERAT_KOSONG` → admin/CSV (T-038) |
 | CG-09 | Kuotasi kedaluwarsa saat transaksi terbit | `berlaku_sampai < sekarang` | Rollback, kuotasi ulang di luar transaksi, ulang (maks. sekali; gagal → CG-02) | Kuotasi lama tidak dipakai (`dipakai_di_invoice_id` NULL) |
 | CG-10 | Ongkir adapter > `ongkir.batas_wajar_rp` | §3.3 | Dianggap tidak valid → sumber berikutnya + alert | Admin memeriksa adapter |
 | CG-11 | Slot batal operasional | Admin | §5.4 (F-21) | `refund:{peserta_id}:SLOT_BATAL:{slot_id}` |
@@ -258,10 +280,12 @@ function pilihArmada(beratGram: Gram, kandidat: Armada[]):            // §4, de
   { ok: true; unit: { armadaKode: string; beratGram: Gram }[] } | { ok: false; kode: 'ARMADA_TIDAK_CUKUP' | 'ARMADA_KOSONG' };
 function hitungOngkirUnit(beratGram: Gram, jarakMeter: Meter, t: Tarif):  // §3.2–§3.4
   { ongkir: Rupiah; sisaPecahanPer1000: number };
-function bagiOngkir(ongkirGrup: Rupiah, pesertaAntar: { pesertaId: string; bergabungPada: Date }[], hostId: string):
-  Map<string, Rupiah>;                                                  // §6.2, Σ = ongkirGrup
+function bagiOngkir(ongkirUnit: Rupiah, pesertaAntar: string[], penerimaSisaId: string | null): Map<string, Rupiah>;
+  // §6.2, Σ = ongkirUnit. pesertaAntar kosong → Map kosong (pemanggil tidak membuat kuotasi sama sekali).
+  // penerimaSisaId dipilih pemanggil (K-44/O-04), wajib ∈ pesertaAntar bila tidak kosong; selain itu error PENERIMA_SISA_TIDAK_VALID.
+function tentukanPenerimaSisa(hostId: string, pesertaAntar: { pesertaId: string; bergabungPada: Date }[]): string | null;
 ```
-Error domain: `ONGKIR_TIDAK_TERSEDIA`, `ARMADA_TIDAK_CUKUP`, `ARMADA_KOSONG`, `BERAT_BELUM_DIISI`, `ALAMAT_BUTUH_TITIK`, `LUAR_ZONA`, `TARIF_TIDAK_VALID`. Panel admin: armada (kapasitas, aktif) & tarif fallback `ADMIN` — semua field kosong bawaan, simpan ditolak bila negatif.
+Error domain: `ONGKIR_TIDAK_TERSEDIA`, `ARMADA_TIDAK_CUKUP`, `ARMADA_KOSONG`, `BERAT_BELUM_DIISI`, `ALAMAT_BUTUH_TITIK`, `LUAR_ZONA`, `TARIF_TIDAK_VALID`, `PENERIMA_SISA_TIDAK_VALID`. Flag konfigurasi `hargaMitraDropPoint` (bawaan mati, O-05) dibaca T-031 dan diteruskan ke engine harga oleh T-033. Panel admin: armada (kapasitas, aktif) & tarif fallback `ADMIN` — semua field kosong bawaan, simpan ditolak bila negatif.
 
 ### 10.2 T-033 — checkout
 
@@ -269,7 +293,7 @@ Error domain: `ONGKIR_TIDAK_TERSEDIA`, `ARMADA_TIDAK_CUKUP`, `ARMADA_KOSONG`, `B
 |---|---|---|---|
 | `GET grup/{kode}/opsi-kirim` | (sesi) | `[{cara: 'ANTAR_RUMAH', ongkirPerkiraanRp, tersedia, alasan?}, {cara: 'DROP_POINT', ongkirRp: 0, dropPoint: {nama, jamAmbil}}]` + label "perkiraan" | 404 |
 | `PUT grup/{kode}/cara-kirim` (sebelum terbit) | `cara_kirim`, `id_alamat?` / `id_drop_point?` | ringkasan baru | 403 `LUAR_ZONA`, 422 `ALAMAT_BUTUH_TITIK`, 422 `BERAT_BELUM_DIISI`, 409 `TAGIHAN_SUDAH_TERBIT` (F-25), 503 `ONGKIR_TIDAK_TERSEDIA` (antar saja) |
-| `POST grup/{kode}/checkout` | (group-order §8) | tagihan berisi `ongkir_rp`, `subsidi_ongkir_rp`, status gratis ongkir + `jalanKeluar[]` | + 409 `SLOT_PENUH`, 503 `ONGKIR_SEDANG_DIHITUNG` |
+| `POST grup/{kode}/checkout` | (group-order §8) | tagihan berisi `ongkir_rp`, `subsidi_ongkir_rp`, status gratis ongkir + `jalanKeluar[]` | + 409 `SLOT_PENUH`, 409 `SLOT_DITUTUP`, 409 `MELEWATI_BATAS_CHECKOUT` (dicek ulang setelah kunci slot, §5.3), 503 `ONGKIR_SEDANG_DIHITUNG` |
 | `GET zona/{id}/slot-kirim` | `untuk` | T-008 §3.3 (`bisaDipilih`, `alasan`) | — |
 
 ### 10.3 T-040 — job pasca cut-off
@@ -319,8 +343,21 @@ Error domain: `ONGKIR_TIDAK_TERSEDIA`, `ARMADA_TIDAK_CUKUP`, `ARMADA_KOSONG`, `B
 | TC-OS-30 | Ganti cara kirim setelah tagihan terbit | 409 `TAGIHAN_SUDAH_TERBIT` (F-25) |
 | TC-OS-31 | Klien mengirim `ongkir_rp`/`berat` di body | Diabaikan/400; nilai dari server |
 | TC-OS-32 | DOM kartu/detail/pemilih slot | Tidak ada "Mitra", "drop point", nominal ongkir (K-38, T-008 R2) |
-| TC-OS-33 | Payload ke adapter & daftar picking | Tanpa nama/HP/alamat teks |
-| TC-OS-34 | Unduh daftar antar | Hanya admin TOTP; tercatat di log audit |
+| TC-OS-33 | Payload `ambil()` ke adapter | Hanya koordinat asal/tujuan, berat, kode armada & zona; tanpa `peserta_id`/`akun_id`/`grup_id`/nama/HP/alamat teks; urutan tujuan tidak sama dengan urutan bergabung; koordinat tidak muncul di log & error tracking |
+| TC-OS-33b | Daftar picking | Tanpa nama/HP/alamat |
+| TC-OS-34 | Unduh daftar antar | Hanya admin TOTP; tercatat di log audit; tabel `daftar_antar` tidak berisi nama/HP/alamat |
+| TC-OS-35 | Tagihan grup terbit bersamaan dengan admin membatalkan slot | Satu menang: batal dulu → terbit 409 `SLOT_DITUTUP`; terbit dulu → grup ikut dipindah §5.4; tidak ada tagihan baru di slot `DIBATALKAN` |
+| TC-OS-36 | Dua pemindahan grup berlawanan arah (A→B, B→A) bersamaan | Tidak deadlock (kunci `id` naik) |
+| TC-OS-37 | Pindah ke slot tujuan penuh | Grup tidak dipindah, masuk "perlu slot lain"; override admin tercatat |
+| TC-OS-38 | Terbit setelah menunggu kunci slot, kini `sekarang + TTL > cut_off_pada` | 409 `MELEWATI_BATAS_CHECKOUT` |
+| TC-OS-39 | `bagiOngkir` peserta antar kosong; `penerimaSisaId` di luar daftar | Map kosong & tanpa kuotasi; error `PENERIMA_SISA_TIDAK_VALID` |
+| TC-OS-40 | Mode `SENDIRI`, 3 invoice dari satu kuotasi grup | 3 baris `kuotasi_invoice`, Σ `bagian_rp` = `ongkir_rp`; kuotasi tidak bisa dipakai terbit lain (`dipakai_pada`) |
+| TC-OS-41 | `kapasitas_gram` NULL lalu diisi admin | `pemakaian_slot` lama ikut terhitung |
+| TC-OS-42 | Pengurangan kapasitas diulang (retry) | Berat = Σ baris aktif, tidak berkurang dua kali |
+| TC-OS-43 | Mode `HOST` + gratis ongkir | Satu angka subsidi di tagihan; baris `SUBSIDI_ONGKIR` per peserta; refund peserta = bagian ongkir − subsidinya ke saldo host |
+| TC-OS-44 | O-08: dialihkan ke drop point, tarif pulih sebelum bayar | Boleh kembali antar rumah; invoice lama `DIGANTI`, TTL tidak bertambah |
+| TC-OS-45 | Flag `hargaMitraDropPoint` mati (bawaan) | Harga drop point = harga antar rumah untuk konteks sama |
+| TC-OS-46 | Penanggungan ongkir (peserta dikeluarkan, pecahan dibuang) | Satu baris `penanggungan_ongkir` per alasan; rerun tidak ganda |
 
 ---
 
@@ -347,11 +384,12 @@ ID sementara; dipindah ke `project-specs/keputusan-terbuka.md` oleh sesi berikut
 | O-02 | "Jarak km" di rumus ongkir: titik asal (gudang penerima atau drop point) dan cara ukur untuk grup dengan banyak alamat | Efan (+ Operations) | Asal = gudang penerima zona (F-20); jarak = jarak rute multi-titik dari aplikasi eksternal; fallback = jarak garis lurus terjauh asal → alamat antar rumah |
 | O-03 | Ongkir dihitung **per grup** (semua alamat antar rumah satu rute, lalu dibagi K-25) atau **per alamat** (tiap anggota satu pengiriman)? | Randy + Efan | Per grup — sesuai K-25 "satu ongkir" dan rekomendasi K-44; lebih murah per order dan sejalan dengan tujuan belanja bareng |
 | O-04 | Sisa pembagian ongkir (K-44 "ke host") bila host sendiri memilih ambil di drop point | Randy | Sisa ke anggota antar rumah yang paling awal bergabung; host drop point tetap ongkir 0 |
-| O-05 | Keputusan §4 "drop point = tingkat Mitra": apakah ambil di drop point memberi harga Mitra Grosir **tanpa** MOQ untuk "Beli sendiri" (F-27) dan grup < Rp100.000 (K-18)? | Efan | Tidak — cara kirim tidak mengubah jenis harga (engine-harga §5.2); harga Mitra lewat syarat grup atau MOQ grosir (P-05); keuntungan drop point = ongkir 0 |
+| O-05 | Keputusan §4: *"pesanan yang dikumpulkan di drop point dihitung sebagai pesanan tingkat Mitra (harga mengikuti level Mitra bila total memenuhi syarat)"*. "Total" dan "syarat" apa? Bila drop point otomatis memberi harga Mitra, ini bertentangan dengan F-27 ("Beli sendiri" = harga satuan). Tafsiran: **(a)** hanya lewat syarat grup (≥3 akun & total grup ≥ Rp100.000, K-14) atau MOQ grosir (P-05) — drop point hanya memberi ongkir 0; **(b)** total belanja satu akun yang ambil di drop point ≥ ambang konfigurasi (kosong) → harga Mitra Grosir, termasuk "Beli sendiri"; **(c)** agregasi lintas akun per drop point per slot ≥ ambang → harga Mitra (harga satu akun bergantung pesanan orang lain, perlu kunci harga saat cut-off seperti grup) | Efan | Tidak diputuskan agen. DEFAULT SEMENTARA: perilaku (a) (engine-harga §5.2); T-031/T-033 menyediakan flag `hargaMitraDropPoint` bawaan **mati** agar (b)/(c) bisa disambung tanpa mengubah skema harga |
 | O-06 | Kapasitas armada hanya berat; volume (barang ringan tapi besar: tisu, popok) belum ada kolomnya | Joseph (+ Operations) | Fase 1 berat saja; tambah kolom volume opsional di armada & satuan jual (NULL = tidak dicek) saat data volume tersedia |
 | O-07 | Ongkir setelah alokasi parsial / stok habis sebagian / anggota dikeluarkan: dihitung ulang atau tetap? | Efan | Tetap (tidak pernah tagih tambahan, P-19); refund bagian ongkir hanya bila semua barang peserta antar rumah batal / alokasi 0 |
 | O-08 | Tagihan terbit otomatis (K-39) saat semua sumber tarif tidak tersedia | Randy | Peserta antar rumah dialihkan ke ambil di drop point (ongkir 0) + WA pemberitahuan; terbit manual ditahan dengan pesan "Ongkir sedang dihitung" |
 | O-09 | Slot penuh saat tagihan grup akan terbit: boleh host memindah grup ke slot lain? | Randy (+ Operations) | Boleh sebelum tagihan terbit, ke slot DIBUKA zona sama, semua anggota diberi tahu WA. DEFAULT SEMENTARA sampai diputuskan: tagihan ditolak `SLOT_PENUH`; admin menambah kapasitas atau memindah grup (tercatat) |
 | O-10 | Slot dibatalkan operasional **sebelum** harga dikunci (F-21 hanya mengatur sesudahnya) | Randy | Sama dengan F-21: admin pindah slot, tagihan tetap, anggota boleh minta batal → saldo pembayar; grup DIBUKA ikut pindah |
 | O-11 | Antar rumah gagal (penerima tidak ada / tak bisa dihubungi) | Randy (+ Operations) | Paket dibawa ke drop point zona, WA "Siap diambil", tanpa ongkir tambahan, ongkir tidak dikembalikan; tidak diambil → alur F-28 |
+| O-13 | P-19: NEKAT menanggung selisih "selama ≥ modal + ongkir". Apakah total bersih tagihan (barang − diskon − subsidi ongkir + ongkir ditagih) wajib ≥ modal + **ongkir aktual** (armada nyata, peserta dikeluarkan, alokasi parsial)? Bila tidak, grup DITAHAN untuk admin (P-09) atau tetap dikirim dengan NEKAT menanggung? | Efan + Randy | Pagar keras tetap hanya pada barang (≥ modal, PG-4); kekurangan ongkir aktual **tidak** menahan grup (menahan merugikan pembeli yang sudah bayar), tetapi setiap penanggungan dicatat di `penanggungan_ongkir` per grup dan dilaporkan harian (T-041); Σ penanggungan per slot > ambang konfigurasi (kosong) → alert admin. DEFAULT SEMENTARA = rekomendasi |
 | O-12 | Cara admin membagikan daftar antar (berisi nama, HP, alamat) ke kurir tanpa akun (H13) & masa simpannya | Joseph (+ hukum) | Hanya unduh/cetak dari panel admin TOTP, setiap unduhan dicatat, tidak lewat n8n/WA otomatis (H4), berkas tidak disimpan di server; masa simpan ikut kebijakan privasi |
