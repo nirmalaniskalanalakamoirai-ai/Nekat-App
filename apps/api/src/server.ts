@@ -5,7 +5,15 @@ import {
   pastikanSumberInventoryTersedia,
   type KonfigInventory,
 } from "@nekat/adapters";
-import { buatDb, buatRepoInventoriLokal, buatRepoKatalog } from "@nekat/db";
+import {
+  bacaStatusLokasiDb,
+  buatDb,
+  buatRepoInventoriLokal,
+  buatRepoKatalog,
+  rencanakanSinkronLokasi,
+  teksPerubahanLokasi,
+  type Db,
+} from "@nekat/db";
 import { KONFIGURASI_HARGA_BAWAAN, type PenyimpanIdempotensi } from "@nekat/domain";
 import { z } from "zod";
 import { buatApp } from "./app.js";
@@ -61,8 +69,9 @@ const idempotensiHanyaBaca: PenyimpanIdempotensi = {
 };
 
 let katalog: LayananKatalog | null = null;
+let db: Db | null = null;
 if (env.data.DATABASE_URL !== undefined) {
-  const db = buatDb(env.data.DATABASE_URL);
+  db = buatDb(env.data.DATABASE_URL);
   katalog = new LayananKatalog({
     repo: buatRepoKatalog(db),
     inventory: buatInventorySource(konfigInventory, {
@@ -96,6 +105,26 @@ try {
 const app = buatApp({ lokasi, katalog });
 if (!lokasi) app.log.warn("config/lokasi.json belum ada: rute zona menjawab 503");
 if (!katalog) app.log.warn("DATABASE_URL belum diisi: rute katalog menjawab 503");
+
+// T-015b: koordinat tetap dibaca dari config (M7); tabel gudang/zona/drop_point hanya cerminan
+// untuk FK. Saat start, peringatkan bila cerminan belum sesuai config (tidak menahan start).
+if (db && lokasi) {
+  const dbLokasi = db;
+  const konfigLokasi = lokasi;
+  void (async () => {
+    try {
+      const rencana = rencanakanSinkronLokasi(konfigLokasi, await bacaStatusLokasiDb(dbLokasi));
+      if (rencana.langkah.length > 0 || rencana.konflik.length > 0) {
+        app.log.warn(
+          { selisih: rencana.langkah.map(teksPerubahanLokasi), konflik: rencana.konflik },
+          "lokasi: DB belum sesuai config/lokasi.json — jalankan `pnpm db:sinkron-lokasi`",
+        );
+      }
+    } catch (err) {
+      app.log.warn({ err }, "lokasi: cek sinkron config → DB gagal");
+    }
+  })();
+}
 try {
   await app.listen({ host: env.data.HOST, port: env.data.PORT });
 } catch (err) {

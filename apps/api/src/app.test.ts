@@ -65,6 +65,10 @@ describe("zona (T-015)", () => {
     ) as unknown,
   );
 
+  it("config contoh bertanda uji (koordinat fiktif, keputusan #3 belum diisi)", () => {
+    expect(lokasi.uji).toBe(true);
+  });
+
   it("tanpa config: 503 ZONA_BELUM_DIATUR", async () => {
     const app = buatApp({ logger: false });
     const r = await app.inject({

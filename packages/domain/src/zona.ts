@@ -1,5 +1,8 @@
 // Penentuan zona layanan (keputusan #5: radius 2–3 km skala kelurahan, dari drop point).
 // Fungsi murni: koordinat & radius datang dari config/lokasi.json (M7), bukan dari DB.
+import { RADIUS_MAKS_METER, RADIUS_MIN_METER } from "@nekat/shared";
+
+export { RADIUS_MAKS_METER, RADIUS_MIN_METER };
 
 export interface Koordinat {
   readonly lat: number;
@@ -31,8 +34,6 @@ export type HasilZona =
     }
   | { readonly status: "DI_LUAR_ZONA" };
 
-export const RADIUS_MIN_METER = 2000;
-export const RADIUS_MAKS_METER = 3000;
 const JARI_JARI_BUMI_METER = 6_371_008.8;
 
 export function koordinatValid(k: Koordinat): boolean {
