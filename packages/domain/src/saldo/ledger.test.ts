@@ -6,6 +6,7 @@ import {
   GalatSaldo,
   hitungPakaiSaldo,
   identitasKredit,
+  jobCutoffKanonik,
   JENIS_LEDGER,
   kunciDebitCheckout,
   kunciKoreksi,
@@ -21,6 +22,7 @@ import {
 
 const A = "0190f1a2-0000-7000-8000-00000000000a";
 const B = "0190f1a2-0000-7000-8000-00000000000b";
+const C = "0190f1a2-0000-7000-8000-00000000000c";
 
 function kodeGalat(f: () => unknown): string {
   try {
@@ -41,13 +43,13 @@ describe("kunci idempotensi deterministik (pembayaran.md §8.2)", () => {
 
   const kasus: [SumberKredit, string, string, string][] = [
     [
-      { jenis: "REFUND", alasan: "GRUP_BATAL", pesertaId: A, grupId: B },
+      { jenis: "REFUND", alasan: "GRUP_BATAL", invoiceId: C, pesertaId: A, grupId: B },
       `refund:${A}:GRUP_BATAL:${B}`,
       "PESERTA_GRUP",
       A,
     ],
     [
-      { jenis: "REFUND", alasan: "SLOT_BATAL", pesertaId: A, slotId: B },
+      { jenis: "REFUND", alasan: "SLOT_BATAL", invoiceId: C, pesertaId: A, slotId: B },
       `refund:${A}:SLOT_BATAL:${B}`,
       "PESERTA_GRUP",
       A,
@@ -64,8 +66,18 @@ describe("kunci idempotensi deterministik (pembayaran.md §8.2)", () => {
       "BARIS_INVOICE",
       A,
     ],
-    [{ jenis: "REFUND", alasan: "KELUHAN", keluhanId: A }, `keluhan:${A}`, "KELUHAN", A],
-    [{ jenis: "SELISIH_HARGA", grupId: B, pesertaId: A }, `selisih:${B}:${A}`, "PESERTA_GRUP", A],
+    [
+      { jenis: "REFUND", alasan: "KELUHAN", invoiceId: C, keluhanId: A },
+      `keluhan:${A}`,
+      "KELUHAN",
+      A,
+    ],
+    [
+      { jenis: "SELISIH_HARGA", invoiceId: C, grupId: B, pesertaId: A },
+      `selisih:${B}:${A}`,
+      "PESERTA_GRUP",
+      A,
+    ],
     [
       { jenis: "REFUND_ONGKIR", invoiceId: A, pesertaId: B },
       `refund_ongkir:${A}:${B}`,
@@ -84,11 +96,23 @@ describe("kunci idempotensi deterministik (pembayaran.md §8.2)", () => {
   });
 
   it("sumber sama → kunci sama (huruf besar dinormalkan); sumber beda → kunci beda", () => {
-    const s1 = identitasKredit({ jenis: "SELISIH_HARGA", grupId: B, pesertaId: A });
-    const s2 = identitasKredit({ jenis: "SELISIH_HARGA", grupId: B.toUpperCase(), pesertaId: A });
+    const s1 = identitasKredit({ jenis: "SELISIH_HARGA", invoiceId: C, grupId: B, pesertaId: A });
+    const s2 = identitasKredit({
+      jenis: "SELISIH_HARGA",
+      invoiceId: C,
+      grupId: B.toUpperCase(),
+      pesertaId: A,
+    });
     expect(s2.kunciIdempotensi).toBe(s1.kunciIdempotensi);
     const semua = kasus.map(([s]) => identitasKredit(s).kunciIdempotensi);
     expect(new Set(semua).size).toBe(semua.length);
+  });
+
+  it("jobCutoffId kanonik: huruf besar → huruf kecil; bentuk selain cutoff:{uuid} ditolak", () => {
+    expect(jobCutoffKanonik(`CUTOFF:${B.toUpperCase()}`)).toBe(`cutoff:${B}`);
+    for (const c of [`cutoff:${B} `, `cutoff-${B}`, "cutoff:abc", `slot:${B}`, `cutoff:${B}:2`]) {
+      expect(kodeGalat(() => jobCutoffKanonik(c))).toBe("ID_TIDAK_VALID");
+    }
   });
 
   it("menolak id bukan UUID & id cut-off berisi spasi", () => {

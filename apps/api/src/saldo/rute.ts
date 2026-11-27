@@ -8,7 +8,7 @@
 // KEAMANAN DTO: hanya label jenis, nominal, saldo sesudah, waktu, dan nomor tagihan milik akun sendiri.
 // Alasan koreksi internal, id admin, kunci idempotensi, id referensi mentah tidak pernah dikirim.
 import type { HalamanRiwayat, RepoSaldo } from "@nekat/db";
-import { bacaCursorRiwayat, GalatSaldo } from "@nekat/domain";
+import { bacaCursorRiwayat, GalatSaldo, uuidKanonik } from "@nekat/domain";
 import type { FastifyRequest } from "fastify";
 import {
   hasZodFastifySchemaValidationErrors,
@@ -102,7 +102,14 @@ export const ruteSaldo: FastifyPluginCallbackZod<OpsiRuteSaldo> = (r, opsi, sele
   r.addHook("onRequest", async (req, reply) => {
     const sesi = await autentikasi(req);
     if (!sesi) return reply.code(401).send(GALAT.BELUM_MASUK);
-    req.akunSesi = sesi;
+    // Sesi dengan akunId rusak diperlakukan sebagai tidak masuk (401), bukan 500.
+    let akunId: string;
+    try {
+      akunId = uuidKanonik(sesi.akunId);
+    } catch {
+      return reply.code(401).send(GALAT.BELUM_MASUK);
+    }
+    req.akunSesi = { akunId };
   });
 
   r.get(

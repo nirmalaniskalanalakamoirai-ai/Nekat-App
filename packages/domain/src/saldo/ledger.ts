@@ -40,17 +40,23 @@ export type ReferensiLedger = (typeof REFERENSI_LEDGER)[number];
  * Sumber kredit (pembayaran.md §8.2). Pemanggil menyebut IDENTITAS sumber, bukan kunci: kunci, jenis,
  * dan referensi diturunkan di sini sehingga eksekusi ulang dari sumber yang sama selalu menghasilkan
  * kunci yang sama (tanpa nomor urut / id percobaan).
+ *
+ * `invoiceId` = invoice LUNAS sumber dana (tidak masuk kunci; dipakai repo untuk mengikat akun pembayar,
+ * memverifikasi peserta/baris milik invoice itu, dan menjaga Σ kredit per invoice ≤ total_rp).
+ * Untuk STOK_HABIS/ALOKASI invoice diturunkan dari baris; untuk BAYAR_TERLAMBAT dari pembayaran.
  */
 export type SumberKredit =
   | {
       readonly jenis: "REFUND";
       readonly alasan: "GRUP_BATAL";
+      readonly invoiceId: string;
       readonly pesertaId: string;
       readonly grupId: string;
     }
   | {
       readonly jenis: "REFUND";
       readonly alasan: "SLOT_BATAL";
+      readonly invoiceId: string;
       readonly pesertaId: string;
       readonly slotId: string;
     }
@@ -59,11 +65,24 @@ export type SumberKredit =
       readonly jenis: "REFUND";
       readonly alasan: "ALOKASI";
       readonly barisInvoiceId: string;
-      /** Identitas STABIL satu cut-off (mis. kunci job_run `cutoff:{slot_id}`), bukan id percobaan/lease. */
+      /**
+       * Identitas STABIL satu cut-off: `cutoff:{slot_id}` (kunci job_run), bukan id percobaan/lease.
+       * Dikanonikkan (huruf kecil, format wajib) agar variasi penulisan tidak menghasilkan kunci baru.
+       */
       readonly jobCutoffId: string;
     }
-  | { readonly jenis: "REFUND"; readonly alasan: "KELUHAN"; readonly keluhanId: string }
-  | { readonly jenis: "SELISIH_HARGA"; readonly grupId: string; readonly pesertaId: string }
+  | {
+      readonly jenis: "REFUND";
+      readonly alasan: "KELUHAN";
+      readonly invoiceId: string;
+      readonly keluhanId: string;
+    }
+  | {
+      readonly jenis: "SELISIH_HARGA";
+      readonly invoiceId: string;
+      readonly grupId: string;
+      readonly pesertaId: string;
+    }
   | { readonly jenis: "REFUND_ONGKIR"; readonly invoiceId: string; readonly pesertaId: string }
   | { readonly jenis: "BAYAR_TERLAMBAT"; readonly pembayaranId: string };
 
@@ -83,6 +102,9 @@ export class GalatSaldo extends Error {
       | "KUNCI_BENTROK"
       | "AKUN_TIDAK_ADA"
       | "INVOICE_TIDAK_SESUAI"
+      | "AKUN_TIDAK_SESUAI"
+      | "MELEBIHI_DIBAYAR"
+      | "SUMBER_TIDAK_SESUAI"
       | "KOREKSI_TIDAK_SAH"
       | "BUKAN_TRANSAKSI",
     pesan: string,
@@ -94,8 +116,8 @@ export class GalatSaldo extends Error {
 }
 
 const POLA_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-/** Identitas stabil non-uuid (mis. `cutoff:{slot_id}`): tanpa spasi, panjang wajar. */
-const POLA_ID_STABIL = /^[A-Za-z0-9_:-]{1,120}$/;
+/** Identitas stabil satu cut-off: `cutoff:{slot_id}`. */
+const POLA_JOB_CUTOFF = /^cutoff:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
 
 /** UUID huruf kecil (bentuk kanonik PostgreSQL) agar kunci tidak berbeda karena huruf besar/kecil. */
 export function uuidKanonik(nilai: string): string {
@@ -104,11 +126,13 @@ export function uuidKanonik(nilai: string): string {
   return v;
 }
 
-function idStabil(nilai: string): string {
-  if (!POLA_ID_STABIL.test(nilai)) {
-    throw new GalatSaldo("ID_TIDAK_VALID", "ID cut-off tidak valid");
+/** Kanonik `cutoff:{uuid huruf kecil}`; bentuk lain ditolak (bukan dinormalkan diam-diam). */
+export function jobCutoffKanonik(nilai: string): string {
+  const v = nilai.toLowerCase();
+  if (!POLA_JOB_CUTOFF.test(v)) {
+    throw new GalatSaldo("ID_TIDAK_VALID", "ID cut-off harus berbentuk cutoff:{slot_id}");
   }
-  return nilai;
+  return v;
 }
 
 /** `debit:{invoice_id}` — saldo dipakai saat tagihan terbit (§8.2). */
@@ -161,7 +185,7 @@ function identitasRefund(s: SumberRefund): IdentitasEntri {
       const b = uuidKanonik(s.barisInvoiceId);
       return {
         jenis: "REFUND",
-        kunciIdempotensi: `refund:${b}:ALOKASI:${idStabil(s.jobCutoffId)}`,
+        kunciIdempotensi: `refund:${b}:ALOKASI:${jobCutoffKanonik(s.jobCutoffId)}`,
         referensiJenis: "BARIS_INVOICE",
         referensiId: b,
       };

@@ -75,6 +75,17 @@ describe("GET /api/saldo", () => {
     expect(repo.panggilan).toEqual([{ akunId: AKUN, opsi: { batas: 5, sebelumId: 9 } }]);
   });
 
+  it("sesi dengan akunId bukan UUID → 401 (bukan 500), repo tidak disentuh", async () => {
+    const repo = repoPalsu();
+    const app = buatApp({
+      logger: false,
+      saldo: { repo, autentikasi: () => Promise.resolve({ akunId: "bukan-uuid" }) },
+    });
+    const r = await app.inject({ method: "GET", url: "/api/saldo" });
+    expect(r.statusCode).toBe(401);
+    expect(repo.panggilan).toHaveLength(0);
+  });
+
   it("input tidak valid → 400; repo belum ada → 503", async () => {
     const auth = () => Promise.resolve({ akunId: AKUN });
     const app = buatApp({ logger: false, saldo: { repo: repoPalsu(), autentikasi: auth } });
