@@ -2,7 +2,7 @@
 import { keRupiah } from "@nekat/shared";
 import { describe, expect, it } from "vitest";
 import { cekBolehBayar, GalatBayar, kunciBayar, keteranganTagihan } from "./aturan.js";
-import { LayananBayar } from "./mulai-bayar.js";
+import { instruksiTerpercaya, LayananBayar, statusCocok } from "./mulai-bayar.js";
 import {
   GalatGateway,
   type HasilCekStatus,
@@ -126,6 +126,7 @@ function gatewayTiruan(
   o: { buat?: () => Promise<void>; cek?: () => Promise<HasilCekStatus> } = {},
 ) {
   const hitung = { buat: 0, cek: 0, batal: 0 };
+  const dibatalkan: string[] = [];
   const gw: PaymentGateway = {
     nama: "palsu",
     mode: "test",
@@ -135,7 +136,10 @@ function gatewayTiruan(
       await (o.buat?.() ?? Promise.resolve());
       return {
         xenditRef: `ref-${p.pembayaranId}`,
-        instruksi: { jenis: "QRIS", qrString: "QR" },
+        instruksi:
+          p.metode === "VA"
+            ? { jenis: "VA", bank: "LAIN", nomorVa: "88081234", namaPenerima: "Nama Dari Gateway" }
+            : { jenis: "QRIS", qrString: "QR" },
         kedaluwarsaPada: p.kedaluwarsaPada,
       };
     },
@@ -143,15 +147,16 @@ function gatewayTiruan(
       hitung.cek++;
       return o.cek ? o.cek() : { ditemukan: false };
     },
-    batalkan() {
+    batalkan(r) {
       hitung.batal++;
+      dibatalkan.push(r.xenditRef);
       return Promise.resolve();
     },
     kedaluwarsakan() {
       return Promise.resolve();
     },
   };
-  return { gw, hitung };
+  return { gw, hitung, dibatalkan };
 }
 
 const input = { invoiceId: "inv-1", akunId: "akun-1", metode: "QRIS" as const, kanal: null };
@@ -199,6 +204,8 @@ describe("LayananBayar", () => {
           jumlahRp: 100,
           mataUang: "IDR",
           externalId: "p-1",
+          metode: "QRIS",
+          kanal: null,
           paidAt: null,
           xenditRef: "ref-x",
           instruksi: null,
@@ -247,5 +254,147 @@ describe("LayananBayar", () => {
       },
     });
     expect((await l.mulaiBayar(input)).hasil).toBe("OK");
+  });
+
+  it("ganti metode menunggu pembuatan upaya lama yang masih berjalan, lalu membatalkan dengan ref-nya (item 5)", async () => {
+    const { repo, baris } = repoMemori();
+    let lepas: () => void = () => undefined;
+    const tahan = new Promise<void>((s) => {
+      lepas = s;
+    });
+    let pertama = true;
+    const { gw, dibatalkan } = gatewayTiruan({
+      buat: () => {
+        if (pertama) {
+          pertama = false;
+          return tahan;
+        }
+        return Promise.resolve();
+      },
+    });
+    const l = new LayananBayar({ repo, gateway: gw, namaMerchant: "PT Uji", jam: () => SEKARANG });
+    const a = l.mulaiBayar(input);
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    const b = l.mulaiBayar({ ...input, metode: "VA", kanal: "BNI" });
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+    lepas();
+    const [ha, hb] = await Promise.all([a, b]);
+    expect(ha.hasil).toBe("OK");
+    expect(hb.hasil).toBe("OK");
+    expect(dibatalkan).toEqual(["ref-p-1"]);
+    expect(baris.map((x) => x.status)).toEqual(["KEDALUWARSA", "MENUNGGU"]);
+    // Instruksi VA dibangun dari kanal baris + nama merchant, bukan dari gateway.
+    expect(hb.pembayaran.instruksi).toEqual({
+      jenis: "VA",
+      bank: "BNI",
+      nomorVa: "88081234",
+      namaPenerima: "PT Uji",
+    });
+  });
+
+  it("baris ditutup jalur lain saat buat berjalan → tagihan gateway yatim dibatalkan (item 5)", async () => {
+    const { repo } = repoMemori();
+    const { gw, dibatalkan } = gatewayTiruan({
+      buat: async () => {
+        await repo.tutupUntukGanti("p-1");
+      },
+    });
+    const peristiwa: string[] = [];
+    const l = new LayananBayar({
+      repo,
+      gateway: gw,
+      namaMerchant: "PT Uji",
+      jam: () => SEKARANG,
+      catat: (p) => peristiwa.push(p.jenis),
+    });
+    const h = await l.mulaiBayar(input);
+    expect(h.hasil).toBe("MENYIAPKAN");
+    expect(dibatalkan).toEqual(["ref-p-1"]);
+    expect(peristiwa).toContain("TAGIHAN_YATIM_DIBATALKAN");
+  });
+
+  it("upaya lama FAILED di gateway → GAGAL (GAGAL_GATEWAY), bukan KEDALUWARSA (item 8)", async () => {
+    const { repo, baris } = repoMemori();
+    let pertama = true;
+    const { gw } = gatewayTiruan({
+      buat: () => {
+        if (pertama) {
+          pertama = false;
+          return Promise.reject(new GalatGateway("TIMEOUT", "uji"));
+        }
+        return Promise.resolve();
+      },
+      cek: () =>
+        Promise.resolve({
+          ditemukan: true,
+          statusNormal: "FAILED",
+          jumlahRp: 100,
+          mataUang: "IDR",
+          externalId: "p-1",
+          metode: "QRIS",
+          kanal: null,
+          paidAt: null,
+          xenditRef: "ref-x",
+          instruksi: null,
+        }),
+    });
+    const l = new LayananBayar({ repo, gateway: gw, namaMerchant: "PT Uji", jam: () => SEKARANG });
+    await l.mulaiBayar(input);
+    expect((await l.mulaiBayar(input)).hasil).toBe("OK");
+    expect(baris[0]).toMatchObject({ status: "GAGAL", alasanGagal: "GAGAL_GATEWAY" });
+  });
+});
+
+describe("W5: statusCocok & instruksiTerpercaya", () => {
+  const p: PembayaranTersimpan = {
+    id: "p-1",
+    invoiceId: "inv-1",
+    metode: "VA",
+    kanal: "BNI",
+    jumlahRp: keRupiah(100),
+    status: "MENUNGGU",
+    xenditRef: null,
+    instruksi: null,
+    kedaluwarsaPada: new Date("2026-11-27T10:00:00Z"),
+    kunciIdempotensi: "bayar:inv-1:1",
+    alasanGagal: null,
+  };
+  const s = {
+    ditemukan: true as const,
+    statusNormal: "MENUNGGU" as const,
+    jumlahRp: 100,
+    mataUang: "IDR",
+    externalId: "p-1",
+    metode: "VA" as const,
+    kanal: "BNI",
+    paidAt: null,
+    xenditRef: "ref",
+    instruksi: null,
+  };
+  it("semua bidang harus cocok", () => {
+    expect(statusCocok(p, s)).toBe(true);
+    expect(statusCocok(p, { ...s, jumlahRp: 1 })).toBe(false);
+    expect(statusCocok(p, { ...s, mataUang: "USD" })).toBe(false);
+    expect(statusCocok(p, { ...s, externalId: "p-2" })).toBe(false);
+    expect(statusCocok(p, { ...s, metode: "QRIS", kanal: null })).toBe(false);
+    expect(statusCocok(p, { ...s, kanal: "BRI" })).toBe(false);
+    expect(statusCocok(p, { ...s, metode: null })).toBe(false);
+  });
+  it("jenis instruksi harus sama dengan metode; nomor VA harus angka", () => {
+    expect(instruksiTerpercaya(p, { jenis: "QRIS", qrString: "x" }, "PT Uji")).toBeNull();
+    expect(
+      instruksiTerpercaya(
+        p,
+        { jenis: "VA", bank: "X", nomorVa: "12ab", namaPenerima: "x" },
+        "PT Uji",
+      ),
+    ).toBeNull();
+    expect(
+      instruksiTerpercaya(
+        p,
+        { jenis: "VA", bank: "X", nomorVa: "123456", namaPenerima: "x" },
+        "PT Uji",
+      ),
+    ).toEqual({ jenis: "VA", bank: "BNI", nomorVa: "123456", namaPenerima: "PT Uji" });
   });
 });

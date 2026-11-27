@@ -46,12 +46,23 @@ function ambil(env: Env, nama: string): string | undefined {
 
 /** Nama merchant: huruf/angka/spasi/titik/koma/tanda hubung, 3–64 karakter (batas aman nama VA). */
 const POLA_NAMA_MERCHANT = /^[A-Za-z0-9][A-Za-z0-9 .,&-]{2,63}$/;
-/** Kunci: karakter aman saja (tanpa spasi/baris baru yang bisa menyusup ke header). */
-const POLA_KUNCI = /^[A-Za-z0-9_]{20,200}$/;
+/**
+ * Kunci: karakter aman saja, termasuk `+ / =` (bila bagian acaknya base64), tanpa spasi/baris baru yang bisa
+ * menyusup ke header. Format pasti kunci Xendit perlu diverifikasi di sandbox (asumsi X-02).
+ */
+const POLA_KUNCI = /^[A-Za-z0-9_+/=]{20,200}$/;
+
+/** NODE_ENV yang dikenal. Nilai lain/kosong → gagal start (pagar mode tidak boleh gagal terbuka). */
+export const NODE_ENV_DIKENAL = ["development", "test", "staging", "production"] as const;
 
 export function bacaKonfigPembayaran(env: Env): KonfigPembayaran {
   const salah: string[] = [];
-  const produksi = env["NODE_ENV"] === "production";
+  const nodeEnv = env["NODE_ENV"];
+  if (!(NODE_ENV_DIKENAL as readonly (string | undefined)[]).includes(nodeEnv))
+    salah.push("NODE_ENV");
+  const produksi = nodeEnv === "production";
+  // Gateway palsu hanya di development/test; staging memakai Xendit mode test.
+  const bolehPalsu = nodeEnv === "development" || nodeEnv === "test";
   const mode: ModeGateway = produksi ? "live" : "test";
 
   const namaGateway = ambil(env, "PEMBAYARAN_GATEWAY") ?? "nonaktif";
@@ -61,8 +72,8 @@ export function bacaKonfigPembayaran(env: Env): KonfigPembayaran {
   } else {
     salah.push("PEMBAYARAN_GATEWAY");
   }
-  // Gateway palsu tidak boleh di production (uang tidak benar-benar diterima).
-  if (produksi && gateway === "palsu") salah.push("PEMBAYARAN_GATEWAY");
+  // Gateway palsu tidak boleh di staging/production (uang tidak benar-benar diterima).
+  if (gateway === "palsu" && !bolehPalsu) salah.push("PEMBAYARAN_GATEWAY");
 
   const namaMerchant = ambil(env, "PEMBAYARAN_NAMA_MERCHANT") ?? "";
   if (gateway !== "nonaktif" && !POLA_NAMA_MERCHANT.test(namaMerchant)) {

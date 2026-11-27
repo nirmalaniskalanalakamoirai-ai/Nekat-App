@@ -224,6 +224,36 @@ describe("XenditGateway (mock lokal)", () => {
     expect((await galat(gw.buatPembayaran(permintaan()))).kode).toBe("RESPONS_TIDAK_VALID");
   });
 
+  it("respons buat berstatus bukan menunggu / kanal beda → RESPONS_TIDAK_VALID (item review 4)", async () => {
+    const pr = {
+      payment_request_id: "pr-00000000-0000-4000-8000-000000000001",
+      reference_id: ID,
+      request_amount: 123456,
+      currency: "IDR",
+      channel_code: "QRIS",
+      actions: [{ descriptor: "QR_STRING", value: "0002x" }],
+    };
+    for (const body of [
+      { ...pr, status: "SUCCEEDED" },
+      { ...pr, status: "CANCELED" },
+      { ...pr, status: "ACCEPTING_PAYMENTS", channel_code: "BNI_VIRTUAL_ACCOUNT" },
+    ]) {
+      mock.ganggu("buat", { status: 200, kali: 1, body });
+      expect((await galat(gw.buatPembayaran(permintaan()))).kode).toBe("RESPONS_TIDAK_VALID");
+    }
+  });
+
+  it("cekStatus: metode & kanal dari channel_code; kanal tak dikenal → metode null tanpa instruksi", async () => {
+    const id = idBaru();
+    const h = await gw.buatPembayaran(permintaan({ pembayaranId: id, metode: "VA", kanal: "BRI" }));
+    const s = await gw.cekStatus({ pembayaranId: id, xenditRef: h.xenditRef });
+    expect(s).toMatchObject({ ditemukan: true, metode: "VA", kanal: "BRI" });
+    const t = mock.cariRef(id);
+    if (t) t.channel_code = "OVO";
+    const s2 = await gw.cekStatus({ pembayaranId: id, xenditRef: h.xenditRef });
+    expect(s2).toMatchObject({ ditemukan: true, metode: null, kanal: null, instruksi: null });
+  });
+
   it("URL non-https ditolak kecuali host lokal untuk tes", () => {
     expect(
       () =>
@@ -249,7 +279,8 @@ describe("XenditGateway (mock lokal)", () => {
 describe("bacaKonfigPembayaran (pagar mode FP-02)", () => {
   const KUNCI_TEST = "xnd_development_abcdefghijklmnopqrstuvwxyz";
   const KUNCI_LIVE = "xnd_production_abcdefghijklmnopqrstuvwxyz";
-  const dasar = { PEMBAYARAN_NAMA_MERCHANT: "PT Uji Merchant" };
+  const dev = { NODE_ENV: "development" };
+  const dasar = { ...dev, PEMBAYARAN_NAMA_MERCHANT: "PT Uji Merchant" };
   const salah = (env: Record<string, string>): string[] => {
     try {
       bacaKonfigPembayaran(env);
@@ -265,7 +296,7 @@ describe("bacaKonfigPembayaran (pagar mode FP-02)", () => {
   };
 
   it("bawaan nonaktif (null gateway)", () => {
-    const k = bacaKonfigPembayaran({});
+    const k = bacaKonfigPembayaran(dev);
     expect(k.gateway).toBe("nonaktif");
     expect(buatPaymentGateway(k)).toBeNull();
   });
@@ -284,7 +315,7 @@ describe("bacaKonfigPembayaran (pagar mode FP-02)", () => {
       salah({ ...dasar, PEMBAYARAN_GATEWAY: "xendit", XENDIT_SECRET_KEY: KUNCI_LIVE }),
     ).toEqual(["XENDIT_SECRET_KEY"]);
     // Kunci live terpasang di dev walau gateway belum aktif = salah pasang.
-    expect(salah({ XENDIT_SECRET_KEY: KUNCI_LIVE })).toEqual(["XENDIT_SECRET_KEY"]);
+    expect(salah({ ...dev, XENDIT_SECRET_KEY: KUNCI_LIVE })).toEqual(["XENDIT_SECRET_KEY"]);
   });
 
   it("production: kunci test ditolak (TC-PAY-33), gateway palsu ditolak, kunci live diterima", () => {
@@ -302,8 +333,52 @@ describe("bacaKonfigPembayaran (pagar mode FP-02)", () => {
     expect(k.mode).toBe("live");
   });
 
+  it("NODE_ENV wajib dikenal (pagar tidak gagal terbuka); palsu hanya development/test", () => {
+    expect(salah({})).toEqual(["NODE_ENV"]);
+    expect(salah({ NODE_ENV: "prod" })).toEqual(["NODE_ENV"]);
+    expect(salah({ NODE_ENV: "Production" })).toEqual(["NODE_ENV"]);
+    // NODE_ENV tak dikenal + kunci live: tetap gagal (tidak dianggap production maupun dev yang sah).
+    expect(
+      salah({
+        ...dasar,
+        NODE_ENV: "",
+        PEMBAYARAN_GATEWAY: "xendit",
+        XENDIT_SECRET_KEY: KUNCI_LIVE,
+      }),
+    ).toContain("NODE_ENV");
+    const staging = { ...dasar, NODE_ENV: "staging" };
+    expect(salah({ ...staging, PEMBAYARAN_GATEWAY: "palsu" })).toEqual(["PEMBAYARAN_GATEWAY"]);
+    expect(
+      salah({ ...staging, PEMBAYARAN_GATEWAY: "xendit", XENDIT_SECRET_KEY: KUNCI_LIVE }),
+    ).toEqual(["XENDIT_SECRET_KEY"]);
+    expect(
+      bacaKonfigPembayaran({
+        ...staging,
+        PEMBAYARAN_GATEWAY: "xendit",
+        XENDIT_SECRET_KEY: KUNCI_TEST,
+      }).mode,
+    ).toBe("test");
+    expect(
+      bacaKonfigPembayaran({ ...dasar, NODE_ENV: "test", PEMBAYARAN_GATEWAY: "palsu" }).gateway,
+    ).toBe("palsu");
+  });
+
+  it("kunci boleh memuat + / = (base64), tidak boleh spasi/baris baru", () => {
+    const g = { ...dasar, PEMBAYARAN_GATEWAY: "xendit" };
+    expect(
+      bacaKonfigPembayaran({ ...g, XENDIT_SECRET_KEY: "xnd_development_ab+cd/ef==ghijklmnop" })
+        .gateway,
+    ).toBe("xendit");
+    expect(salah({ ...g, XENDIT_SECRET_KEY: "xnd_development_abcdefghij\nX-Evil: 1" })).toEqual([
+      "XENDIT_SECRET_KEY",
+    ]);
+    expect(salah({ ...g, XENDIT_SECRET_KEY: "xnd_development_abcdefgh ijklmnopqr" })).toEqual([
+      "XENDIT_SECRET_KEY",
+    ]);
+  });
+
   it("nama merchant & kanal VA divalidasi", () => {
-    expect(salah({ PEMBAYARAN_GATEWAY: "palsu" })).toEqual(["PEMBAYARAN_NAMA_MERCHANT"]);
+    expect(salah({ ...dev, PEMBAYARAN_GATEWAY: "palsu" })).toEqual(["PEMBAYARAN_NAMA_MERCHANT"]);
     expect(salah({ ...dasar, PEMBAYARAN_GATEWAY: "palsu", XENDIT_KANAL_VA: "bni,x y" })).toEqual([
       "XENDIT_KANAL_VA",
     ]);
@@ -314,7 +389,7 @@ describe("bacaKonfigPembayaran (pagar mode FP-02)", () => {
     });
     expect(k.kanalVa).toEqual(["BRI", "BNI"]);
     expect(buatPaymentGateway(k)).toBeInstanceOf(GatewayPalsu);
-    expect(salah({ PEMBAYARAN_GATEWAY: "stripe" })).toEqual(["PEMBAYARAN_GATEWAY"]);
+    expect(salah({ ...dev, PEMBAYARAN_GATEWAY: "stripe" })).toEqual(["PEMBAYARAN_GATEWAY"]);
   });
 });
 

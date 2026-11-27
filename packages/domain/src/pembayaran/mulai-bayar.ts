@@ -6,12 +6,15 @@
 //   untuk pembayaran yang sama digabung (single-flight); antar-proses dilindungi idempotency-key = external_id.
 // - Timeout/5xx: baris tetap MENUNGGU, xendit_ref NULL. Upaya berikut memanggil `cekStatus(external_id)` dulu;
 //   tidak ditemukan → buat ulang dengan external_id SAMA (tidak pernah external_id baru untuk upaya yang sama).
+// - Setiap instruksi dari gateway (buat / cekStatus / duplikat) dicocokkan dulu dengan baris DB (W5: nominal,
+//   IDR, external_id, metode & kanal); tidak cocok → tidak disimpan/ditampilkan, tagihan gateway dibatalkan
+//   (best-effort), baris → GAGAL. Instruksi VA dibangun dari kanal baris + nama merchant (bukan dari gateway).
 // - Gagal permanen → GAGAL (UK satu-hidup lepas, pembeli memilih metode lain).
-// - Ganti metode: batalkan di gateway DULU; hanya bila terkonfirmasi, baris lama → KEDALUWARSA lalu buat baru.
-//   Batal gagal → tidak membuat pembayaran baru (FP-24). Ternyata sudah PAID → `SEDANG_DIPERIKSA`; pelunasan
-//   (I3 / LUNAS_TERLAMBAT) adalah tugas jalur konfirmasi T-030, bukan use case ini.
+// - Ganti metode: tunggu pembuatan upaya lama yang masih berjalan di proses ini; batalkan di gateway DULU;
+//   hanya bila terkonfirmasi, baris lama → KEDALUWARSA lalu buat baru. Batal gagal → tidak membuat pembayaran
+//   baru (FP-24). Ternyata sudah PAID → `SEDANG_DIPERIKSA`; pelunasan (I3 / LUNAS_TERLAMBAT) = T-030.
 // Use case ini TIDAK PERNAH menandai LUNAS: webhook/redirect/cekStatus di sini bukan jalur pelunasan.
-import type { Instruksi } from "@nekat/shared";
+import { instruksiSchema, type Instruksi } from "@nekat/shared";
 import { GalatBayar, keteranganTagihan } from "./aturan.js";
 import {
   GalatGateway,
@@ -21,6 +24,7 @@ import {
   type PaymentGateway,
   type PembayaranTersimpan,
   type RepoPembayaran,
+  type StatusGateway,
   type TagihanUntukBayar,
 } from "./port.js";
 
@@ -40,6 +44,9 @@ export interface PeristiwaBayar {
     | "BUAT_SEMENTARA_GAGAL"
     | "BUAT_PERMANEN_GAGAL"
     | "PULIH_DARI_CEK"
+    | "RESPONS_TIDAK_COCOK"
+    | "TAGIHAN_YATIM_DIBATALKAN"
+    | "UPAYA_GAGAL_DI_GATEWAY"
     | "GANTI_BATAL_OK"
     | "GANTI_BATAL_GAGAL"
     | "SUDAH_DIBAYAR_DI_GATEWAY"
@@ -75,12 +82,39 @@ function galatGatewayTidakAktif(): GalatBayar {
   );
 }
 
-/** Port memakai InstruksiGateway; tabel pembayaran Fase 1 hanya menyimpan QRIS/VA. */
-function keInstruksiTersimpan(i: InstruksiGateway): Instruksi {
-  if (i.jenis === "EWALLET") {
-    throw new GalatGateway("RESPONS_TIDAK_VALID", "instruksi e-wallet belum didukung");
+/**
+ * W5 untuk hasil cekStatus sebelum instruksinya dipakai: nominal = baris, IDR, external_id = id baris,
+ * metode & kanal dari channel_code = baris.
+ */
+export function statusCocok(p: PembayaranTersimpan, s: StatusGateway): boolean {
+  return (
+    s.jumlahRp === p.jumlahRp &&
+    s.mataUang === "IDR" &&
+    s.externalId === p.id &&
+    s.metode === p.metode &&
+    s.kanal === p.kanal
+  );
+}
+
+/**
+ * Instruksi yang boleh disimpan/ditampilkan: jenis = metode baris; VA dibangun dari kanal baris + nama
+ * merchant (bank/nama dari gateway tidak dipercaya); lolos skema bersama. null = tidak cocok.
+ */
+export function instruksiTerpercaya(
+  p: PembayaranTersimpan,
+  ins: InstruksiGateway,
+  namaMerchant: string,
+): Instruksi | null {
+  let kandidat: unknown;
+  if (ins.jenis === "QRIS" && p.metode === "QRIS") {
+    kandidat = { jenis: "QRIS", qrString: ins.qrString };
+  } else if (ins.jenis === "VA" && p.metode === "VA" && p.kanal !== null) {
+    kandidat = { jenis: "VA", bank: p.kanal, nomorVa: ins.nomorVa, namaPenerima: namaMerchant };
+  } else {
+    return null;
   }
-  return i;
+  const h = instruksiSchema.safeParse(kandidat);
+  return h.success ? h.data : null;
 }
 
 export class LayananBayar {
@@ -120,6 +154,13 @@ export class LayananBayar {
     if (s.jenis === "GANTI") {
       if (putaran >= BATAS_PUTARAN) {
         return { hasil: "GANTI_METODE_GAGAL", tagihan: s.tagihan, pembayaran: s.lama };
+      }
+      // Pembuatan upaya lama masih berjalan di proses ini: tunggu dulu agar xendit_ref-nya tersimpan dan
+      // bisa dibatalkan (bukan tagihan gateway yatim yang masih bisa dibayar).
+      const berjalan = this.#terbang.get(s.lama.id);
+      if (berjalan) {
+        await berjalan.catch(() => undefined);
+        return this.#jalankan(gw, i, putaran + 1);
       }
       const r = await this.#tutupLama(gw, s.lama);
       if (r !== "TERTUTUP") return { hasil: r, tagihan: s.tagihan, pembayaran: s.lama };
@@ -162,12 +203,16 @@ export class LayananBayar {
           return { hasil: "SEDANG_DIPERIKSA", tagihan: t, pembayaran: p };
         }
         if (cek.statusNormal === "MENUNGGU" && cek.instruksi !== null) {
-          this.#catat("PULIH_DARI_CEK", p.id);
-          return this.#simpan(i, t, p, cek.xenditRef, cek.instruksi);
+          return this.#pakaiHasilCek(gw, i, t, p, cek, "PULIH_DARI_CEK");
         }
         if (cek.statusNormal === "EXPIRED" || cek.statusNormal === "FAILED") {
           // Upaya lama sudah mati di gateway padahal invoice masih hidup → tutup, buat upaya baru (n+1).
-          await this.#d.repo.tutupUntukGanti(p.id);
+          if (cek.statusNormal === "FAILED") {
+            this.#catat("UPAYA_GAGAL_DI_GATEWAY", p.id);
+            await this.#d.repo.tandaiGagal(p.id, "GAGAL_GATEWAY");
+          } else {
+            await this.#d.repo.tutupUntukGanti(p.id);
+          }
           if (putaran >= BATAS_PUTARAN) return { hasil: "MENYIAPKAN", tagihan: t, pembayaran: p };
           return this.#jalankan(gw, i, putaran + 1);
         }
@@ -193,7 +238,7 @@ export class LayananBayar {
         try {
           const cek = await gw.cekStatus({ pembayaranId: p.id, xenditRef: p.xenditRef });
           if (cek.ditemukan && cek.statusNormal === "MENUNGGU" && cek.instruksi !== null) {
-            return await this.#simpan(i, t, p, cek.xenditRef, cek.instruksi);
+            return await this.#pakaiHasilCek(gw, i, t, p, cek, "PULIH_DARI_CEK");
           }
           if (cek.ditemukan && cek.statusNormal === "PAID") {
             return { hasil: "SEDANG_DIPERIKSA", tagihan: t, pembayaran: p };
@@ -209,35 +254,93 @@ export class LayananBayar {
             ? e.kode
             : "DITOLAK_GATEWAY";
         this.#catat("BUAT_PERMANEN_GAGAL", p.id, alasan);
-        await this.#d.repo.tandaiGagal(p.id, alasan);
-        const baru = await this.#d.repo.baca(i.invoiceId, i.akunId);
-        const bp = baru?.pembayaran?.id === p.id ? baru.pembayaran : null;
-        return {
-          hasil: "METODE_GAGAL",
-          tagihan: baru?.tagihan ?? t,
-          pembayaran: bp ?? { ...p, status: "GAGAL", alasanGagal: alasan },
-        };
+        return this.#gagalkan(i, t, p, alasan);
       }
       return this.#galatSementara(e, t, p);
     }
+    const ins = instruksiTerpercaya(p, h.instruksi, this.#d.namaMerchant);
+    if (!ins) return this.#tolakTidakCocok(gw, i, t, p, h.xenditRef);
     this.#catat("BUAT_OK", p.id);
-    return this.#simpan(i, t, p, h.xenditRef, h.instruksi);
+    return this.#simpan(gw, i, t, p, h.xenditRef, ins);
   }
 
-  async #simpan(
+  async #pakaiHasilCek(
+    gw: PaymentGateway,
+    i: InputMulaiBayar,
+    t: TagihanUntukBayar,
+    p: PembayaranTersimpan,
+    cek: StatusGateway,
+    jenis: "PULIH_DARI_CEK",
+  ): Promise<HasilMulaiBayar> {
+    const ins =
+      statusCocok(p, cek) && cek.instruksi !== null
+        ? instruksiTerpercaya(p, cek.instruksi, this.#d.namaMerchant)
+        : null;
+    if (!ins) return this.#tolakTidakCocok(gw, i, t, p, cek.xenditRef);
+    this.#catat(jenis, p.id);
+    return this.#simpan(gw, i, t, p, cek.xenditRef, ins);
+  }
+
+  /** W5 gagal: jangan simpan/tampilkan, batalkan di gateway (best-effort), baris → GAGAL. */
+  async #tolakTidakCocok(
+    gw: PaymentGateway,
     i: InputMulaiBayar,
     t: TagihanUntukBayar,
     p: PembayaranTersimpan,
     xenditRef: string,
-    instruksi: InstruksiGateway,
   ): Promise<HasilMulaiBayar> {
-    const tersimpan = await this.#d.repo.simpanHasilBuat(p.id, {
-      xenditRef,
-      instruksi: keInstruksiTersimpan(instruksi),
-    });
-    if (tersimpan) return { hasil: "OK", tagihan: t, pembayaran: tersimpan };
-    // Baris berubah di tengah jalan (mis. ditutup jalur lain): kembalikan keadaan terbaru dari DB.
+    this.#catat("RESPONS_TIDAK_COCOK", p.id);
+    await this.#batalBestEffort(gw, p.id, xenditRef);
+    return this.#gagalkan(i, t, p, "GAGAL_GATEWAY");
+  }
+
+  async #gagalkan(
+    i: InputMulaiBayar,
+    t: TagihanUntukBayar,
+    p: PembayaranTersimpan,
+    alasan: AlasanGagal,
+  ): Promise<HasilMulaiBayar> {
+    await this.#d.repo.tandaiGagal(p.id, alasan);
     const baru = await this.#d.repo.baca(i.invoiceId, i.akunId);
+    const bp = baru?.pembayaran?.id === p.id ? baru.pembayaran : null;
+    return {
+      hasil: "METODE_GAGAL",
+      tagihan: baru?.tagihan ?? t,
+      pembayaran: bp ?? { ...p, status: "GAGAL", alasanGagal: alasan, instruksi: null },
+    };
+  }
+
+  async #batalBestEffort(
+    gw: PaymentGateway,
+    pembayaranId: string,
+    xenditRef: string,
+  ): Promise<void> {
+    try {
+      await gw.batalkan({ pembayaranId, xenditRef });
+    } catch (e) {
+      if (!(e instanceof GalatGateway)) throw e;
+      // Rekonsiliasi/T-030 menangani bila tetap terbayar (LUNAS_TERLAMBAT).
+    }
+  }
+
+  async #simpan(
+    gw: PaymentGateway,
+    i: InputMulaiBayar,
+    t: TagihanUntukBayar,
+    p: PembayaranTersimpan,
+    xenditRef: string,
+    instruksi: Instruksi,
+  ): Promise<HasilMulaiBayar> {
+    const tersimpan = await this.#d.repo.simpanHasilBuat(p.id, { xenditRef, instruksi });
+    if (tersimpan) return { hasil: "OK", tagihan: t, pembayaran: tersimpan };
+    // Baris berubah di tengah jalan (mis. ditutup ganti metode dari proses lain): tagihan gateway yang baru
+    // dibuat tidak tercatat → batalkan (best-effort) agar tidak ada QR/VA yatim yang masih bisa dibayar.
+    const baru = await this.#d.repo.baca(i.invoiceId, i.akunId);
+    const masihBaris = baru?.pembayaran?.id === p.id && baru.pembayaran.status === "MENUNGGU";
+    if (!masihBaris) {
+      this.#catat("TAGIHAN_YATIM_DIBATALKAN", p.id);
+      await this.#batalBestEffort(gw, p.id, xenditRef);
+    }
     if (!baru?.pembayaran) return { hasil: "MENYIAPKAN", tagihan: t, pembayaran: p };
     const siap = baru.pembayaran.xenditRef !== null && baru.pembayaran.instruksi !== null;
     return {
@@ -270,9 +373,8 @@ export class LayananBayar {
         const cek = await gw.cekStatus({ pembayaranId: lama.id, xenditRef: null });
         if (!cek.ditemukan) return await this.#tutup(lama.id);
         if (cek.statusNormal === "PAID") return this.#sudahDibayar(lama.id);
-        if (cek.statusNormal === "EXPIRED" || cek.statusNormal === "FAILED") {
-          return await this.#tutup(lama.id);
-        }
+        if (cek.statusNormal === "FAILED") return await this.#tutupGagal(lama.id);
+        if (cek.statusNormal === "EXPIRED") return await this.#tutup(lama.id);
         ref = cek.xenditRef;
       }
       try {
@@ -286,6 +388,7 @@ export class LayananBayar {
           this.#catat("GANTI_BATAL_GAGAL", lama.id, "STATUS_TIDAK_JELAS");
           return "GANTI_METODE_GAGAL";
         }
+        if (cek.statusNormal === "FAILED") return await this.#tutupGagal(lama.id);
       }
     } catch (e) {
       if (!(e instanceof GalatGateway)) throw e;
@@ -303,6 +406,12 @@ export class LayananBayar {
   async #tutup(id: string): Promise<"TERTUTUP"> {
     // false = baris sudah ditutup jalur lain; putaran berikut membaca keadaan terbaru.
     await this.#d.repo.tutupUntukGanti(id);
+    return "TERTUTUP";
+  }
+
+  async #tutupGagal(id: string): Promise<"TERTUTUP"> {
+    this.#catat("UPAYA_GAGAL_DI_GATEWAY", id);
+    await this.#d.repo.tandaiGagal(id, "GAGAL_GATEWAY");
     return "TERTUTUP";
   }
 

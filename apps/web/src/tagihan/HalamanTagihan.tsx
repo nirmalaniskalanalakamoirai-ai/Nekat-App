@@ -57,7 +57,12 @@ type Keadaan =
   | "DIBATALKAN"
   | "DIGANTI";
 
-function keadaanDari(d: TagihanBayar, sisa: number): Keadaan {
+/** Tanda keadaan server; "sedang diperiksa" lokal berlaku sampai tanda ini berubah. */
+function tandaStatus(d: TagihanBayar): string {
+  return `${d.tagihan.status}|${d.pembayaran?.id ?? "-"}|${d.pembayaran?.status ?? "-"}`;
+}
+
+function keadaanDari(d: TagihanBayar, sisa: number, diperiksaLokal: boolean): Keadaan {
   const t = d.tagihan.status;
   const p = d.pembayaran;
   if (t === "LUNAS") return "LUNAS";
@@ -66,7 +71,7 @@ function keadaanDari(d: TagihanBayar, sisa: number): Keadaan {
   if (t === "DIBATALKAN") return "DIBATALKAN";
   if (t === "DIGANTI") return "DIGANTI";
   if (p?.status === "NOMINAL_TIDAK_COCOK") return "DIPERIKSA";
-  if (p?.status === "LUNAS" || d.hasil === "SEDANG_DIPERIKSA") return "MEMERIKSA";
+  if (p?.status === "LUNAS" || d.hasil === "SEDANG_DIPERIKSA" || diperiksaLokal) return "MEMERIKSA";
   // Waktu habis menurut jam server, tetapi server belum menutup: jangan anggap batal (§4.5).
   if (sisa <= 0) return "MEMERIKSA";
   if (p?.status === "MENUNGGU") return p.tahap === "SIAP" ? "MENUNGGU_BAYAR" : "MENYIAPKAN";
@@ -84,6 +89,9 @@ export function HalamanTagihan() {
   const sekarang = useDetik();
   const [gantiMetode, setGantiMetode] = useState(false);
   const [pesan, setPesan] = useState<string | null>(null);
+  // POST menjawab SEDANG_DIPERIKSA (pembayaran lama ternyata sudah dibayar): pertahankan "memeriksa" di
+  // polling GET berikutnya (hasil = null) sampai status dari server berubah.
+  const [diperiksaPada, setDiperiksaPada] = useState<string | null>(null);
 
   const kunci = ["tagihan", id] as const;
   const status = useQuery({
@@ -104,6 +112,7 @@ export function HalamanTagihan() {
       mulaiBayar(id, v.metode, v.kanal),
     onSuccess: (h: DataTagihan) => {
       qc.setQueryData(kunci, h);
+      setDiperiksaPada(h.data.hasil === "SEDANG_DIPERIKSA" ? tandaStatus(h.data) : null);
       setGantiMetode(false);
       const hasil = h.data.hasil;
       setPesan(
@@ -159,7 +168,7 @@ export function HalamanTagihan() {
   const { data: d, diterimaMs } = status.data;
   const selisih = selisihJamMs(d.waktuServer, diterimaMs);
   const sisa = sisaDetik(d.tagihan.kedaluwarsaPada, sekarang, selisih);
-  const keadaan = keadaanDari(d, sisa);
+  const keadaan = keadaanDari(d, sisa, diperiksaPada !== null && diperiksaPada === tandaStatus(d));
   const p = d.pembayaran;
   const bolehPilih = keadaan === "PILIH_METODE" || (gantiMetode && keadaan === "MENUNGGU_BAYAR");
 

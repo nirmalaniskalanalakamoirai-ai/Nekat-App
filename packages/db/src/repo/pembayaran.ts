@@ -65,8 +65,11 @@ function keInstruksi(v: unknown): Instruksi | null {
   return h.success ? h.data : null;
 }
 
-function kePembayaran(b: BarisPembayaran): PembayaranTersimpan {
-  if (b.kedaluwarsaPada === null) throw new Error("pembayaran tanpa kedaluwarsa_pada");
+/**
+ * `cadanganKedaluwarsa` = invoice.kedaluwarsa_pada, dipakai bila baris lama tidak punya kedaluwarsa_pada
+ * (kolom nullable sejak T-013b; baris T-029 selalu mengisinya = TTL invoice).
+ */
+function kePembayaran(b: BarisPembayaran, cadanganKedaluwarsa: Date): PembayaranTersimpan {
   return {
     id: b.id,
     invoiceId: b.invoiceId,
@@ -76,7 +79,7 @@ function kePembayaran(b: BarisPembayaran): PembayaranTersimpan {
     status: b.status as StatusPembayaran,
     xenditRef: b.xenditRef,
     instruksi: keInstruksi(b.instruksi),
-    kedaluwarsaPada: b.kedaluwarsaPada,
+    kedaluwarsaPada: b.kedaluwarsaPada ?? cadanganKedaluwarsa,
     kunciIdempotensi: b.kunciIdempotensi,
     alasanGagal: (b.alasanGagal as AlasanGagal | null) ?? null,
   };
@@ -128,7 +131,7 @@ export function buatRepoPembayaran(db: Db): RepoPembayaran {
       // Aturan dicek di dalam kunci (status & kedaluwarsa tidak bisa berubah sampai commit).
       cekBolehBayar(tagihan, i.metode, i.kanal, i.sekarang, i.kanalVaDiizinkan);
       if (hidup) {
-        const p = kePembayaran(hidup);
+        const p = kePembayaran(hidup, tagihan.kedaluwarsaPada);
         if (p.metode === i.metode && p.kanal === i.kanal)
           return { jenis: "ADA", tagihan, pembayaran: p };
         return { jenis: "GANTI", tagihan, lama: p };
@@ -152,7 +155,7 @@ export function buatRepoPembayaran(db: Db): RepoPembayaran {
         })
         .returning();
       if (!baru) throw new Error("insert pembayaran tidak mengembalikan baris");
-      return { jenis: "BARU", tagihan, pembayaran: kePembayaran(baru) };
+      return { jenis: "BARU", tagihan, pembayaran: kePembayaran(baru, tagihan.kedaluwarsaPada) };
     });
 
   return {
@@ -175,9 +178,11 @@ export function buatRepoPembayaran(db: Db): RepoPembayaran {
     },
 
     async simpanHasilBuat(pembayaranId, h) {
+      // Pertahanan berlapis: hanya instruksi berbentuk sah yang masuk DB (melempar bila tidak).
+      const instruksi = h.instruksi === null ? null : instruksiSchema.parse(h.instruksi);
       const [b] = await db
         .update(pembayaran)
-        .set({ xenditRef: h.xenditRef, instruksi: h.instruksi })
+        .set({ xenditRef: h.xenditRef, instruksi })
         .where(
           and(
             eq(pembayaran.id, pembayaranId),
@@ -186,7 +191,12 @@ export function buatRepoPembayaran(db: Db): RepoPembayaran {
           ),
         )
         .returning();
-      return b ? kePembayaran(b) : null;
+      if (!b) return null;
+      const [inv] = await db
+        .select({ k: invoice.kedaluwarsaPada })
+        .from(invoice)
+        .where(eq(invoice.id, b.invoiceId));
+      return kePembayaran(b, inv?.k ?? new Date(0));
     },
 
     async tandaiGagal(pembayaranId, alasan) {
@@ -229,7 +239,7 @@ export function buatRepoPembayaran(db: Db): RepoPembayaran {
           .orderBy(desc(pembayaran.dibuatPada), desc(pembayaran.id))
           .limit(1);
       }
-      return { tagihan: keTagihan(bt), pembayaran: b ? kePembayaran(b) : null };
+      return { tagihan: keTagihan(bt), pembayaran: b ? kePembayaran(b, bt.kedaluwarsaPada) : null };
     },
   };
 }

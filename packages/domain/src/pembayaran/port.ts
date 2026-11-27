@@ -84,6 +84,9 @@ export interface StatusGateway {
   readonly jumlahRp: number;
   readonly mataUang: string;
   readonly externalId: string;
+  /** Metode & kanal menurut gateway (dari channel_code). null = kanal tidak dikenal. */
+  readonly metode: MetodeGateway | null;
+  readonly kanal: string | null;
   readonly paidAt: Date | null;
   readonly xenditRef: string;
   /** Instruksi bila masih tersedia (pemulihan setelah timeout, FP-01). */

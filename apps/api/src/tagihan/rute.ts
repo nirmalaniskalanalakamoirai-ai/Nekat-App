@@ -62,9 +62,10 @@ const STATUS_GALAT: Record<GalatBayar["kode"], 404 | 409 | 422 | 503> = {
   GATEWAY_TIDAK_AKTIF: 503,
 };
 
-function kePembayaranTampil(p: PembayaranTersimpan): PembayaranTampil {
-  // Instruksi hanya untuk pembayaran yang masih bisa dibayar (kurangi paparan QR/VA lama).
-  const instruksi = p.status === "MENUNGGU" ? p.instruksi : null;
+function kePembayaranTampil(p: PembayaranTersimpan, masihBisaDibayar: boolean): PembayaranTampil {
+  // Instruksi hanya untuk pembayaran yang masih bisa dibayar: baris MENUNGGU, invoice DITERBITKAN, dan
+  // jam server < kedaluwarsa (kurangi paparan QR/VA lama & cegah bayar setelah TTL lewat antarmuka kita).
+  const instruksi = p.status === "MENUNGGU" && masihBisaDibayar ? p.instruksi : null;
   return {
     id: p.id,
     metode: p.metode,
@@ -90,7 +91,12 @@ export const ruteTagihan: FastifyPluginCallbackZod<OpsiRuteTagihan> = (r, opsi, 
     hasil: JenisHasilBayar | null,
   ): TagihanBayar => {
     const gw = opsi.layanan?.gateway ?? null;
-    const terbuka = tagihan.status === "DITERBITKAN" && gw !== null;
+    const sekarang = jam();
+    const masihBisaDibayar =
+      tagihan.status === "DITERBITKAN" &&
+      sekarang.getTime() < tagihan.kedaluwarsaPada.getTime() &&
+      (p === null || sekarang.getTime() < p.kedaluwarsaPada.getTime());
+    const terbuka = masihBisaDibayar && gw !== null;
     return {
       tagihan: {
         id: tagihan.id,
@@ -102,14 +108,14 @@ export const ruteTagihan: FastifyPluginCallbackZod<OpsiRuteTagihan> = (r, opsi, 
         kedaluwarsaPada: tagihan.kedaluwarsaPada.toISOString(),
         gabungan: tagihan.gabungan,
       },
-      pembayaran: p ? kePembayaranTampil(p) : null,
+      pembayaran: p ? kePembayaranTampil(p, masihBisaDibayar) : null,
       metodeTersedia: terbuka
         ? [
             { metode: "QRIS" as const, kanal: [] },
             { metode: "VA" as const, kanal: [...gw.kanalVa] },
           ]
         : [],
-      waktuServer: jam().toISOString(),
+      waktuServer: sekarang.toISOString(),
       hasil,
     };
   };

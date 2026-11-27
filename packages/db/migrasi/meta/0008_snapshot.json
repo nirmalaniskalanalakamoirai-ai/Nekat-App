@@ -173,12 +173,8 @@
           "name": "admin_peran_admin_id_admin_id_fk",
           "tableFrom": "admin_peran",
           "tableTo": "admin",
-          "columnsFrom": [
-            "admin_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["admin_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -186,12 +182,8 @@
           "name": "admin_peran_peran_kode_peran_kode_fk",
           "tableFrom": "admin_peran",
           "tableTo": "peran",
-          "columnsFrom": [
-            "peran_kode"
-          ],
-          "columnsTo": [
-            "kode"
-          ],
+          "columnsFrom": ["peran_kode"],
+          "columnsTo": ["kode"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -199,10 +191,7 @@
       "compositePrimaryKeys": {
         "admin_peran_admin_id_peran_kode_pk": {
           "name": "admin_peran_admin_id_peran_kode_pk",
-          "columns": [
-            "admin_id",
-            "peran_kode"
-          ]
+          "columns": ["admin_id", "peran_kode"]
         }
       },
       "uniqueConstraints": {},
@@ -465,12 +454,8 @@
           "name": "alamat_akun_id_akun_id_fk",
           "tableFrom": "alamat",
           "tableTo": "akun",
-          "columnsFrom": [
-            "akun_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["akun_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -478,12 +463,8 @@
           "name": "alamat_zona_id_zona_id_fk",
           "tableFrom": "alamat",
           "tableTo": "zona",
-          "columnsFrom": [
-            "zona_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["zona_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -683,12 +664,8 @@
           "name": "kode_pemulihan_totp_admin_id_admin_id_fk",
           "tableFrom": "kode_pemulihan_totp",
           "tableTo": "admin",
-          "columnsFrom": [
-            "admin_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["admin_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -735,10 +712,7 @@
       "compositePrimaryKeys": {
         "otp_gagal_harian_hp_hmac_tanggal_pk": {
           "name": "otp_gagal_harian_hp_hmac_tanggal_pk",
-          "columns": [
-            "hp_hmac",
-            "tanggal"
-          ]
+          "columns": ["hp_hmac", "tanggal"]
         }
       },
       "uniqueConstraints": {},
@@ -938,12 +912,8 @@
           "name": "peran_izin_peran_kode_peran_kode_fk",
           "tableFrom": "peran_izin",
           "tableTo": "peran",
-          "columnsFrom": [
-            "peran_kode"
-          ],
-          "columnsTo": [
-            "kode"
-          ],
+          "columnsFrom": ["peran_kode"],
+          "columnsTo": ["kode"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -951,12 +921,8 @@
           "name": "peran_izin_izin_kode_izin_kode_fk",
           "tableFrom": "peran_izin",
           "tableTo": "izin",
-          "columnsFrom": [
-            "izin_kode"
-          ],
-          "columnsTo": [
-            "kode"
-          ],
+          "columnsFrom": ["izin_kode"],
+          "columnsTo": ["kode"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -964,10 +930,7 @@
       "compositePrimaryKeys": {
         "peran_izin_peran_kode_izin_kode_pk": {
           "name": "peran_izin_peran_kode_izin_kode_pk",
-          "columns": [
-            "peran_kode",
-            "izin_kode"
-          ]
+          "columns": ["peran_kode", "izin_kode"]
         }
       },
       "uniqueConstraints": {},
@@ -1058,12 +1021,8 @@
           "name": "persetujuan_legal_akun_id_akun_id_fk",
           "tableFrom": "persetujuan_legal",
           "tableTo": "akun",
-          "columnsFrom": [
-            "akun_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["akun_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -1071,12 +1030,8 @@
           "name": "persetujuan_legal_dokumen_legal_id_dokumen_legal_id_fk",
           "tableFrom": "persetujuan_legal",
           "tableTo": "dokumen_legal",
-          "columnsFrom": [
-            "dokumen_legal_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["dokumen_legal_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -1197,12 +1152,8 @@
           "name": "sesi_akun_id_akun_id_fk",
           "tableFrom": "sesi",
           "tableTo": "akun",
-          "columnsFrom": [
-            "akun_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["akun_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -1210,12 +1161,8 @@
           "name": "sesi_admin_id_admin_id_fk",
           "tableFrom": "sesi",
           "tableTo": "admin",
-          "columnsFrom": [
-            "admin_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["admin_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -1319,12 +1266,8 @@
           "name": "harga_level_satuan_jual_id_satuan_jual_id_fk",
           "tableFrom": "harga_level",
           "tableTo": "satuan_jual",
-          "columnsFrom": [
-            "satuan_jual_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["satuan_jual_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -1404,12 +1347,8 @@
           "name": "harga_terhitung_satuan_jual_id_satuan_jual_id_fk",
           "tableFrom": "harga_terhitung",
           "tableTo": "satuan_jual",
-          "columnsFrom": [
-            "satuan_jual_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["satuan_jual_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -1417,10 +1356,7 @@
       "compositePrimaryKeys": {
         "harga_terhitung_satuan_jual_id_level_pk": {
           "name": "harga_terhitung_satuan_jual_id_level_pk",
-          "columns": [
-            "satuan_jual_id",
-            "level"
-          ]
+          "columns": ["satuan_jual_id", "level"]
         }
       },
       "uniqueConstraints": {},
@@ -1604,12 +1540,8 @@
           "name": "modal_satuan_jual_satuan_jual_id_satuan_jual_id_fk",
           "tableFrom": "modal_satuan_jual",
           "tableTo": "satuan_jual",
-          "columnsFrom": [
-            "satuan_jual_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["satuan_jual_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -1746,12 +1678,8 @@
           "name": "modal_timpaan_satuan_jual_id_satuan_jual_id_fk",
           "tableFrom": "modal_timpaan",
           "tableTo": "satuan_jual",
-          "columnsFrom": [
-            "satuan_jual_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["satuan_jual_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -1759,12 +1687,8 @@
           "name": "modal_timpaan_dibuat_oleh_admin_id_fk",
           "tableFrom": "modal_timpaan",
           "tableTo": "admin",
-          "columnsFrom": [
-            "dibuat_oleh"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["dibuat_oleh"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -1772,12 +1696,8 @@
           "name": "modal_timpaan_dicabut_oleh_admin_id_fk",
           "tableFrom": "modal_timpaan",
           "tableTo": "admin",
-          "columnsFrom": [
-            "dicabut_oleh"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["dicabut_oleh"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -1854,12 +1774,8 @@
           "name": "pemetaan_sku_sumber_sku_id_sku_id_fk",
           "tableFrom": "pemetaan_sku_sumber",
           "tableTo": "sku",
-          "columnsFrom": [
-            "sku_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["sku_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -1963,12 +1879,8 @@
           "name": "produk_kategori_id_kategori_id_fk",
           "tableFrom": "produk",
           "tableTo": "kategori",
-          "columnsFrom": [
-            "kategori_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["kategori_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -2115,12 +2027,8 @@
           "name": "satuan_jual_sku_id_sku_id_fk",
           "tableFrom": "satuan_jual",
           "tableTo": "sku",
-          "columnsFrom": [
-            "sku_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["sku_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -2271,12 +2179,8 @@
           "name": "sku_produk_id_produk_id_fk",
           "tableFrom": "sku",
           "tableTo": "produk",
-          "columnsFrom": [
-            "produk_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["produk_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -2347,12 +2251,8 @@
           "name": "stok_lokasi_sku_id_sku_id_fk",
           "tableFrom": "stok_lokasi",
           "tableTo": "sku",
-          "columnsFrom": [
-            "sku_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["sku_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -2360,12 +2260,8 @@
           "name": "stok_lokasi_gudang_id_gudang_id_fk",
           "tableFrom": "stok_lokasi",
           "tableTo": "gudang",
-          "columnsFrom": [
-            "gudang_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["gudang_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -2373,10 +2269,7 @@
       "compositePrimaryKeys": {
         "stok_lokasi_sku_id_gudang_id_pk": {
           "name": "stok_lokasi_sku_id_gudang_id_pk",
-          "columns": [
-            "sku_id",
-            "gudang_id"
-          ]
+          "columns": ["sku_id", "gudang_id"]
         }
       },
       "uniqueConstraints": {},
@@ -2495,12 +2388,8 @@
           "name": "drop_point_zona_id_zona_id_fk",
           "tableFrom": "drop_point",
           "tableTo": "zona",
-          "columnsFrom": [
-            "zona_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["zona_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -2508,12 +2397,8 @@
           "name": "drop_point_gudang_id_gudang_id_fk",
           "tableFrom": "drop_point",
           "tableTo": "gudang",
-          "columnsFrom": [
-            "gudang_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["gudang_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -2723,12 +2608,8 @@
           "name": "slot_kirim_zona_id_zona_id_fk",
           "tableFrom": "slot_kirim",
           "tableTo": "zona",
-          "columnsFrom": [
-            "zona_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["zona_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -2835,12 +2716,8 @@
           "name": "zona_gudang_id_gudang_id_fk",
           "tableFrom": "zona",
           "tableTo": "gudang",
-          "columnsFrom": [
-            "gudang_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["gudang_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -2993,12 +2870,8 @@
           "name": "antrean_tinjauan_ditangani_oleh_admin_id_fk",
           "tableFrom": "antrean_tinjauan",
           "tableTo": "admin",
-          "columnsFrom": [
-            "ditangani_oleh"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["ditangani_oleh"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -3058,12 +2931,8 @@
           "name": "konfigurasi_diubah_oleh_admin_id_fk",
           "tableFrom": "konfigurasi",
           "tableTo": "admin",
-          "columnsFrom": [
-            "diubah_oleh"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["diubah_oleh"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -3200,12 +3069,8 @@
           "name": "log_admin_admin_id_admin_id_fk",
           "tableFrom": "log_admin",
           "tableTo": "admin",
-          "columnsFrom": [
-            "admin_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["admin_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -3508,12 +3373,8 @@
           "name": "grup_host_akun_id_akun_id_fk",
           "tableFrom": "grup",
           "tableTo": "akun",
-          "columnsFrom": [
-            "host_akun_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["host_akun_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -3521,12 +3382,8 @@
           "name": "grup_zona_id_zona_id_fk",
           "tableFrom": "grup",
           "tableTo": "zona",
-          "columnsFrom": [
-            "zona_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["zona_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -3534,12 +3391,8 @@
           "name": "grup_slot_kirim_id_slot_kirim_id_fk",
           "tableFrom": "grup",
           "tableTo": "slot_kirim",
-          "columnsFrom": [
-            "slot_kirim_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["slot_kirim_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -3547,12 +3400,8 @@
           "name": "grup_gudang_id_gudang_id_fk",
           "tableFrom": "grup",
           "tableTo": "gudang",
-          "columnsFrom": [
-            "gudang_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["gudang_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -3683,12 +3532,8 @@
           "name": "item_keranjang_keranjang_id_keranjang_id_fk",
           "tableFrom": "item_keranjang",
           "tableTo": "keranjang",
-          "columnsFrom": [
-            "keranjang_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["keranjang_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3696,12 +3541,8 @@
           "name": "item_keranjang_satuan_jual_id_satuan_jual_id_fk",
           "tableFrom": "item_keranjang",
           "tableTo": "satuan_jual",
-          "columnsFrom": [
-            "satuan_jual_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["satuan_jual_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -3828,12 +3669,8 @@
           "name": "keranjang_akun_id_akun_id_fk",
           "tableFrom": "keranjang",
           "tableTo": "akun",
-          "columnsFrom": [
-            "akun_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["akun_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -3841,12 +3678,8 @@
           "name": "keranjang_grup_id_grup_id_fk",
           "tableFrom": "keranjang",
           "tableTo": "grup",
-          "columnsFrom": [
-            "grup_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["grup_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -3856,11 +3689,7 @@
         "keranjang_id_akun_grup_uk": {
           "name": "keranjang_id_akun_grup_uk",
           "nullsNotDistinct": false,
-          "columns": [
-            "id",
-            "akun_id",
-            "grup_id"
-          ]
+          "columns": ["id", "akun_id", "grup_id"]
         }
       },
       "policies": {},
@@ -4089,12 +3918,8 @@
           "name": "peserta_grup_grup_id_grup_id_fk",
           "tableFrom": "peserta_grup",
           "tableTo": "grup",
-          "columnsFrom": [
-            "grup_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["grup_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -4102,12 +3927,8 @@
           "name": "peserta_grup_akun_id_akun_id_fk",
           "tableFrom": "peserta_grup",
           "tableTo": "akun",
-          "columnsFrom": [
-            "akun_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["akun_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -4115,12 +3936,8 @@
           "name": "peserta_grup_alamat_id_alamat_id_fk",
           "tableFrom": "peserta_grup",
           "tableTo": "alamat",
-          "columnsFrom": [
-            "alamat_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["alamat_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -4128,12 +3945,8 @@
           "name": "peserta_grup_drop_point_id_drop_point_id_fk",
           "tableFrom": "peserta_grup",
           "tableTo": "drop_point",
-          "columnsFrom": [
-            "drop_point_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["drop_point_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -4141,12 +3954,8 @@
           "name": "peserta_grup_ref_pengundang_akun_id_akun_id_fk",
           "tableFrom": "peserta_grup",
           "tableTo": "akun",
-          "columnsFrom": [
-            "ref_pengundang_akun_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["ref_pengundang_akun_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -4154,16 +3963,8 @@
           "name": "peserta_grup_keranjang_milik_akun_grup_fk",
           "tableFrom": "peserta_grup",
           "tableTo": "keranjang",
-          "columnsFrom": [
-            "keranjang_id",
-            "akun_id",
-            "grup_id"
-          ],
-          "columnsTo": [
-            "id",
-            "akun_id",
-            "grup_id"
-          ],
+          "columnsFrom": ["keranjang_id", "akun_id", "grup_id"],
+          "columnsTo": ["id", "akun_id", "grup_id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -4173,10 +3974,7 @@
         "peserta_grup_id_grup_uk": {
           "name": "peserta_grup_id_grup_uk",
           "nullsNotDistinct": false,
-          "columns": [
-            "id",
-            "grup_id"
-          ]
+          "columns": ["id", "grup_id"]
         }
       },
       "policies": {},
@@ -4450,12 +4248,8 @@
           "name": "baris_invoice_satuan_jual_id_satuan_jual_id_fk",
           "tableFrom": "baris_invoice",
           "tableTo": "satuan_jual",
-          "columnsFrom": [
-            "satuan_jual_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["satuan_jual_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -4463,14 +4257,8 @@
           "name": "baris_invoice_invoice_peserta_fk",
           "tableFrom": "baris_invoice",
           "tableTo": "invoice_peserta",
-          "columnsFrom": [
-            "invoice_id",
-            "peserta_id"
-          ],
-          "columnsTo": [
-            "invoice_id",
-            "peserta_id"
-          ],
+          "columnsFrom": ["invoice_id", "peserta_id"],
+          "columnsTo": ["invoice_id", "peserta_id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -4783,12 +4571,8 @@
           "name": "invoice_grup_id_grup_id_fk",
           "tableFrom": "invoice",
           "tableTo": "grup",
-          "columnsFrom": [
-            "grup_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["grup_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -4796,12 +4580,8 @@
           "name": "invoice_pembayar_akun_id_akun_id_fk",
           "tableFrom": "invoice",
           "tableTo": "akun",
-          "columnsFrom": [
-            "pembayar_akun_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["pembayar_akun_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -4809,12 +4589,8 @@
           "name": "invoice_konfigurasi_ppn_id_konfigurasi_ppn_id_fk",
           "tableFrom": "invoice",
           "tableTo": "konfigurasi_ppn",
-          "columnsFrom": [
-            "konfigurasi_ppn_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["konfigurasi_ppn_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -4824,10 +4600,7 @@
         "invoice_id_grup_uk": {
           "name": "invoice_id_grup_uk",
           "nullsNotDistinct": false,
-          "columns": [
-            "id",
-            "grup_id"
-          ]
+          "columns": ["id", "grup_id"]
         }
       },
       "policies": {},
@@ -4950,14 +4723,8 @@
           "name": "invoice_peserta_invoice_grup_fk",
           "tableFrom": "invoice_peserta",
           "tableTo": "invoice",
-          "columnsFrom": [
-            "invoice_id",
-            "grup_id"
-          ],
-          "columnsTo": [
-            "id",
-            "grup_id"
-          ],
+          "columnsFrom": ["invoice_id", "grup_id"],
+          "columnsTo": ["id", "grup_id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -4965,14 +4732,8 @@
           "name": "invoice_peserta_peserta_grup_fk",
           "tableFrom": "invoice_peserta",
           "tableTo": "peserta_grup",
-          "columnsFrom": [
-            "peserta_id",
-            "grup_id"
-          ],
-          "columnsTo": [
-            "id",
-            "grup_id"
-          ],
+          "columnsFrom": ["peserta_id", "grup_id"],
+          "columnsTo": ["id", "grup_id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -4980,10 +4741,7 @@
       "compositePrimaryKeys": {
         "invoice_peserta_invoice_id_peserta_id_pk": {
           "name": "invoice_peserta_invoice_id_peserta_id_pk",
-          "columns": [
-            "invoice_id",
-            "peserta_id"
-          ]
+          "columns": ["invoice_id", "peserta_id"]
         }
       },
       "uniqueConstraints": {},
@@ -5062,12 +4820,8 @@
           "name": "konfigurasi_ppn_dibuat_oleh_admin_id_fk",
           "tableFrom": "konfigurasi_ppn",
           "tableTo": "admin",
-          "columnsFrom": [
-            "dibuat_oleh"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["dibuat_oleh"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -5260,12 +5014,8 @@
           "name": "pembayaran_invoice_id_invoice_id_fk",
           "tableFrom": "pembayaran",
           "tableTo": "invoice",
-          "columnsFrom": [
-            "invoice_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["invoice_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -5412,12 +5162,8 @@
           "name": "reservasi_stok_baris_invoice_id_baris_invoice_id_fk",
           "tableFrom": "reservasi_stok",
           "tableTo": "baris_invoice",
-          "columnsFrom": [
-            "baris_invoice_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["baris_invoice_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -5425,12 +5171,8 @@
           "name": "reservasi_stok_sku_id_sku_id_fk",
           "tableFrom": "reservasi_stok",
           "tableTo": "sku",
-          "columnsFrom": [
-            "sku_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["sku_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -5438,12 +5180,8 @@
           "name": "reservasi_stok_gudang_id_gudang_id_fk",
           "tableFrom": "reservasi_stok",
           "tableTo": "gudang",
-          "columnsFrom": [
-            "gudang_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["gudang_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -5451,14 +5189,8 @@
           "name": "reservasi_stok_lokasi_fk",
           "tableFrom": "reservasi_stok",
           "tableTo": "stok_lokasi",
-          "columnsFrom": [
-            "sku_id",
-            "gudang_id"
-          ],
-          "columnsTo": [
-            "sku_id",
-            "gudang_id"
-          ],
+          "columnsFrom": ["sku_id", "gudang_id"],
+          "columnsTo": ["sku_id", "gudang_id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -5601,12 +5333,8 @@
           "name": "webhook_event_pembayaran_id_pembayaran_id_fk",
           "tableFrom": "webhook_event",
           "tableTo": "pembayaran",
-          "columnsFrom": [
-            "pembayaran_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["pembayaran_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -5663,12 +5391,8 @@
           "name": "webhook_payload_webhook_event_id_webhook_event_id_fk",
           "tableFrom": "webhook_payload",
           "tableTo": "webhook_event",
-          "columnsFrom": [
-            "webhook_event_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["webhook_event_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -5709,12 +5433,8 @@
           "name": "webhook_proses_webhook_event_id_webhook_event_id_fk",
           "tableFrom": "webhook_proses",
           "tableTo": "webhook_event",
-          "columnsFrom": [
-            "webhook_event_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["webhook_event_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -5768,12 +5488,8 @@
           "name": "akun_saldo_akun_id_akun_id_fk",
           "tableFrom": "akun_saldo",
           "tableTo": "akun",
-          "columnsFrom": [
-            "akun_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["akun_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -5831,12 +5547,8 @@
           "name": "keputusan_koreksi_saldo_diputuskan_oleh_admin_id_fk",
           "tableFrom": "keputusan_koreksi_saldo",
           "tableTo": "admin",
-          "columnsFrom": [
-            "diputuskan_oleh"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["diputuskan_oleh"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -5844,12 +5556,8 @@
           "name": "keputusan_koreksi_pengajuan_fk",
           "tableFrom": "keputusan_koreksi_saldo",
           "tableTo": "pengajuan_koreksi_saldo",
-          "columnsFrom": [
-            "pengajuan_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["pengajuan_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -6036,12 +5744,8 @@
           "name": "ledger_saldo_akun_id_akun_id_fk",
           "tableFrom": "ledger_saldo",
           "tableTo": "akun",
-          "columnsFrom": [
-            "akun_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["akun_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -6049,12 +5753,8 @@
           "name": "ledger_saldo_invoice_id_invoice_id_fk",
           "tableFrom": "ledger_saldo",
           "tableTo": "invoice",
-          "columnsFrom": [
-            "invoice_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["invoice_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -6062,12 +5762,8 @@
           "name": "ledger_saldo_dibuat_oleh_admin_id_admin_id_fk",
           "tableFrom": "ledger_saldo",
           "tableTo": "admin",
-          "columnsFrom": [
-            "dibuat_oleh_admin_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["dibuat_oleh_admin_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -6075,12 +5771,8 @@
           "name": "ledger_saldo_disetujui_oleh_admin_id_admin_id_fk",
           "tableFrom": "ledger_saldo",
           "tableTo": "admin",
-          "columnsFrom": [
-            "disetujui_oleh_admin_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["disetujui_oleh_admin_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -6259,12 +5951,8 @@
           "name": "pencairan_saldo_akun_id_akun_id_fk",
           "tableFrom": "pencairan_saldo",
           "tableTo": "akun",
-          "columnsFrom": [
-            "akun_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["akun_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -6272,12 +5960,8 @@
           "name": "pencairan_saldo_disetujui_oleh_admin_id_fk",
           "tableFrom": "pencairan_saldo",
           "tableTo": "admin",
-          "columnsFrom": [
-            "disetujui_oleh"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["disetujui_oleh"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -6285,12 +5969,8 @@
           "name": "pencairan_saldo_diproses_oleh_admin_id_fk",
           "tableFrom": "pencairan_saldo",
           "tableTo": "admin",
-          "columnsFrom": [
-            "diproses_oleh"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["diproses_oleh"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -6298,14 +5978,8 @@
           "name": "pencairan_tujuan_milik_akun_fk",
           "tableFrom": "pencairan_saldo",
           "tableTo": "tujuan_pencairan_terverifikasi",
-          "columnsFrom": [
-            "tujuan_id",
-            "akun_id"
-          ],
-          "columnsTo": [
-            "id",
-            "akun_id"
-          ],
+          "columnsFrom": ["tujuan_id", "akun_id"],
+          "columnsTo": ["id", "akun_id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -6402,12 +6076,8 @@
           "name": "pengajuan_koreksi_saldo_akun_id_akun_id_fk",
           "tableFrom": "pengajuan_koreksi_saldo",
           "tableTo": "akun",
-          "columnsFrom": [
-            "akun_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["akun_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -6415,12 +6085,8 @@
           "name": "pengajuan_koreksi_saldo_diajukan_oleh_admin_id_fk",
           "tableFrom": "pengajuan_koreksi_saldo",
           "tableTo": "admin",
-          "columnsFrom": [
-            "diajukan_oleh"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["diajukan_oleh"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -6560,12 +6226,8 @@
           "name": "tujuan_pencairan_terverifikasi_akun_id_akun_id_fk",
           "tableFrom": "tujuan_pencairan_terverifikasi",
           "tableTo": "akun",
-          "columnsFrom": [
-            "akun_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["akun_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -6575,10 +6237,7 @@
         "tujuan_id_akun_uk": {
           "name": "tujuan_id_akun_uk",
           "nullsNotDistinct": false,
-          "columns": [
-            "id",
-            "akun_id"
-          ]
+          "columns": ["id", "akun_id"]
         }
       },
       "policies": {},
@@ -6659,12 +6318,8 @@
           "name": "ambang_kpi_cod_dibuat_oleh_admin_id_fk",
           "tableFrom": "ambang_kpi_cod",
           "tableTo": "admin",
-          "columnsFrom": [
-            "dibuat_oleh"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["dibuat_oleh"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -7020,12 +6675,8 @@
           "name": "aturan_gratis_ongkir_zona_id_zona_id_fk",
           "tableFrom": "aturan_gratis_ongkir",
           "tableTo": "zona",
-          "columnsFrom": [
-            "zona_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["zona_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -7141,12 +6792,8 @@
           "name": "kpi_cod_mingguan_akun_id_akun_id_fk",
           "tableFrom": "kpi_cod_mingguan",
           "tableTo": "akun",
-          "columnsFrom": [
-            "akun_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["akun_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -7154,12 +6801,8 @@
           "name": "kpi_cod_mingguan_ambang_id_ambang_kpi_cod_id_fk",
           "tableFrom": "kpi_cod_mingguan",
           "tableTo": "ambang_kpi_cod",
-          "columnsFrom": [
-            "ambang_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["ambang_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -7167,10 +6810,7 @@
       "compositePrimaryKeys": {
         "kpi_cod_mingguan_akun_id_minggu_mulai_pk": {
           "name": "kpi_cod_mingguan_akun_id_minggu_mulai_pk",
-          "columns": [
-            "akun_id",
-            "minggu_mulai"
-          ]
+          "columns": ["akun_id", "minggu_mulai"]
         }
       },
       "uniqueConstraints": {},
@@ -7307,12 +6947,8 @@
           "name": "kuotasi_ongkir_grup_id_grup_id_fk",
           "tableFrom": "kuotasi_ongkir",
           "tableTo": "grup",
-          "columnsFrom": [
-            "grup_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["grup_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -7320,12 +6956,8 @@
           "name": "kuotasi_ongkir_armada_kode_armada_kode_fk",
           "tableFrom": "kuotasi_ongkir",
           "tableTo": "armada",
-          "columnsFrom": [
-            "armada_kode"
-          ],
-          "columnsTo": [
-            "kode"
-          ],
+          "columnsFrom": ["armada_kode"],
+          "columnsTo": ["kode"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -7333,14 +6965,8 @@
           "name": "kuotasi_peserta_grup_fk",
           "tableFrom": "kuotasi_ongkir",
           "tableTo": "peserta_grup",
-          "columnsFrom": [
-            "peserta_id",
-            "grup_id"
-          ],
-          "columnsTo": [
-            "id",
-            "grup_id"
-          ],
+          "columnsFrom": ["peserta_id", "grup_id"],
+          "columnsTo": ["id", "grup_id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -7348,14 +6974,8 @@
           "name": "kuotasi_invoice_grup_fk",
           "tableFrom": "kuotasi_ongkir",
           "tableTo": "invoice",
-          "columnsFrom": [
-            "dipakai_di_invoice_id",
-            "grup_id"
-          ],
-          "columnsTo": [
-            "id",
-            "grup_id"
-          ],
+          "columnsFrom": ["dipakai_di_invoice_id", "grup_id"],
+          "columnsTo": ["id", "grup_id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -7561,12 +7181,8 @@
           "name": "pemakaian_promo_aturan_diskon_id_aturan_diskon_id_fk",
           "tableFrom": "pemakaian_promo",
           "tableTo": "aturan_diskon",
-          "columnsFrom": [
-            "aturan_diskon_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["aturan_diskon_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -7574,12 +7190,8 @@
           "name": "pemakaian_promo_invoice_id_invoice_id_fk",
           "tableFrom": "pemakaian_promo",
           "tableTo": "invoice",
-          "columnsFrom": [
-            "invoice_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["invoice_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -7587,12 +7199,8 @@
           "name": "pemakaian_promo_akun_id_akun_id_fk",
           "tableFrom": "pemakaian_promo",
           "tableTo": "akun",
-          "columnsFrom": [
-            "akun_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["akun_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -7600,12 +7208,8 @@
           "name": "pemakaian_promo_gratis_ongkir_fk",
           "tableFrom": "pemakaian_promo",
           "tableTo": "aturan_gratis_ongkir",
-          "columnsFrom": [
-            "aturan_gratis_ongkir_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["aturan_gratis_ongkir_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -7692,12 +7296,8 @@
           "name": "status_cod_akun_id_akun_id_fk",
           "tableFrom": "status_cod",
           "tableTo": "akun",
-          "columnsFrom": [
-            "akun_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["akun_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -7705,12 +7305,8 @@
           "name": "status_cod_dicabut_oleh_admin_id_fk",
           "tableFrom": "status_cod",
           "tableTo": "admin",
-          "columnsFrom": [
-            "dicabut_oleh"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["dicabut_oleh"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -7829,12 +7425,8 @@
           "name": "tarif_armada_armada_kode_armada_kode_fk",
           "tableFrom": "tarif_armada",
           "tableTo": "armada",
-          "columnsFrom": [
-            "armada_kode"
-          ],
-          "columnsTo": [
-            "kode"
-          ],
+          "columnsFrom": ["armada_kode"],
+          "columnsTo": ["kode"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -7891,10 +7483,7 @@
       "compositePrimaryKeys": {
         "idempotensi_inventori_ruang_kunci_pk": {
           "name": "idempotensi_inventori_ruang_kunci_pk",
-          "columns": [
-            "ruang",
-            "kunci"
-          ]
+          "columns": ["ruang", "kunci"]
         }
       },
       "uniqueConstraints": {},
@@ -8134,12 +7723,8 @@
           "name": "outbox_grup_id_grup_id_fk",
           "tableFrom": "outbox",
           "tableTo": "grup",
-          "columnsFrom": [
-            "grup_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["grup_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }

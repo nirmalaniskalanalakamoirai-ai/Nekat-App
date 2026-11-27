@@ -432,6 +432,88 @@ describe.skipIf(!URL_ADMIN)("bayar tagihan QRIS/VA (PostgreSQL nyata + mock Xend
     await expect(
       q(`UPDATE pembayaran SET alasan_gagal = 'NOMINAL_DI_BAWAH_MINIMUM' WHERE id = '${hidup}'`),
     ).rejects.toThrow(/pembayaran_alasan_gagal/);
+    // GAGAL dengan alasan → LUNAS_TERLAMBAT tetap boleh (alasan tidak dihapus, item review 1).
+    const gagalBeralasan =
+      await satu(`INSERT INTO pembayaran (invoice_id, metode, jumlah_rp, kunci_idempotensi, status, alasan_gagal, kedaluwarsa_pada)
+      VALUES ('${inv}', 'QRIS', 1000, 'bayar:${inv}:4', 'GAGAL', 'NOMINAL_DI_BAWAH_MINIMUM', now()) RETURNING id`);
+    await q(
+      `UPDATE pembayaran SET status = 'LUNAS_TERLAMBAT', paid_at_gateway = now() WHERE id = '${gagalBeralasan}'`,
+    );
+    expect(
+      (await q(`SELECT status, alasan_gagal FROM pembayaran WHERE id = '${gagalBeralasan}'`))[0],
+    ).toMatchObject({ status: "LUNAS_TERLAMBAT", alasan_gagal: "NOMINAL_DI_BAWAH_MINIMUM" });
+  });
+
+  describe("W5 hasil cekStatus/duplikat (item review 2)", () => {
+    /** Upaya pertama timeout setelah tercatat; lalu tagihan di mock diubah agar tidak cocok; ulang. */
+    const ujiTidakCocok = async (
+      metode: { metode: string; kanal?: string },
+      ubah: (pr: NonNullable<ReturnType<MockXendit["cariRef"]>>) => void,
+    ) => {
+      const akun = await buatAkun();
+      const inv = await buatTagihan(akun);
+      mock.ganggu("buat", { setelahTercatat: true, tundaMs: 700, kali: 1 });
+      expect(dto((await bayar(akun, inv, metode)).json).hasil).toBe("MENYIAPKAN");
+      const [b] = await pembayaranDb(inv);
+      const pr = mock.cariRef(String(b?.["id"]));
+      if (!pr) throw new Error("PR mock tidak ada");
+      ubah(pr);
+      const r = dto((await bayar(akun, inv, metode)).json);
+      expect(r.hasil).toBe("METODE_GAGAL");
+      expect(r.pembayaran).toMatchObject({
+        status: "GAGAL",
+        alasanGagal: "GAGAL_GATEWAY",
+        instruksi: null,
+      });
+      const [setelah] = await pembayaranDb(inv);
+      expect(setelah).toMatchObject({ status: "GAGAL", xendit_ref: null, instruksi: null });
+      expect(pr.status).toBe("CANCELED");
+      expect(
+        peristiwa.some((p) => p.jenis === "RESPONS_TIDAK_COCOK" && p.pembayaranId === b?.["id"]),
+      ).toBe(true);
+    };
+
+    it("P1: nominal di gateway = 1 → tidak disimpan, dibatalkan, GAGAL", async () => {
+      await ujiTidakCocok({ metode: "QRIS" }, (pr) => {
+        pr.request_amount = 1;
+      });
+    });
+    it("mata uang USD → ditolak", async () => {
+      await ujiTidakCocok({ metode: "QRIS" }, (pr) => {
+        pr.currency = "USD";
+      });
+    });
+    it("P9: baris VA tetapi gateway mengembalikan QRIS → ditolak", async () => {
+      await ujiTidakCocok({ metode: "VA", kanal: "BNI" }, (pr) => {
+        pr.channel_code = "QRIS";
+        pr.actions = [{ type: "PRESENT_TO_CUSTOMER", descriptor: "QR_STRING", value: "0002PALSU" }];
+      });
+    });
+    it("bank VA berbeda → ditolak", async () => {
+      await ujiTidakCocok({ metode: "VA", kanal: "BNI" }, (pr) => {
+        pr.channel_code = "BRI_VIRTUAL_ACCOUNT";
+      });
+    });
+  });
+
+  it("GET setelah TTL lewat: instruksi tidak ditampilkan walau baris masih MENUNGGU (item review 6)", async () => {
+    const akun = await buatAkun();
+    const inv = await buatTagihan(akun);
+    const d = dto((await bayar(akun, inv, { metode: "QRIS" })).json);
+    expect(d.pembayaran?.instruksi).not.toBeNull();
+    await q(`UPDATE invoice SET diterbitkan_pada = diterbitkan_pada - interval '2 hours',
+               kedaluwarsa_pada = kedaluwarsa_pada - interval '2 hours' WHERE id = '${inv}'`);
+    const g = dto(
+      (
+        await app.inject({
+          method: "GET",
+          url: `/api/tagihan/${inv}/pembayaran`,
+          headers: { "x-uji-akun": akun },
+        })
+      ).json(),
+    );
+    expect(g.pembayaran).toMatchObject({ status: "MENUNGGU", instruksi: null });
+    expect(g.metodeTersedia).toEqual([]);
   });
 
   it("log peristiwa tanpa QR string / nomor VA / kunci", () => {

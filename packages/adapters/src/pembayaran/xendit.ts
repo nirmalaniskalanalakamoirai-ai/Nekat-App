@@ -9,7 +9,8 @@
 //         `currency: "IDR"`, `request_amount` (integer rupiah), `capture_method: "AUTOMATIC"`,
 //         `channel_code` QRIS | {BANK}_VIRTUAL_ACCOUNT, `channel_properties.expires_at` (waktu absolut ISO),
 //         `channel_properties.display_name` = nama merchant (VA). Nominal PAY dianggap closed amount &
-//         sekali pakai (§5.3) — WAJIB diverifikasi di sandbox per bank.
+//         sekali pakai (§5.3) — WAJIB diverifikasi di sandbox per bank. Format/prefiks kunci
+//         (`xnd_development_` / `xnd_production_`, karakter termasuk `+ / =`) juga diverifikasi di sandbox.
 //   X-03  Idempotensi: header `idempotency-key` = external_id; permintaan ulang dengan kunci sama tidak
 //         membuat tagihan baru (mengembalikan yang lama atau 409 DUPLICATE_ERROR).
 //   X-05  Cari tanpa ID Xendit (xendit_ref NULL, FP-01): `GET /v3/payment_requests?reference_id=…` → `data[]`.
@@ -79,6 +80,16 @@ export function channelCode(metode: string, kanal: string | null): string {
   if (metode === "QRIS") return "QRIS";
   if (metode === "VA" && kanal !== null) return `${kanal}_VIRTUAL_ACCOUNT`;
   throw new GalatGateway("METODE_TIDAK_DIDUKUNG", "metode belum didukung adapter Xendit");
+}
+
+/** channel_code → metode + kanal. Kanal tak dikenal → metode null (pemanggil menolak, W5). */
+export function dariChannelCode(c: string | undefined): {
+  metode: "QRIS" | "VA" | null;
+  kanal: string | null;
+} {
+  if (c === "QRIS") return { metode: "QRIS", kanal: null };
+  const m = /^([A-Z][A-Z0-9]{1,19})_VIRTUAL_ACCOUNT$/.exec(c ?? "");
+  return m?.[1] ? { metode: "VA", kanal: m[1] } : { metode: null, kanal: null };
 }
 
 export function normalkanStatus(s: string): StatusNormal {
@@ -156,7 +167,11 @@ export class XenditGateway implements PaymentGateway {
     if (
       pr.reference_id !== p.pembayaranId ||
       pr.request_amount !== p.jumlahRp ||
-      pr.currency !== "IDR"
+      pr.currency !== "IDR" ||
+      (pr.channel_code !== undefined && pr.channel_code !== body.channel_code) ||
+      // Tagihan baru harus masih bisa dibayar (replay idempotensi atas tagihan yang sudah dibayar/ditutup
+      // bukan instruksi yang boleh ditampilkan; pemanggil lanjut lewat cekStatus).
+      normalkanStatus(pr.status) !== "MENUNGGU"
     ) {
       // Jawaban tidak cocok dengan permintaan: jangan tampilkan instruksinya (W5 berlaku juga di sini).
       throw new GalatGateway("RESPONS_TIDAK_VALID", "respons Xendit tidak cocok dengan permintaan");
@@ -201,9 +216,7 @@ export class XenditGateway implements PaymentGateway {
       throw new GalatGateway("RESPONS_TIDAK_VALID", "reference_id Xendit tidak cocok");
     }
     const statusNormal = normalkanStatus(pr.status);
-    const metode = pr.channel_code === "QRIS" ? "QRIS" : "VA";
-    const kanal =
-      metode === "VA" ? (pr.channel_code?.replace(/_VIRTUAL_ACCOUNT$/, "") ?? null) : null;
+    const { metode, kanal } = dariChannelCode(pr.channel_code);
     const nama =
       typeof pr.channel_properties?.["display_name"] === "string"
         ? pr.channel_properties["display_name"]
@@ -216,7 +229,12 @@ export class XenditGateway implements PaymentGateway {
       externalId: pr.reference_id,
       paidAt: statusNormal === "PAID" && pr.updated ? waktuAtauNull(pr.updated) : null,
       xenditRef: pr.payment_request_id,
-      instruksi: statusNormal === "MENUNGGU" ? instruksiDari(pr, metode, kanal, nama) : null,
+      metode,
+      kanal,
+      instruksi:
+        statusNormal === "MENUNGGU" && metode !== null
+          ? instruksiDari(pr, metode, kanal, nama)
+          : null,
     };
   }
 

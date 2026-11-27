@@ -139,6 +139,8 @@ export class GatewayPalsu implements PaymentGateway {
       externalId: t.externalId,
       paidAt: t.paidAt,
       xenditRef: t.ref,
+      metode: t.instruksi.jenis,
+      kanal: t.instruksi.jenis === "VA" ? t.instruksi.bank : null,
       instruksi: t.status === "MENUNGGU" ? t.instruksi : null,
     };
   }
