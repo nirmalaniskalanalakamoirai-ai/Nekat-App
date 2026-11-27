@@ -1,4 +1,5 @@
 // Fungsi murni halaman tagihan (H-10). Tidak ada perhitungan harga: nominal hanya diformat dari server.
+import { T } from "./teks";
 
 /** Rupiah integer dari server → "Rp130.000" (tanpa pembulatan, H6). */
 export function rupiah(n: number): string {
@@ -74,4 +75,15 @@ const NAMA_BANK: Readonly<Record<string, string>> = {
 
 export function namaBank(kode: string): string {
   return NAMA_BANK[kode] ?? kode;
+}
+
+const AMBANG_UMUM_MENIT = [2, 5, 10, 30] as const;
+
+/**
+ * Teks live region pembaca layar: ambang terkecil yang sudah dilewati (≤ 30/10/5/2 menit). Teks hanya
+ * berubah saat melewati ambang, jadi pengumuman tidak terjadi tiap detik.
+ */
+export function pengumumanSisa(sisa: number): string {
+  const m = AMBANG_UMUM_MENIT.find((a) => sisa <= a * 60);
+  return m === undefined ? "" : T.sisaMenit(m);
 }

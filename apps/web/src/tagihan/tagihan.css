@@ -131,8 +131,28 @@
   min-height: var(--tap-min);
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
   cursor: pointer;
   font-weight: var(--weight-medium);
+  list-style: none;
+}
+.tagihan__akordeon summary::-webkit-details-marker {
+  display: none;
+}
+/* Penanda buka/tutup (chevron) */
+.tagihan__akordeon summary::after {
+  content: "";
+  flex: none;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform var(--dur-fast) var(--ease-standard);
+}
+.tagihan__akordeon[open] summary::after {
+  transform: rotate(-135deg);
 }
 .tagihan__metode fieldset {
   border: 0;

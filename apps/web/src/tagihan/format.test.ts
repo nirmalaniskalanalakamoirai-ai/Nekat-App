@@ -4,6 +4,7 @@ import {
   kelompokDigit,
   labelDigit,
   mmss,
+  pengumumanSisa,
   rupiah,
   selisihJamMs,
   sisaDetik,
@@ -38,5 +39,14 @@ describe("format tagihan", () => {
     expect(jamWib("2026-11-27T10:00:00Z")).toBe("17.00");
     expect(kelompokDigit("8808123456789012")).toBe("8808 1234 5678 9012");
     expect(labelDigit("880812")).toBe("8 8 0 8, 1 2");
+  });
+
+  it("pengumuman sisa waktu hanya di ambang 30/10/5/2 menit", () => {
+    expect(pengumumanSisa(31 * 60)).toBe("");
+    expect(pengumumanSisa(30 * 60)).toBe("Sisa waktu bayar 30 menit");
+    expect(pengumumanSisa(29 * 60)).toBe("Sisa waktu bayar 30 menit");
+    expect(pengumumanSisa(9 * 60 + 59)).toBe("Sisa waktu bayar 10 menit");
+    expect(pengumumanSisa(4 * 60)).toBe("Sisa waktu bayar 5 menit");
+    expect(pengumumanSisa(90)).toBe("Sisa waktu bayar 2 menit");
   });
 });

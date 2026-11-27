@@ -12,6 +12,7 @@ import {
   labelDigit,
   mmss,
   namaBank,
+  pengumumanSisa,
   rupiah,
   selisihJamMs,
   sisaDetik,
@@ -53,6 +54,7 @@ type Keadaan =
   | "LUNAS"
   | "TERLAMBAT"
   | "DIPERIKSA"
+  | "WAKTU_HABIS"
   | "KEDALUWARSA"
   | "DIBATALKAN"
   | "DIGANTI";
@@ -73,7 +75,7 @@ function keadaanDari(d: TagihanBayar, sisa: number, diperiksaLokal: boolean): Ke
   if (p?.status === "NOMINAL_TIDAK_COCOK") return "DIPERIKSA";
   if (p?.status === "LUNAS" || d.hasil === "SEDANG_DIPERIKSA" || diperiksaLokal) return "MEMERIKSA";
   // Waktu habis menurut jam server, tetapi server belum menutup: jangan anggap batal (§4.5).
-  if (sisa <= 0) return "MEMERIKSA";
+  if (sisa <= 0) return "WAKTU_HABIS";
   if (p?.status === "MENUNGGU") return p.tahap === "SIAP" ? "MENUNGGU_BAYAR" : "MENYIAPKAN";
   return "PILIH_METODE";
 }
@@ -171,6 +173,9 @@ export function HalamanTagihan() {
   const keadaan = keadaanDari(d, sisa, diperiksaPada !== null && diperiksaPada === tandaStatus(d));
   const p = d.pembayaran;
   const bolehPilih = keadaan === "PILIH_METODE" || (gantiMetode && keadaan === "MENUNGGU_BAYAR");
+  // Sedang dikonfirmasi/diperiksa: jangan tampilkan ajakan bayar (nominal, hitung mundur, QR/VA).
+  const sedangDicek =
+    keadaan === "MEMERIKSA" || keadaan === "DIPERIKSA" || keadaan === "WAKTU_HABIS";
 
   return (
     <section className="tagihan l-stack" aria-labelledby="judul-halaman">
@@ -178,37 +183,40 @@ export function HalamanTagihan() {
       <p className="tagihan__nomor">{T.nomor(d.tagihan.nomor)}</p>
 
       {!online && (
+        // Satu-satunya pita offline di halaman ini (pita umum AppShell disembunyikan untuk /tagihan).
         <p className="tagihan__info" role="status">
           {T.offline}
         </p>
       )}
 
-      {d.tagihan.status === "DITERBITKAN" && keadaan !== "MEMERIKSA" && (
+      {d.tagihan.status === "DITERBITKAN" && !sedangDicek && (
         <HitungMundur sisa={sisa} kedaluwarsaIso={d.tagihan.kedaluwarsaPada} />
       )}
 
-      <div className="card tagihan__nominal">
-        <p className="tagihan__label">
-          {keadaan === "LUNAS"
-            ? T.dibayar
-            : d.tagihan.status === "DITERBITKAN"
-              ? T.bayar
-              : T.nominalTagihan}
-        </p>
-        <p className="tagihan__angka num">{rupiah(d.tagihan.sisaBayarRp)}</p>
-        {d.tagihan.saldoDipakaiRp > 0 && (
-          <dl className="tagihan__rincian">
-            <div>
-              <dt>{T.total}</dt>
-              <dd className="num">{rupiah(d.tagihan.totalRp)}</dd>
-            </div>
-            <div>
-              <dt>{T.saldoDipakai}</dt>
-              <dd className="num">−{rupiah(d.tagihan.saldoDipakaiRp)}</dd>
-            </div>
-          </dl>
-        )}
-      </div>
+      {!sedangDicek && (
+        <div className="card tagihan__nominal">
+          <p className="tagihan__label">
+            {keadaan === "LUNAS"
+              ? T.dibayar
+              : d.tagihan.status === "DITERBITKAN"
+                ? T.bayar
+                : T.nominalTagihan}
+          </p>
+          <p className="tagihan__angka num">{rupiah(d.tagihan.sisaBayarRp)}</p>
+          {d.tagihan.saldoDipakaiRp > 0 && (
+            <dl className="tagihan__rincian">
+              <div>
+                <dt>{T.total}</dt>
+                <dd className="num">{rupiah(d.tagihan.totalRp)}</dd>
+              </div>
+              <div>
+                <dt>{T.saldoDipakai}</dt>
+                <dd className="num">−{rupiah(d.tagihan.saldoDipakaiRp)}</dd>
+              </div>
+            </dl>
+          )}
+        </div>
+      )}
 
       {pesan && (
         <p className="tagihan__peringatan" role="alert">
@@ -278,6 +286,10 @@ function HitungMundur({ sisa, kedaluwarsaIso }: { sisa: number; kedaluwarsaIso: 
   const tingkat = tingkatHitungMundur(sisa);
   return (
     <div className="card tagihan__waktu" role="timer" aria-live="off">
+      {/* Live region terpisah: hanya berubah saat melewati 30/10/5/2 menit (bukan tiap detik). */}
+      <p className="sr-only" aria-live="polite">
+        {pengumumanSisa(sisa)}
+      </p>
       <p className="countdown" data-level={tingkat === "normal" ? undefined : tingkat}>
         {mmss(sisa)}
       </p>
@@ -296,6 +308,7 @@ function StatusAkhir({ keadaan, d }: { keadaan: Keadaan; d: TagihanBayar }) {
   > = {
     LUNAS: { judul: T.lunas, jenis: "sukses" },
     MEMERIKSA: { judul: T.memeriksa, jenis: "info" },
+    WAKTU_HABIS: { judul: T.waktuHabis, jenis: "info" },
     DIPERIKSA: { judul: T.diperiksa, jenis: "info" },
     TERLAMBAT: { judul: T.terlambat(rupiah(d.pembayaran?.jumlahRp ?? 0)), jenis: "info" },
     KEDALUWARSA: { judul: T.kedaluwarsa, jenis: "bahaya" },
@@ -313,6 +326,15 @@ function StatusAkhir({ keadaan, d }: { keadaan: Keadaan; d: TagihanBayar }) {
       {keadaan === "LUNAS" && (
         <Link className="btn btn--primary" to="/pesanan">
           {T.lihatPesanan}
+        </Link>
+      )}
+      {(keadaan === "KEDALUWARSA" ||
+        keadaan === "DIBATALKAN" ||
+        keadaan === "DIGANTI" ||
+        keadaan === "TERLAMBAT") && (
+        // Halaman Saldo (H-12) belum dibangun → semua jalan keluar ke katalog untuk sekarang.
+        <Link className="btn btn--primary" to="/">
+          {T.belanjaLagi}
         </Link>
       )}
     </div>
@@ -476,6 +498,7 @@ function PilihMetode({
       >
         {sibuk ? T.memproses : T.tampilkanInstruksi}
       </button>
+      {sama && <p className="tagihan__catatan">{T.metodeAktif}</p>}
       {onBatal && (
         <button type="button" className="btn btn--ghost btn--block" onClick={onBatal}>
           {T.batalGanti}
