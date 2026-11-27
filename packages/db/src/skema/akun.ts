@@ -113,6 +113,10 @@ export const admin = pgTable(
     id: idUuid(),
     nama: text("nama").notNull(), // [PII]
     nomorHpE164: text("nomor_hp_e164").notNull(), // [PII]
+    // T-036: faktor pertama sementara = kata sandi (scrypt, format `scrypt$N$r$p$garam$hash`).
+    // NULL = belum diatur → tidak bisa masuk. [RAHASIA] tidak pernah dikirim ke klien/log.
+    kataSandiHash: text("kata_sandi_hash"),
+    kataSandiDiubahPada: ts("kata_sandi_diubah_pada"),
     totpRahasiaEnc: bytea("totp_rahasia_enc"), // [RAHASIA] AES-GCM, AAD = admin_id
     totpKunciVersi: smallint("totp_kunci_versi"),
     totpAktifPada: ts("totp_aktif_pada"),
@@ -131,18 +135,27 @@ export const admin = pgTable(
       sql`totp_aktif_pada IS NULL OR (totp_rahasia_enc IS NOT NULL AND totp_kunci_versi IS NOT NULL)`,
     ),
     check("admin_gagal_nonneg", sql`gagal_beruntun >= 0`),
+    check(
+      "admin_kata_sandi_format",
+      sql`kata_sandi_hash IS NULL OR kata_sandi_hash ~ '^scrypt[$][0-9]+[$][0-9]+[$][0-9]+[$][A-Za-z0-9_-]+[$][A-Za-z0-9_-]+$'`,
+    ),
   ],
 );
 
-export const kodePemulihanTotp = pgTable("kode_pemulihan_totp", {
-  id: idUuid(),
-  adminId: uuid("admin_id")
-    .notNull()
-    .references(() => admin.id, { onDelete: "restrict" }),
-  kodeHash: bytea("kode_hash").notNull(), // [RAHASIA]
-  dipakaiPada: ts("dipakai_pada"),
-  ...kolomDibuat,
-});
+export const kodePemulihanTotp = pgTable(
+  "kode_pemulihan_totp",
+  {
+    id: idUuid(),
+    adminId: uuid("admin_id")
+      .notNull()
+      .references(() => admin.id, { onDelete: "restrict" }),
+    kodeHash: bytea("kode_hash").notNull(), // [RAHASIA]
+    dipakaiPada: ts("dipakai_pada"),
+    ...kolomDibuat,
+  },
+  // T-036: pencarian kode saat masuk + cegah kode ganda per admin.
+  (t) => [uniqueIndex("kode_pemulihan_admin_hash_uk").on(t.adminId, t.kodeHash)],
+);
 
 export const peran = pgTable("peran", {
   kode: text("kode").primaryKey(),
@@ -195,10 +208,15 @@ export const sesi = pgTable(
     reauthPada: ts("reauth_pada"),
     kedaluwarsaPada: ts("kedaluwarsa_pada").notNull(),
     dicabutPada: ts("dicabut_pada"),
+    // T-036: batas idle sesi admin (disentuh tiap permintaan, dibatasi 1x/menit).
+    aktifTerakhirPada: ts("aktif_terakhir_pada").notNull().defaultNow(),
+    // T-036: percobaan faktor kedua per sesi pra (dibatasi; habis → sesi pra dicabut).
+    percobaanFaktorKedua: smallint("percobaan_faktor_kedua").notNull().default(0),
     ...kolomDibuat,
   },
   (t) => [
     check("sesi_satu_pemilik", sql`num_nonnulls(akun_id, admin_id) = 1`),
+    check("sesi_percobaan_nonneg", sql`percobaan_faktor_kedua >= 0`),
     index("sesi_akun_idx").on(t.akunId),
     index("sesi_admin_idx").on(t.adminId),
   ],
