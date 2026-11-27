@@ -62,7 +62,7 @@ Semua refund & selisih **selalu** masuk saldo akun pembayar (F-03); tidak ada re
 2. **Saldo tidak pernah negatif**: `akun_saldo.saldo_rp >= 0` dan `ledger_saldo.saldo_sesudah_rp >= 0` (CHECK DB). Tidak ada mekanisme "utang" ke pembeli.
 3. **Ledger ditulis di transaksi yang sama** dengan perubahan status penyebabnya; **tidak pernah lewat outbox**. Gagal tulis ledger = rollback seluruh transaksi.
 4. **Idempoten**: setiap entri ledger punya `kunci_idempotensi` unik (§8.2); entri ganda ditolak constraint dan dianggap **sukses**.
-5. **Urutan kunci** (ADR §3.2): grup → stok SKU → peserta → invoice → pembayaran → `akun_saldo` (terakhir). Pesanan individu: invoice → pembayaran → `akun_saldo`.
+5. **Urutan kunci** (ADR §3.2): grup → stok SKU → peserta → invoice → pembayaran → `akun` (FOR SHARE) → `akun_saldo` (terakhir). Pesanan individu: invoice → pembayaran → `akun` (FOR SHARE) → `akun_saldo`. `akun` FOR SHARE (T-021) menahan pembekuan akun sampai transaksi ledger selesai; transaksi yang meng-UPDATE `akun` tidak boleh sudah memegang `akun_saldo`. Banyak invoice/akun dalam satu transaksi (grup batal, cut-off): kunci semuanya di awal, urut id (`kunciLedgerBatch`).
 6. **Status hanya maju** lewat update bersyarat (`WHERE status = <asal>`); event mundur diabaikan dan dicatat.
 7. **Webhook bukan kebenaran**: status bayar dikonfirmasi lewat GET ke Xendit memakai ID yang tersimpan di DB (ADR §4.2.2, CWE-345).
 8. **Rahasia** hanya dari environment variable: `XENDIT_SECRET_KEY`, `XENDIT_CALLBACK_TOKEN` (`.env.example`). Tidak pernah di kode, DB, log, atau dokumen. Pagar start-up: production menolak kunci test, non-production menolak kunci live; token callback test dan live terpisah (FP-02).
@@ -404,6 +404,14 @@ HANDOFF: FE -> SAL.riwayat   GET saldo/riwayat?cursor  (akun sesi saja; lintas a
   SUCCESS: { saldo_rp, entri: [{ id, waktu, jenis_tampil, jumlah_rp, saldo_sesudah_rp, referensi_tampil }] }
 INVARIAN: job harian saldo_rp = SUM(ledger); selisih -> alert, tanpa koreksi otomatis
 ```
+
+Catatan implementasi T-021 (`packages/db/src/repo/ledger-saldo.ts`):
+- **Ikat akun ke sumber**: `debitCheckout` hanya untuk invoice yang ada, pembayarnya = `akun_id`, DITERBITKAN, belum memakai saldo, dan belum punya pembayaran. SAL sendiri mengisi `invoice.saldo_dipakai_rp`/`sisa_bayar_rp` (alur: insert invoice dengan saldo 0 → `debitCheckout` → I2 bila sisa 0). `kredit` menurunkan invoice sumber dana (dari `invoice_id`/baris/pembayaran) dan menolak akun yang bukan pembayarnya, serta peserta/grup yang bukan bagian invoice itu. Karena itu sumber GRUP_BATAL/SLOT_BATAL/KELUHAN/SELISIH_HARGA membawa `invoice_id` (tidak masuk kunci).
+- **Pagar dana per invoice** (di bawah kunci invoice; kolom baru `ledger_saldo.invoice_id`, migrasi 0007): REFUND/REFUND_ONGKIR/SELISIH_HARGA hanya untuk invoice LUNAS dan Σ-nya ≤ `total_rp`; SALDO_BALIK hanya untuk KEDALUWARSA/DIBATALKAN/DIGANTI; keduanya tidak pernah sama-sama ada untuk satu invoice. BAYAR_TERLAMBAT hanya untuk pembayaran `LUNAS_TERLAMBAT` dengan nominal = `jumlah_rp` (status itu baru ada di migrasi T-030; sampai itu ditolak).
+- **`job_cutoff_id`** wajib `cutoff:{slot_id}` dan dikanonikkan ke huruf kecil.
+- **SALDO_BALIK ke akun DIBEKUKAN tetap ditulis** (DEFAULT SEMENTARA, menunggu L-01): uang pembeli sendiri; pemakaiannya tetap terblokir karena debit menolak akun beku. Kredit lain ke akun beku → `AKUN_DIBEKUKAN` (DANA_DITAHAN).
+- **Belum didukung: SALDO_BALIK parsial untuk COD** (§10.3, stok habis per baris pada invoice COD yang belum lunas). Usulan handoff T-034: kunci `saldo-balik:{invoice_id}:STOK_HABIS:{baris_invoice_id}` per baris, lalu SALDO_BALIK final = sisa `saldo_dipakai_rp` dikurangi yang sudah kembali per baris (pagar Σ per invoice tetap berlaku).
+- **Koreksi admin**: pengaju & pemutus wajib admin AKTIF (kode + trigger 0007); batas |jumlah| satu koreksi dari konfigurasi `saldo.koreksi_maks_rp` (kosong = tidak dibatasi; nilai rusak = ditolak).
 
 ### 12.2 T-029 — Port `PaymentGateway` (PAY, dipanggil **di luar** transaksi)
 ```

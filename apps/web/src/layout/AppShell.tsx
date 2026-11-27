@@ -82,7 +82,8 @@ export function AppShell() {
         </div>
       </header>
 
-      {!online && (
+      {/* Halaman tagihan punya pita offline sendiri dengan teks yang relevan (H-10). */}
+      {!online && !pathname.startsWith("/tagihan/") && (
         <div className="pita pita--offline" role="status">
           Kamu sedang offline. Harga dan stok akan diperbarui saat tersambung lagi.
         </div>

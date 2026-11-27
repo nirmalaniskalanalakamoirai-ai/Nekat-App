@@ -308,12 +308,23 @@ export const reservasiStok = pgTable(
 
 // K-36: tagihan grup hanya QRIS/VA. E-wallet (keputusan §9) menyusul → cukup ganti CHECK.
 export const METODE_BAYAR_GRUP = ["QRIS", "VA"] as const;
+// LUNAS_TERLAMBAT (T-029, migrasi 0008; docs/flow/pembayaran.md §4.2): uang diterima Xendit tetapi tidak
+// melunasi invoice. Sengaja DI LUAR `pembayaran_satu_hidup_uk`. Transisinya ditulis T-030.
 export const STATUS_PEMBAYARAN = [
   "MENUNGGU",
   "LUNAS",
   "KEDALUWARSA",
   "GAGAL",
   "NOMINAL_TIDAK_COCOK",
+  "LUNAS_TERLAMBAT",
+] as const;
+
+/** Kode gagal permanen `buatPembayaran` (§4.2, FP-25). Kode saja, tanpa pesan bebas dari gateway. */
+export const ALASAN_GAGAL_PEMBAYARAN = [
+  "METODE_TIDAK_DIDUKUNG",
+  "NOMINAL_DI_BAWAH_MINIMUM",
+  "DITOLAK_GATEWAY",
+  "GAGAL_GATEWAY",
 ] as const;
 
 export const pembayaran = pgTable(
@@ -333,13 +344,29 @@ export const pembayaran = pgTable(
     paidAtGateway: ts("paid_at_gateway"), // basis keterlambatan (F-11)
     webhookDiterimaPada: ts("webhook_diterima_pada"),
     kunciIdempotensi: text("kunci_idempotensi").notNull(),
+    // T-029: instruksi bayar dari gateway (QR string / nomor VA + bank + nama penerima) agar POST ganda &
+    // GET status mengembalikan instruksi yang sama tanpa memanggil Xendit lagi. Tidak pernah dicatat di log.
+    instruksi: jsonb("instruksi"),
+    alasanGagal: text("alasan_gagal"),
     ...kolomAudit,
   },
   (t) => [
     check("pembayaran_metode", dalam("metode", METODE_BAYAR_GRUP)),
     check("pembayaran_status", dalam("status", STATUS_PEMBAYARAN)),
     check("pembayaran_jumlah_positif", sql`jumlah_rp > 0`),
-    check("pembayaran_lunas_lengkap", sql`status <> 'LUNAS' OR paid_at_gateway IS NOT NULL`),
+    check(
+      "pembayaran_lunas_lengkap",
+      sql`status NOT IN ('LUNAS', 'LUNAS_TERLAMBAT') OR paid_at_gateway IS NOT NULL`,
+    ),
+    check(
+      "pembayaran_instruksi_butuh_ref",
+      sql`instruksi IS NULL OR (xendit_ref IS NOT NULL AND jsonb_typeof(instruksi) = 'object')`,
+    ),
+    check(
+      "pembayaran_alasan_gagal",
+      sql`alasan_gagal IS NULL OR (status IN ('GAGAL', 'LUNAS_TERLAMBAT') AND ${dalam("alasan_gagal", ALASAN_GAGAL_PEMBAYARAN)})`,
+    ),
+    check("pembayaran_kanal_va", sql`(metode = 'VA') = (kanal IS NOT NULL)`),
     uniqueIndex("pembayaran_xendit_ref_uk").on(t.xenditRef),
     uniqueIndex("pembayaran_kunci_idempotensi_uk").on(t.kunciIdempotensi),
     uniqueIndex("pembayaran_satu_hidup_uk")

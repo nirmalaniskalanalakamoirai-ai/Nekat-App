@@ -1,6 +1,6 @@
 // @nekat/adapters — InventorySource, PaymentGateway (Xendit), WhatsAppGateway, Clock (ADR-0001 §3.1, §4).
 // T-018: InventorySource (LocalInventory + toggle). T-019: GudangApiInventory.
-// Menyusul: T-016 (WhatsApp), T-029 (Xendit).
+// T-029: PaymentGateway (XenditGateway QRIS/VA + GatewayPalsu). Menyusul: T-016 (WhatsApp).
 
 export const NAMA_PAKET = "@nekat/adapters";
 
@@ -40,3 +40,28 @@ export {
   type DependensiInventory,
 } from "./inventori/pabrik.js";
 export { hashKanonik, jsonKanonik } from "./inventori/kanonik.js";
+export {
+  bacaKonfigPembayaran,
+  KANAL_VA_BAWAAN,
+  KonfigPembayaranTidakValidError,
+  NAMA_GATEWAY_PEMBAYARAN,
+  PREFIKS_KUNCI,
+  type KonfigPembayaran,
+  type NamaGatewayPembayaran,
+} from "./pembayaran/konfigurasi.js";
+export {
+  channelCode,
+  normalkanStatus,
+  TIMEOUT_XENDIT_MS,
+  XENDIT_API_URL,
+  XENDIT_API_VERSION,
+  XenditGateway,
+  type OpsiXenditGateway,
+} from "./pembayaran/xendit.js";
+export {
+  GatewayPalsu,
+  type OperasiPalsu,
+  type OpsiGatewayPalsu,
+  type PerilakuPalsu,
+} from "./pembayaran/palsu.js";
+export { buatPaymentGateway } from "./pembayaran/pabrik.js";

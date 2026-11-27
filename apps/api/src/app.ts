@@ -9,7 +9,9 @@ import { tentukanZona } from "@nekat/domain";
 import { ruteAdmin, type OpsiRuteAdmin } from "./admin/rute.js";
 import type { LayananKatalog } from "./katalog/layanan.js";
 import { ruteKatalog } from "./katalog/rute.js";
+import { ruteSaldo, type OpsiRuteSaldo } from "./saldo/rute.js";
 import { keZonaLayanan, type KonfigLokasi } from "./lokasi.js";
+import { ruteTagihan, type OpsiRuteTagihan } from "./tagihan/rute.js";
 
 /** Header yang tidak boleh pernah muncul di log (ADR-0001 §7). PII di body ditambah per rute. */
 export const REDAKSI_LOG = [
@@ -42,6 +44,16 @@ export interface OpsiApp {
    * koneksi datang dari alamat ini. Kosong = XFF diabaikan (req.ip = alamat koneksi).
    */
   readonly trustProxy?: readonly string[];
+  /**
+   * Tagihan & pembayaran Xendit (T-029). Tanpa `autentikasi` (T-016 belum ada) rute selalu 401.
+   * Tanpa layanan/repo: 503 setelah lolos autentikasi.
+   */
+  readonly tagihan?: OpsiRuteTagihan | null;
+  /**
+   * Saldo pengguna (T-021). Tanpa `autentikasi` (T-016 belum ada) rute selalu menjawab 401.
+   * Tanpa repo: 503 setelah lolos autentikasi.
+   */
+  readonly saldo?: OpsiRuteSaldo | null;
 }
 
 const skemaGalat = z.object({ kode: z.string(), pesan: z.string() });
@@ -159,6 +171,11 @@ export function buatApp(opsi: OpsiApp = {}) {
       originDiizinkan: [],
     }),
   });
+
+  // T-029 bayar tagihan (QRIS/VA) + status pembayaran. Ditolak 401 sampai login pembeli (T-016).
+  void app.register(ruteTagihan, opsi.tagihan ?? { layanan: null, repoBaca: null });
+  // T-021 saldo pengguna: GET /api/saldo (saldo + riwayat). Ditolak 401 sampai login pembeli (T-016).
+  void app.register(ruteSaldo, opsi.saldo ?? { repo: null });
 
   return app;
 }

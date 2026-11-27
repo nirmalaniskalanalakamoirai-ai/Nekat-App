@@ -451,8 +451,8 @@ describe.skipIf(!URL_ADMIN)("skema database T-013b (PostgreSQL nyata)", () => {
     });
 
     const bayar = (metode: string, kunci: string, status = "MENUNGGU") =>
-      satu(`INSERT INTO pembayaran (invoice_id, metode, jumlah_rp, kunci_idempotensi, status)
-            VALUES ('${inv}', '${metode}', 50000, '${kunci}', '${status}') RETURNING id`);
+      satu(`INSERT INTO pembayaran (invoice_id, metode, kanal, jumlah_rp, kunci_idempotensi, status)
+            VALUES ('${inv}', '${metode}', ${metode === "VA" ? "'BNI'" : "NULL"}, 50000, '${kunci}', '${status}') RETURNING id`);
 
     it("K-36: hanya QRIS/VA untuk tagihan grup", async () => {
       expect(await gagal(bayar("EWALLET", `k-${hex(4)}`))).toMatch(/pembayaran_metode/);

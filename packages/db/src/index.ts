@@ -62,3 +62,29 @@ export {
   uuidDariTeks,
 } from "./repo/snapshot-inventori.js";
 export { buatRepoOutboxPicking } from "./repo/outbox-picking.js";
+// T-029: pembayaran Xendit (siapkan/simpan instruksi/gagal/ganti metode).
+export { buatRepoPembayaran } from "./repo/pembayaran.js";
+// T-021: ledger saldo pengguna (dipanggil di dalam transaksi pemanggil) + pembaca riwayat.
+export {
+  ajukanKoreksiSaldo,
+  BATAS_RIWAYAT_MAKS,
+  buatRepoSaldo,
+  cariSelisihSaldo,
+  debitCheckout,
+  kembalikanSaldoInvoice,
+  kredit,
+  kunciLedgerBatch,
+  KUNCI_KONFIG_KOREKSI_MAKS,
+  PANJANG_ALASAN_KOREKSI_MAKS,
+  putuskanKoreksiSaldo,
+  STATUS_PEMBAYARAN_TERLAMBAT,
+  type EntriRiwayat,
+  type HalamanRiwayat,
+  type HasilDebitCheckout,
+  type HasilKeputusanKoreksi,
+  type HasilKredit,
+  type MasukanDebitCheckout,
+  type MasukanKredit,
+  type RepoSaldo,
+  type Tx,
+} from "./repo/ledger-saldo.js";

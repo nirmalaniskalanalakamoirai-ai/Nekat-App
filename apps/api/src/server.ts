@@ -1,5 +1,11 @@
 // Entry proses API. Tidak diimpor oleh tes (tes memakai `buatApp` + `inject`).
-import { bacaKonfigInventory, type KonfigInventory } from "@nekat/adapters";
+import {
+  bacaKonfigInventory,
+  bacaKonfigPembayaran,
+  buatPaymentGateway,
+  type KonfigInventory,
+  type KonfigPembayaran,
+} from "@nekat/adapters";
 import {
   bacaStatusLokasiDb,
   buatDb,
@@ -7,11 +13,14 @@ import {
   buatRepoAdminKatalog,
   buatRepoAuthAdmin,
   buatRepoKatalog,
+  buatRepoPembayaran,
+  buatRepoSaldo,
   rencanakanSinkronLokasi,
   teksPerubahanLokasi,
   type Db,
+  type RepoSaldo,
 } from "@nekat/db";
-import { KONFIGURASI_HARGA_BAWAAN } from "@nekat/domain";
+import { KONFIGURASI_HARGA_BAWAAN, LayananBayar } from "@nekat/domain";
 import { z } from "zod";
 import { alamatAtauCidr, bacaKonfigAdmin, type KonfigAdmin } from "./admin/konfig.js";
 import { LayananAuthAdmin } from "./admin/layanan-auth.js";
@@ -19,6 +28,7 @@ import type { OpsiRuteAdmin } from "./admin/rute.js";
 import { buatApp } from "./app.js";
 import { LayananKatalog } from "./katalog/layanan.js";
 import { muatKonfigLokasi } from "./lokasi.js";
+import type { OpsiRuteTagihan } from "./tagihan/rute.js";
 
 const skemaEnv = z.object({
   HOST: z.string().min(1).default("0.0.0.0"),
@@ -82,11 +92,23 @@ try {
   process.exit(1);
 }
 
+// Gateway pembayaran (T-029): pagar mode test/live dari NODE_ENV + prefiks kunci (FP-02). Salah → gagal start.
+let konfigPembayaran: KonfigPembayaran;
+try {
+  konfigPembayaran = bacaKonfigPembayaran(process.env);
+} catch (err) {
+  console.error((err as Error).message);
+  process.exit(1);
+}
+
 let katalog: LayananKatalog | null = null;
 let admin: OpsiRuteAdmin | null = null;
 let db: Db | null = null;
+let repoSaldo: RepoSaldo | null = null;
 if (env.data.DATABASE_URL !== undefined) {
   db = buatDb(env.data.DATABASE_URL);
+  // T-021: rute saldo tetap 401 untuk semua permintaan sampai autentikasi pembeli (T-016) disuntikkan.
+  repoSaldo = buatRepoSaldo(db);
   katalog = new LayananKatalog({
     repo: buatRepoKatalog(db),
     // T-019: katalog membaca snapshot lokal, tidak memanggil Gudang per request (T-009 §6). Snapshot
@@ -123,6 +145,27 @@ if (db && konfigAdmin) {
   };
 }
 
+// T-029: rute bayar tetap 401 untuk semua permintaan sampai autentikasi pembeli (T-016) disuntikkan.
+let tagihan: OpsiRuteTagihan = { layanan: null, repoBaca: null };
+const gatewayBayar = buatPaymentGateway(konfigPembayaran);
+if (db) {
+  const repoPembayaran = buatRepoPembayaran(db);
+  tagihan = {
+    repoBaca: repoPembayaran,
+    layanan: gatewayBayar
+      ? new LayananBayar({
+          repo: repoPembayaran,
+          gateway: gatewayBayar,
+          namaMerchant: konfigPembayaran.namaMerchant,
+          // Hanya id & kode (tanpa QR string / nomor VA / data pembeli).
+          catat: (p) => {
+            app.log.info({ pembayaranId: p.pembayaranId, jenis: p.jenis, kode: p.kode }, "pay");
+          },
+        })
+      : null,
+  };
+}
+
 let lokasi;
 try {
   lokasi = await muatKonfigLokasi(env.data.LOKASI_CONFIG);
@@ -131,9 +174,26 @@ try {
   process.exit(1);
 }
 
-const app = buatApp({ lokasi, katalog, admin, trustProxy: env.data.TRUST_PROXY });
+const app = buatApp({
+  lokasi,
+  katalog,
+  admin,
+  trustProxy: env.data.TRUST_PROXY,
+  saldo: { repo: repoSaldo },
+  tagihan,
+});
 if (!lokasi) app.log.warn("config/lokasi.json belum ada: rute zona menjawab 503");
 if (!katalog) app.log.warn("DATABASE_URL belum diisi: rute katalog menjawab 503");
+if (!tagihan.layanan) {
+  app.log.warn(
+    "Gateway pembayaran nonaktif (PEMBAYARAN_GATEWAY/DATABASE_URL): POST bayar menjawab 503",
+  );
+} else {
+  app.log.info(
+    { gateway: gatewayBayar?.nama, mode: gatewayBayar?.mode },
+    "gateway pembayaran aktif",
+  );
+}
 if (!admin) app.log.warn("Panel admin belum dikonfigurasi (DATABASE_URL/ADMIN_*): /api/admin 503");
 
 // T-015b: koordinat tetap dibaca dari config (M7); tabel gudang/zona/drop_point hanya cerminan
