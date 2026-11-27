@@ -19,6 +19,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { admin, akun } from "./akun.js";
+import { invoice } from "./invoice.js";
 import { bytea, dalam, idUuid, kolomAudit, kolomDibuat, rupiah, ts } from "./_umum.js";
 
 export const akunSaldo = pgTable(
@@ -60,6 +61,9 @@ export const ledgerSaldo = pgTable(
     jenis: text("jenis").notNull(),
     referensiJenis: text("referensi_jenis"),
     referensiId: uuid("referensi_id"),
+    // T-021 (migrasi 0007): invoice sumber dana untuk entri berbasis invoice → batas Σ kredit per invoice
+    // (REFUND + REFUND_ONGKIR + SELISIH_HARGA ≤ total_rp; SALDO_BALIK ≠ REFUND untuk invoice yang sama).
+    invoiceId: uuid("invoice_id").references(() => invoice.id, { onDelete: "restrict" }),
     // mis. `selisih:{grup_id}:{peserta_id}`, `debit:{invoice_id}`, `koreksi:{pengajuan_id}`.
     kunciIdempotensi: text("kunci_idempotensi").notNull(),
     alasan: text("alasan"),
@@ -96,6 +100,9 @@ export const ledgerSaldo = pgTable(
       .on(t.referensiId)
       .where(sql`jenis = 'KOREKSI_ADMIN'`),
     index("ledger_akun_idx").on(t.akunId, t.id.desc()),
+    index("ledger_invoice_idx")
+      .on(t.invoiceId, t.jenis)
+      .where(sql`invoice_id IS NOT NULL`),
   ],
 );
 

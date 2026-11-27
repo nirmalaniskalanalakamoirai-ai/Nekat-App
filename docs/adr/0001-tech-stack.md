@@ -171,6 +171,11 @@ tidak memperlambat API dan worker bisa di-restart sendiri.
   `pesanan` → `akun_saldo`. Operasi yang menyentuh beberapa grup mengunci semuanya dulu dengan urutan `grup_id`.
   `pesanan` dikunci bila transaksi perlu memeriksa "baris terakhir yang belum batal" (mis. `refund_ongkir:{pesanan_id}`,
   flow R-07); detailnya ditetapkan di T-004/T-021.
+  **T-021 (rinci, berlaku):** `grup` → `stok_sku` → `peserta` → `invoice` (FOR UPDATE, pengganti `pesanan`) →
+  `pembayaran` → `akun` (FOR SHARE) → `akun_saldo` (FOR UPDATE, terakhir). `akun` FOR SHARE menahan pembekuan
+  (UPDATE akun) sampai transaksi ledger selesai, jadi status akun yang dicek tidak berubah sebelum commit; karena itu
+  transaksi yang meng-UPDATE `akun` tidak boleh sudah memegang `akun_saldo`. Beberapa invoice/akun dalam satu
+  transaksi: kunci semuanya di awal, urut id (`kunciLedgerBatch` di `@nekat/db`).
 
 | Operasi | Baris yang dikunci (berurutan) | Cek di dalam transaksi |
 |---|---|---|
