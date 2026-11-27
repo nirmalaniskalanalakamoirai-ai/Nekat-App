@@ -1,5 +1,12 @@
 # Progress
 
+**Update 27 Nov malam WIB (lanjutan, mode kebut):**
+- **T-010 notifikasi WA & job → PR #38**: Automation Governance Architect + Code Reviewer 3 putaran, LULUS (temuan berat: OTP lewat outbox → kini sinkron, kode hanya di memori). Baru N-01–N-13; **N-03 wajib dikonfirmasi sebelum production**.
+- **T-029 Xendit QRIS/VA → PR #39** (merge **setelah #36**; migrasi 0008 di atas 0007): Payments Engineer + Code Reviewer + Security Auditor (HIGH CWE-345 respons Xendit tanpa validasi → ditutup) + Evidence Collector (9/9 LULUS; QR di-decode). 627 tes. **Belum diuji ke Xendit nyata** (X-01). Baru X-01–X-06.
+- PR #36 (T-021) konflik dengan main → sudah di-merge main, bersih.
+- Butuh manusia: merge berurutan **#36 → #39**; review #37, #38; Joseph: kunci sandbox Xendit untuk verifikasi X-01.
+- Siap berikutnya: T-016, T-030 (setelah #39), T-049.
+
 **Update 27 Nov sore WIB (lanjutan, mode kebut):**
 - Di-merge manusia: #32 (T-015b), #34 (T-006), #35 (T-036).
 - **T-021 ledger saldo → PR #36**: Payments Engineer + Code Reviewer 2 putaran + Security Auditor 2 audit (probe paralel PG16), LULUS. Migrasi 0007. Breaking: sumber kredit wajib invoiceId; debitCheckout mengisi invoice. BAYAR_TERLAMBAT menunggu T-030. Baru L-01–L-05 (L-05 wajib diisi sebelum rute koreksi admin).

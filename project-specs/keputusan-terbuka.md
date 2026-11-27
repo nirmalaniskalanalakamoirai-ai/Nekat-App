@@ -271,3 +271,29 @@ DEFAULT SEMENTARA = rekomendasi, kecuali disebut lain. Detail: `docs/flow/ongkir
 | C-02 | Field API katalog tambahan (slug, sisa stok/TERBATAS, idVersiHarga, keteranganHarga) | Joseph | belum — rekomendasi: slug & sisa di T-027/T-028; keteranganHarga & KonteksBelanja di T-022 |
 | C-03 | Keranjang sementara saat ganti zona | Randy | belum — DEFAULT: keranjang per zona, tidak dipindah (F-25); saat T-022 dimigrasi ke server sekali |
 | C-04 | Kategori/subkategori tanpa produk: tampil atau disembunyikan di tab? | Randy | belum — DEFAULT: disembunyikan |
+
+## Dari T-010 (notifikasi & job, PR #38) dan T-029 (Xendit, PR #39) — 27 Nov
+
+DEFAULT SEMENTARA = rekomendasi. Detail: `docs/spec/T-010-notifikasi-job.md` §9; deskripsi PR #39 & header `packages/adapters/src/pembayaran/xendit.ts`.
+
+| # | Keputusan | Pemilik | Status |
+|---|---|---|---|
+| N-01 | Pesan "kurang X orang" bisa digolongkan Meta sebagai marketing | Randy | belum — ajukan sebagai utility teks netral; bila marketing, hanya ke akun ber-opt-in promo |
+| N-02 | SMS cadangan OTP | Joseph (+ Randy biaya) | belum — Fase 1 tanpa SMS; port siap |
+| N-03 | Nomor HP + isi pesan ke Meta/BSP di luar negeri (H12/K-43) | Joseph (+ hukum) | belum — boleh sebagai pemroses dengan isi minimal, disebut di Kebijakan Privasi; **wajib dikonfirmasi sebelum production**; dev pakai mode log |
+| N-04 | Jam tenang & batas kirim WA | Randy | belum — tidak kritis 21.00–07.00 WIB, maks 6/hari; marketing 09.00–19.00, maks 1/7 hari; pesan kritis bebas |
+| N-05 | Waktu pengingat (bayar, siap/terbit, kurang akun) | Randy | belum — bayar −15 menit; siap/terbit −30 menit; kurang akun 10.07 WIB + batas −180 menit, maks 1/hari |
+| N-06 | K-39: host berbarang yang belum "Siap" | Randy | belum — dikeluarkan seperti anggota lain; peran host pindah (pola K-33) |
+| N-07 | Terbit otomatis K-39 gagal teknis; (b) A-04 vs K-07 bila terbit selesai beberapa detik setelah batas | Randy (+ Joseph) | belum — kedaluwarsa_pada = cut_off_pada; retry dalam satu run ≤60 dtk, lalu BATAL `TERBIT_OTOMATIS_GAGAL` |
+| N-08 | Kanal alert operasional | Joseph | belum — error tracking + WA ke ≥2 admin jaga; default semua owner |
+| N-09 | Jadwal job WIB | Efan + Joseph | belum — slot 00.37, KPI COD Senin 02.17, rekonsiliasi 03.17, cek saldo 03.47, pemeliharaan 04.17, laporan 06.07, timpaan modal 07.07 |
+| N-10 | Pengingat "ajak teman" bisa dimatikan? Kode ambil drop point lewat WA? | Randy | belum — boleh dimatikan; kode ambil hanya di aplikasi |
+| N-11 | Isi laporan harian di WA owner / n8n | Efan | belum — hanya hitungan + link panel; angka uang hanya di panel ber-TOTP |
+| N-12 | Masa simpan pesan_wa, webhook WA, daftar tunggu | Joseph (+ hukum) | belum — status kirim 1 tahun; payload webhook terredaksi 90 hari; teks pesan masuk tidak disimpan |
+| N-13 | Opt-in menerima pesan bisnis WA (selain OTP) | Randy (+ hukum) | belum — centang di layar OTP, bawaan tidak dicentang, dicatat waktu & sumber, bisa dicabut |
+| X-01 | Verifikasi asumsi Xendit Payments API v3 (expires_at & display_name QRIS/VA ID, VA nominal tetap sekali pakai, idempotency-key, pencarian reference_id) | Joseph | belum — **wajib dicek di sandbox sebelum T-033/T-043**; bila VA nominal tetap tidak ada di v3, pakai API Fixed VA lama |
+| X-02 | Format & prefiks kunci Xendit test/live sebagai pagar mode | Joseph | belum — `xnd_development_`/`xnd_production_`, karakter base64; konfirmasi dengan akun Xendit badan usaha |
+| X-03 | Nama merchant pada VA (`PEMBAYARAN_NAMA_MERCHANT`) | Randy + Joseph | belum — nama badan usaha resmi (menunggu #5) |
+| X-04 | Daftar bank VA | Efan + Joseph | belum — default BNI/BRI/MANDIRI/PERMATA; final ikut kanal aktif & fee (K-51) |
+| X-05 | Ganti metode saat QR lama sudah dibayar / pembatalan Xendit gagal: perlu job cek & rekonsiliasi | Joseph | belum — T-030 menambah job durable `cek:{pembayaran_id}` dan rekonsiliasi tagihan yatim |
+| X-06 | Rate limit POST /bayar per akun | Joseph | belum — tambahkan bersama login T-016 |
