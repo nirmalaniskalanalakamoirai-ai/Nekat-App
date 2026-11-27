@@ -62,3 +62,5 @@ export {
   uuidDariTeks,
 } from "./repo/snapshot-inventori.js";
 export { buatRepoOutboxPicking } from "./repo/outbox-picking.js";
+// T-029: pembayaran Xendit (siapkan/simpan instruksi/gagal/ganti metode).
+export { buatRepoPembayaran } from "./repo/pembayaran.js";

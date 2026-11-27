@@ -1,0 +1,169 @@
+/* H-10 Tagihan & pembayaran (T-029). Semua warna lewat token T-007; mobile first. */
+.tagihan {
+  padding-block: var(--space-4) var(--space-8);
+}
+.tagihan h1 {
+  font-size: var(--text-2xl);
+  line-height: var(--leading-tight);
+  margin: 0;
+}
+.tagihan h2 {
+  font-size: var(--text-xl);
+  margin: 0;
+}
+.tagihan p {
+  margin: 0;
+}
+.tagihan__nomor,
+.tagihan__catatan,
+.tagihan__label {
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+}
+.tagihan__skeleton {
+  height: 12rem;
+  border-radius: var(--radius-lg);
+}
+.tagihan__waktu {
+  text-align: center;
+}
+.tagihan__tegas {
+  font-weight: var(--weight-semibold);
+}
+.tagihan__nominal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.tagihan__angka {
+  font-size: var(--text-3xl);
+  font-weight: var(--weight-bold);
+}
+.tagihan__rincian {
+  margin: var(--space-2) 0 0;
+  display: grid;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+.tagihan__rincian > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.tagihan__rincian dd {
+  margin: 0;
+}
+.tagihan__peringatan {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+.tagihan__info {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-info-soft);
+  color: var(--color-info);
+}
+.tagihan__status {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.tagihan__status-judul {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+}
+.tagihan__status--sukses {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+.tagihan__status--info {
+  background: var(--color-info-soft);
+  color: var(--color-info);
+}
+.tagihan__status--bahaya {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+/* QR: latar putih juga di tema gelap (T-007 H-10). Ukuran besar tapi tidak melebihi layar. */
+.tagihan__qr {
+  background: #ffffff;
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  display: flex;
+  justify-content: center;
+}
+.qr {
+  display: block;
+  width: min(100%, 18rem);
+  height: auto;
+  aspect-ratio: 1;
+}
+.tagihan__va {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+}
+.tagihan__va-nomor {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.02em;
+  overflow-wrap: anywhere;
+}
+.tagihan__va-nama {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+.tagihan__salin {
+  color: var(--color-success);
+  font-size: var(--text-sm);
+}
+.tagihan__langkah {
+  margin: 0;
+  padding-inline-start: var(--space-5);
+  display: grid;
+  gap: var(--space-1);
+}
+.tagihan__akordeon summary {
+  min-height: var(--tap-min);
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-weight: var(--weight-medium);
+}
+.tagihan__metode fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.tagihan__metode legend {
+  font-weight: var(--weight-semibold);
+  margin-bottom: var(--space-2);
+}
+.tagihan__opsi {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--tap-comfort);
+  padding-inline: var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+.tagihan__opsi:has(input:checked) {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+.tagihan__opsi input {
+  width: 1.25rem;
+  height: 1.25rem;
+  accent-color: var(--color-primary);
+}
+.tagihan__bank {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}

@@ -7,6 +7,7 @@ import { PilihZona } from "./halaman/PilihZona";
 import { Segera, TidakDitemukan } from "./halaman/Segera";
 import { AppShell } from "./layout/AppShell";
 import { RUTE_PEMBELI, atributTema, type PilihanTema } from "./rute";
+import { HalamanTagihan } from "./tagihan/HalamanTagihan";
 import "./styles/tokens.css";
 
 function terapkanTema() {
@@ -31,6 +32,8 @@ if (!akar) {
 // Halaman yang sudah dibuat; sisanya "sedang disiapkan".
 const HALAMAN_JADI: Record<string, ReactElement> = {
   "/zona": <PilihZona />,
+  // T-029: instruksi bayar QRIS/VA + status (data dari API; 401 sampai login pembeli T-016).
+  "/tagihan/:id": <HalamanTagihan />,
 };
 
 const anak: RouteObject[] = RUTE_PEMBELI.map((r) =>
