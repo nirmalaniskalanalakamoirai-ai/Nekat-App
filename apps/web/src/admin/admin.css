@@ -280,3 +280,30 @@
   color: var(--color-success);
   text-decoration: none;
 }
+
+/* Drawer ponsel: latar penutup + tombol tutup (Escape juga menutup, lihat AdminApp). */
+.adm-sisi__kepala {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.adm-latar {
+  position: fixed;
+  inset: 0;
+  background: var(--color-overlay);
+  z-index: calc(var(--z-sheet) - 1);
+}
+@media (min-width: 900px) {
+  .adm-sisi__tutup,
+  .adm-latar {
+    display: none;
+  }
+}
+
+/* Tautan teks yang dipakai sebagai navigasi: target sentuh ≥ 44 px (T-007 §3.2). */
+.adm-tautan {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-min);
+}

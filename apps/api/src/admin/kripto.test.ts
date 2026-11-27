@@ -155,10 +155,23 @@ describe("konfigurasi admin dari env", () => {
     );
   });
   it("TRUST_PROXY hanya alamat/CIDR (bukan hop/kata kunci)", () => {
-    for (const ok of ["127.0.0.1", "10.0.0.0/8", "::1", "fd00::/8"]) {
+    for (const ok of ["127.0.0.1", "10.0.0.0/8", "::1", "fd00::/32"]) {
       expect(alamatAtauCidr(ok)).toBe(true);
     }
-    for (const salah of ["1", "true", "loopback", "10.0.0.0/33", "300.1.1.1", "1.2.3.4/8/1"]) {
+    for (const salah of [
+      "1",
+      "true",
+      "loopback",
+      "10.0.0.0/33",
+      "300.1.1.1",
+      "1.2.3.4/8/1",
+      "0.0.0.0/0",
+      "0.0.0.0",
+      "10.0.0.0/7",
+      "::/0",
+      "::",
+      "fd00::/16",
+    ]) {
       expect(alamatAtauCidr(salah)).toBe(false);
     }
   });

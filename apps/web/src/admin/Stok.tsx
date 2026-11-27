@@ -26,7 +26,13 @@ export function HalamanStok() {
   return (
     <section className="l-stack" aria-labelledby="judul-stok">
       <h1 id="judul-stok">Stok & Gudang</h1>
-      {gudang.data?.gudang.length === 0 && <p>Belum ada gudang (isi dari config/lokasi.json).</p>}
+      {gudang.data?.gudang.length === 0 && (
+        <p className="adm-peringatan" role="status">
+          Belum ada gudang di database. Gudang diambil dari <code>config/lokasi.json</code>: minta
+          tim teknis menjalankan perintah sinkron lokasi (<code>db:sinkron-lokasi</code>, T-015b)
+          setelah migrasi & seed.
+        </p>
+      )}
       {gudang.data && gudang.data.gudang.length > 0 && (
         <div className="l-cluster">
           <label className="adm-field">

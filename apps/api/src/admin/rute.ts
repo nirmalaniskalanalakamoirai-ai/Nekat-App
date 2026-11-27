@@ -101,6 +101,8 @@ const GALAT = {
     pesan: "Status aktif SKU diatur Gudang saat sumber stok = Gudang.",
   },
   INTERNAL: { kode: "GALAT_INTERNAL", pesan: "Terjadi kesalahan. Coba lagi." },
+  TERLALU_BESAR: { kode: "BODY_TERLALU_BESAR", pesan: "Data yang dikirim terlalu besar." },
+  TIDAK_ADA_RUTE: { kode: "RUTE_TIDAK_ADA", pesan: "Alamat API admin tidak dikenal." },
 } as const;
 
 const skemaGalat = z.object({
@@ -260,7 +262,10 @@ export const ruteAdmin: FastifyPluginCallbackZod<OpsiRuteAdmin> = (r, opsi, sele
       const isian = [
         ...new Set(err.validation.map((v) => v.instancePath.replace(/^\//, "") || "body")),
       ];
-      return reply.code(400).send({ ...GALAT.INPUT, isian });
+      // Sebut nama isian (path Zod) yang salah, tanpa nilainya.
+      return reply
+        .code(400)
+        .send({ ...GALAT.INPUT, pesan: `${GALAT.INPUT.pesan} Isian: ${isian.join(", ")}.`, isian });
     }
     if (err instanceof GalatRepoAdmin) {
       const status =
@@ -271,21 +276,39 @@ export const ruteAdmin: FastifyPluginCallbackZod<OpsiRuteAdmin> = (r, opsi, sele
             : 422;
       return reply.code(status).send({ kode: err.kode, pesan: err.alasan });
     }
+    // Galat 4xx Fastify (413 body terlalu besar, 415, 400 JSON rusak, dst.) diteruskan dengan
+    // status aslinya dan bentuk galat seragam, tanpa detail internal.
     const e = err as { statusCode?: number };
     if (e.statusCode === 415) return reply.code(415).send(GALAT.JENIS_KONTEN);
+    if (e.statusCode === 413) return reply.code(413).send(GALAT.TERLALU_BESAR);
     if (e.statusCode === 400) return reply.code(400).send(GALAT.INPUT);
+    if (e.statusCode !== undefined && e.statusCode >= 400 && e.statusCode < 500) {
+      return reply
+        .code(e.statusCode)
+        .send({ kode: `HTTP_${String(e.statusCode)}`, pesan: GALAT.INPUT.pesan });
+    }
     req.log.error({ err }, "admin: galat tak terduga");
     return reply.code(500).send(GALAT.INTERNAL);
   });
 
-  // Lapis 1: header keamanan, batas laju umum, jenis konten, origin.
-  r.addHook("onRequest", async (req, reply) => {
+  function headerKeamanan(reply: FastifyReply): void {
     void reply.header("cache-control", "no-store");
     void reply.header("x-content-type-options", "nosniff");
-    // Anti clickjacking (halaman /admin sendiri: header sama di reverse proxy, lihat .env.example).
     void reply.header("content-security-policy", "frame-ancestors 'none'");
     void reply.header("x-frame-options", "DENY");
     void reply.header("referrer-policy", "no-referrer");
+  }
+
+  // 404 di bawah /api/admin: header keamanan + JSON seragam (bukan halaman bawaan Fastify).
+  r.setNotFoundHandler((_req, reply) => {
+    headerKeamanan(reply);
+    return reply.code(404).send(GALAT.TIDAK_ADA_RUTE);
+  });
+
+  // Lapis 1: header keamanan, batas laju umum, jenis konten, origin.
+  r.addHook("onRequest", async (req, reply) => {
+    // Anti clickjacking dll. (halaman /admin sendiri: header sama di reverse proxy, lihat .env.example).
+    headerKeamanan(reply);
     if (!batasUmum.ambil(req.ip)) {
       void reply.header("retry-after", String(batasUmum.sisaDetik(req.ip)));
       return reply.code(429).send(GALAT.TERLALU_SERING);
@@ -353,13 +376,14 @@ export const ruteAdmin: FastifyPluginCallbackZod<OpsiRuteAdmin> = (r, opsi, sele
       alasan: alasanTeks && alasanTeks.length > 0 ? alasanTeks : null,
     };
   }
-  function batasMasukLewat(req: FastifyRequest, reply: FastifyReply): boolean {
+  /** `global=false` untuk langkah TOTP: hanya langkah kata sandi (scrypt) yang dihitung global. */
+  function batasMasukLewat(req: FastifyRequest, reply: FastifyReply, global = true): boolean {
     if (!batasMasuk.ambil(req.ip)) {
       void reply.header("retry-after", String(batasMasuk.sisaDetik(req.ip)));
       void reply.code(429).send(GALAT.TERLALU_SERING);
       return true;
     }
-    if (opsi.batasMasukGlobalPerMenit !== 0 && !batasMasukGlobal.ambil("global")) {
+    if (global && opsi.batasMasukGlobalPerMenit !== 0 && !batasMasukGlobal.ambil("global")) {
       void reply.header("retry-after", String(batasMasukGlobal.sisaDetik("global")));
       void reply.code(503).send(GALAT.SIBUK);
       return true;
@@ -410,7 +434,7 @@ export const ruteAdmin: FastifyPluginCallbackZod<OpsiRuteAdmin> = (r, opsi, sele
       },
     },
     async (req, reply) => {
-      if (batasMasukLewat(req, reply)) return reply;
+      if (batasMasukLewat(req, reply, false)) return reply;
       const a = wajib(auth);
       const pra = bacaCookie(req.headers.cookie, COOKIE_PRA);
       if (!pra || !(await a.adaSesiPra(pra))) {

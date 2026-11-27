@@ -718,3 +718,77 @@ describe("perbaikan audit S1–S7", () => {
     expect(l.katalog.panggilan).not.toContain("buatSku");
   });
 });
+
+describe("putaran 3: galat seragam, 404, batas global", () => {
+  it("body > 1 MB → 413 seragam (bukan 500)", async () => {
+    const l = await siapkan();
+    const r = await l.app.inject({
+      method: "POST",
+      url: "/api/admin/masuk",
+      headers: { "content-type": "application/json" },
+      payload: JSON.stringify({ nomorHp: HP, kataSandi: "x".repeat(1_100_000) }),
+    });
+    expect(r.statusCode).toBe(413);
+    expect(r.json<{ kode: string }>().kode).toBe("BODY_TERLALU_BESAR");
+  });
+
+  it("JSON rusak → 400 seragam", async () => {
+    const l = await siapkan();
+    const r = await l.app.inject({
+      method: "POST",
+      url: "/api/admin/masuk",
+      headers: { "content-type": "application/json" },
+      payload: "{bukan json",
+    });
+    expect(r.statusCode).toBe(400);
+    expect(r.json<{ kode: string }>().kode).toBe("INPUT_TIDAK_VALID");
+  });
+
+  it("404 di bawah /api/admin: JSON seragam + header keamanan", async () => {
+    const l = await siapkan();
+    // Tanpa sesi: 401 (keberadaan rute tidak dibocorkan), tetap dengan header keamanan.
+    const anon = await l.app.inject({ method: "GET", url: "/api/admin/tidak-ada" });
+    expect(anon.statusCode).toBe(401);
+    expect(anon.headers["x-frame-options"]).toBe("DENY");
+    const { sesi } = await masukPenuh(l);
+    const r = await l.app.inject({
+      method: "GET",
+      url: "/api/admin/tidak-ada",
+      headers: { cookie: `${COOKIE_SESI}=${sesi}` },
+    });
+    expect(r.statusCode).toBe(404);
+    expect(r.json<{ kode: string }>().kode).toBe("RUTE_TIDAK_ADA");
+    expect(r.headers["x-frame-options"]).toBe("DENY");
+    expect(r.headers["content-security-policy"]).toBe("frame-ancestors 'none'");
+    expect(r.headers["cache-control"]).toBe("no-store");
+  });
+
+  it("galat 400 menyebut nama isian yang salah, tanpa nilainya", async () => {
+    const l = await siapkan();
+    const { sesi, csrf } = await masukPenuh(l);
+    const r = await l.app.inject({
+      method: "POST",
+      url: "/api/admin/sku/00000000-0000-7000-8000-000000000001/satuan",
+      headers: { cookie: `${COOKIE_SESI}=${sesi}`, "x-csrf-token": csrf },
+      payload: { jenis: "PCS_1", beratGram: 0 },
+    });
+    expect(r.statusCode).toBe(400);
+    const isi = r.json<{ pesan: string; isian: string[] }>();
+    expect(isi.isian).toEqual(["beratGram"]);
+    expect(isi.pesan).toContain("beratGram");
+  });
+
+  it("langkah TOTP tidak dihitung ke batas masuk global", async () => {
+    const l = await siapkan({ batasMasukGlobalPerMenit: 1 });
+    expect((await langkah1(l, "salah-salah-salah")).statusCode).toBe(401);
+    for (let i = 0; i < 3; i++) {
+      const r = await l.app.inject({
+        method: "POST",
+        url: "/api/admin/masuk/totp",
+        payload: { kode: "123456" },
+      });
+      expect(r.statusCode).toBe(401); // SESI_PRA_HABIS, bukan 503 batas global
+    }
+    expect((await langkah1(l, "salah-salah-salah")).statusCode).toBe(503);
+  });
+});

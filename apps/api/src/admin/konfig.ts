@@ -117,7 +117,10 @@ export function alamatAtauCidr(v: string): boolean {
   const [ip, prefiks, ...lebih] = v.split("/");
   const versi = isIP(ip ?? "");
   if (versi === 0 || lebih.length > 0) return false;
+  // Alamat "semua" bukan proxy (0.0.0.0, ::) — mempercayainya = mempercayai siapa saja.
+  if (/^0+(\.0+){3}$/.test(ip ?? "") || /^[0:]+$/.test(ip ?? "")) return false;
   if (prefiks === undefined) return true;
   const n = /^\d{1,3}$/.test(prefiks) ? Number(prefiks) : -1;
-  return n >= 0 && n <= (versi === 4 ? 32 : 128);
+  // Rentang terlalu lebar ditolak: IPv4 minimal /8, IPv6 minimal /32.
+  return versi === 4 ? n >= 8 && n <= 32 : n >= 32 && n <= 128;
 }

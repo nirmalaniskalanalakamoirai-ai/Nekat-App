@@ -13,6 +13,7 @@ import {
   type Sku,
 } from "./api";
 import { Paginasi } from "./Paginasi";
+import { isiBebas, jenisTerpilih, jenisTersedia } from "./satuan";
 
 const teks = nilaiForm;
 
@@ -98,7 +99,9 @@ export function DaftarProduk() {
             {q.data.produk.map((p) => (
               <tr key={p.id}>
                 <td data-label="Nama">
-                  <Link to={`/admin/produk/${p.id}`}>{p.nama}</Link>
+                  <Link to={`/admin/produk/${p.id}`} className="adm-tautan">
+                    {p.nama}
+                  </Link>
                 </td>
                 <td data-label="Kategori">
                   {p.indukKategoriNama ? `${p.indukKategoriNama} › ` : ""}
@@ -190,7 +193,9 @@ export function FormProduk({ sumber = "local" }: { sumber?: "local" | "gudang" }
   return (
     <div className="l-stack adm-form-produk">
       <p>
-        <Link to="/admin/produk">← Daftar produk</Link>
+        <Link to="/admin/produk" className="adm-tautan">
+          ← Daftar produk
+        </Link>
       </p>
       <section className="card l-stack" aria-labelledby="judul-form-produk">
         <div className="adm-judul">
@@ -317,7 +322,7 @@ function BagianSku({
               name="kodeSku"
               required
               maxLength={64}
-              pattern="[A-Za-z0-9][A-Za-z0-9._-]*"
+              pattern="[A-Za-z0-9][A-Za-z0-9._\-]*"
             />
           </label>
           <label className="adm-field">
@@ -346,8 +351,6 @@ function BagianSku({
   );
 }
 
-const JENIS: JenisSatuan[] = ["PCS_1", "PCS_3", "LUSIN", "DUS", "KOLI"];
-
 function KartuSku({
   sku,
   sumber,
@@ -372,7 +375,10 @@ function KartuSku({
     onSuccess: onBerubah,
   });
   const dipakai = new Set(sku.satuan.map((x) => x.jenis));
-  const isiBebas = jenis === "DUS" || jenis === "KOLI";
+  const tersedia = jenisTersedia(dipakai);
+  // Selalu sinkron dengan opsi yang benar-benar ada (bug-03: state lama tidak ikut terkirim).
+  const aktif = jenisTerpilih(jenis, tersedia);
+  const perluIsi = isiBebas(aktif);
 
   return (
     <article className="card l-stack" aria-label={`SKU ${sku.kodeSku}`}>
@@ -440,7 +446,7 @@ function KartuSku({
                   form={`satuan-${x.id}`}
                   name="berat"
                   type="number"
-                  min={0}
+                  min={1}
                   defaultValue={x.beratGram}
                   aria-label={`Berat ${LABEL_SATUAN[x.jenis]} (gram)`}
                 />
@@ -478,7 +484,7 @@ function KartuSku({
       </table>
       <Galat err={ubahSatuan.error} />
 
-      {dipakai.size < JENIS.length && (
+      {aktif !== null && (
         <form
           className="l-cluster adm-tambah-satuan"
           aria-label={`Tambah satuan jual ${sku.kodeSku}`}
@@ -486,9 +492,9 @@ function KartuSku({
             e.preventDefault();
             const f = new FormData(e.currentTarget);
             tambahSatuan.mutate({
-              jenis,
+              jenis: aktif,
               beratGram: Number(f.get("beratGram")),
-              ...(isiBebas ? { isiSatuanDasar: Number(f.get("isiSatuanDasar")) } : {}),
+              ...(perluIsi ? { isiSatuanDasar: Number(f.get("isiSatuanDasar")) } : {}),
             });
           }}
         >
@@ -496,21 +502,21 @@ function KartuSku({
             <span>Satuan</span>
             <select
               className="input"
-              value={jenis}
+              value={aktif}
               onChange={(e) => {
                 setJenis(e.target.value as JenisSatuan);
               }}
             >
-              {JENIS.filter((j) => !dipakai.has(j)).map((j) => (
+              {tersedia.map((j) => (
                 <option key={j} value={j}>
                   {LABEL_SATUAN[j]}
                 </option>
               ))}
             </select>
           </label>
-          {isiBebas && (
+          {perluIsi && (
             <label className="adm-field">
-              <span>Isi per {LABEL_SATUAN[jenis].toLowerCase()}</span>
+              <span>Isi per {LABEL_SATUAN[aktif].toLowerCase()}</span>
               <input
                 className="input adm-angka"
                 name="isiSatuanDasar"
@@ -522,7 +528,7 @@ function KartuSku({
           )}
           <label className="adm-field">
             <span>Berat (gram)</span>
-            <input className="input adm-angka" name="beratGram" type="number" min={0} required />
+            <input className="input adm-angka" name="beratGram" type="number" min={1} required />
           </label>
           <button className="btn btn--secondary" disabled={tambahSatuan.isPending}>
             Tambah satuan

@@ -57,7 +57,8 @@ async function minta<T>(
   const isi = (await r.json().catch(() => null)) as
     (T & { kode?: string; pesan?: string; isian?: string[] }) | null;
   if (!r.ok) {
-    if (r.status === 401 && !path.startsWith("/masuk")) saatSesiHabis?.();
+    // 401 di /masuk* = gagal masuk; di /saya = memang belum masuk (bukan "sesi habis").
+    if (r.status === 401 && !path.startsWith("/masuk") && path !== "/saya") saatSesiHabis?.();
     throw new GalatAdmin(
       r.status,
       isi?.kode ?? `HTTP_${String(r.status)}`,
@@ -156,7 +157,15 @@ export const apiAdmin = {
   masukTotp: (faktor: { kode: string } | { kodePemulihan: string }) =>
     minta<{ csrfToken: string; sesiBerakhir: string }>("POST", "/masuk/totp", faktor),
   keluar: () => minta<undefined>("POST", "/keluar", {}),
-  saya: () => minta<Saya>("GET", "/saya"),
+  /** null = belum masuk / sesi habis (401). Galat lain tetap dilempar. */
+  saya: async (): Promise<Saya | null> => {
+    try {
+      return await minta<Saya>("GET", "/saya");
+    } catch (err) {
+      if (err instanceof GalatAdmin && err.status === 401) return null;
+      throw err;
+    }
+  },
 
   kategori: () => minta<{ kategori: Kategori[] }>("GET", "/kategori"),
   daftarProduk: (cari: string, halaman: number) =>
