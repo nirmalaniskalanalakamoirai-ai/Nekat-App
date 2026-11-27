@@ -1,12 +1,15 @@
 // Entry proses API. Tidak diimpor oleh tes (tes memakai `buatApp` + `inject`).
 import { bacaKonfigInventory, type KonfigInventory } from "@nekat/adapters";
 import {
+  bacaStatusLokasiDb,
   buatDb,
   buatPembacaSnapshotInventori,
   buatRepoAdminKatalog,
   buatRepoAuthAdmin,
   buatRepoKatalog,
   buatRepoSaldo,
+  rencanakanSinkronLokasi,
+  teksPerubahanLokasi,
   type Db,
   type RepoSaldo,
 } from "@nekat/db";
@@ -143,6 +146,30 @@ const app = buatApp({
 if (!lokasi) app.log.warn("config/lokasi.json belum ada: rute zona menjawab 503");
 if (!katalog) app.log.warn("DATABASE_URL belum diisi: rute katalog menjawab 503");
 if (!admin) app.log.warn("Panel admin belum dikonfigurasi (DATABASE_URL/ADMIN_*): /api/admin 503");
+
+// T-015b: koordinat tetap dibaca dari config (M7); tabel gudang/zona/drop_point hanya cerminan
+// untuk FK. Saat start, peringatkan bila cerminan belum sesuai config (tidak menahan start).
+if (db && lokasi) {
+  const dbLokasi = db;
+  const konfigLokasi = lokasi;
+  void (async () => {
+    try {
+      const rencana = rencanakanSinkronLokasi(konfigLokasi, await bacaStatusLokasiDb(dbLokasi));
+      if (rencana.langkah.length > 0 || rencana.konflik.length > 0) {
+        app.log.warn(
+          {
+            selisih: rencana.langkah.map(teksPerubahanLokasi),
+            konflik: rencana.konflik,
+            konflikPemakaian: rencana.konflikPemakaian,
+          },
+          "lokasi: DB belum sesuai config/lokasi.json — jalankan `pnpm db:sinkron-lokasi`",
+        );
+      }
+    } catch (err) {
+      app.log.warn({ err }, "lokasi: cek sinkron config → DB gagal");
+    }
+  })();
+}
 try {
   await app.listen({ host: env.data.HOST, port: env.data.PORT });
 } catch (err) {

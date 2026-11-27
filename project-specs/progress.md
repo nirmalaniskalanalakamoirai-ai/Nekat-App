@@ -1,5 +1,12 @@
 # Progress
 
+**Update 27 Nov sore WIB (lanjutan, mode kebut):**
+- Di-merge manusia: #32 (T-015b), #34 (T-006), #35 (T-036).
+- **T-021 ledger saldo → PR #36**: Payments Engineer + Code Reviewer 2 putaran + Security Auditor 2 audit (probe paralel PG16), LULUS. Migrasi 0007. Breaking: sumber kredit wajib invoiceId; debitCheckout mengisi invoice. BAYAR_TERLAMBAT menunggu T-030. Baru L-01–L-05 (L-05 wajib diisi sebelum rute koreksi admin).
+- **T-026 UI katalog → PR #37**: Frontend + Code Reviewer 2 putaran, LULUS; cek visual Playwright. Utang: batch detail keranjang → T-022. Baru C-01–C-04.
+- Butuh manusia: review & merge #36, #37. Keputusan di issue tidak mendesak.
+- Siap berikutnya: T-010, T-029, T-049.
+
 **Update 27 Nov siang WIB (lanjutan sesi Build, mode kebut):**
 - Di-merge manusia: #28 (keputusan.md §15), #29 (T-005), #30 (T-008), #31 (gitlink), #33 (T-019). #32 (T-015b) terbuka, CI hijau.
 - **T-006 ongkir & slot → PR #34**: Operations Manager + Code Reviewer 3 putaran, LULUS. Baru O-01–O-13.

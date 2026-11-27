@@ -257,3 +257,17 @@ DEFAULT SEMENTARA = rekomendasi, kecuali disebut lain. Detail: `docs/flow/ongkir
 | A-03 | Izin baca terpisah (`log.lihat`, `produk.lihat`) | Joseph | belum — DEFAULT: log terbuka untuk semua admin bersesi; tambah `log.lihat` saat ada peran CS |
 | A-04 | Daftar kata pemicu tinjauan nama produk (mirip kategori terlarang) | Randy + Efan | belum — DEFAULT: daftar longgar di kode, hanya memicu tinjauan, tidak menolak |
 | A-05 | Umur sesi admin (240 menit absolut, idle 30 menit), SameSite=Strict, penguncian 5 gagal/15 menit | Joseph | belum — DEFAULT seperti tertulis, dapat diubah lewat env |
+
+## Dari T-021 (ledger saldo, PR #36) dan T-026 (UI katalog, PR #37) — 27 Nov
+
+| # | Keputusan | Pemilik | Status |
+|---|---|---|---|
+| L-01 | SALDO_BALIK (saldo pembeli sendiri yang kembali karena tagihan batal/kedaluwarsa) ke akun DIBEKUKAN: tetap dikredit atau ditahan? | Efan + Joseph | belum — DEFAULT SEMENTARA di kode: tetap dikredit (pemakaian tetap terblokir karena debit menolak akun beku) |
+| L-02 | Kredit ke akun DIHAPUS (K-35) | Randy (+ hukum) | belum — DEFAULT: ditolak, masuk antrean tinjauan |
+| L-03 | Koreksi saldo oleh admin (four-eyes) tetap berlaku untuk akun DIBEKUKAN? | Joseph | belum — DEFAULT: ya |
+| L-04 | Peristiwa yang sama datang ulang dengan nominal berbeda | Joseph | belum — DEFAULT: ditolak (KUNCI_BENTROK) + rollback; rekomendasi: pasang alert |
+| L-05 | Batas nominal koreksi saldo per pengajuan (`saldo.koreksi_maks_rp`) | Efan + Joseph | belum — kosong = tidak dibatasi; **wajib diisi sebelum rute koreksi admin dibuka** (lewat T-037) |
+| C-01 | Produk boleh ditambah ke keranjang sebelum zona dipilih? | Randy | belum — DEFAULT: tidak, tombol + nonaktif dengan ajakan pilih zona |
+| C-02 | Field API katalog tambahan (slug, sisa stok/TERBATAS, idVersiHarga, keteranganHarga) | Joseph | belum — rekomendasi: slug & sisa di T-027/T-028; keteranganHarga & KonteksBelanja di T-022 |
+| C-03 | Keranjang sementara saat ganti zona | Randy | belum — DEFAULT: keranjang per zona, tidak dipindah (F-25); saat T-022 dimigrasi ke server sekali |
+| C-04 | Kategori/subkategori tanpa produk: tampil atau disembunyikan di tab? | Randy | belum — DEFAULT: disembunyikan |
