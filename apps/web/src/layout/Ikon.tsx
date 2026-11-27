@@ -1,6 +1,7 @@
 import type { ItemNavigasi } from "../rute";
 
-type NamaIkon = ItemNavigasi["ikon"] | "cari" | "lokasi";
+export type NamaIkon =
+  ItemNavigasi["ikon"] | "cari" | "lokasi" | "tambah" | "kurang" | "hapus" | "gambar";
 
 const PATH: Record<NamaIkon, string> = {
   belanja: "M4 7h16l-1.5 11.5a2 2 0 0 1-2 1.5h-9a2 2 0 0 1-2-1.5L4 7Zm4 0V6a4 4 0 0 1 8 0v1",
@@ -10,6 +11,10 @@ const PATH: Record<NamaIkon, string> = {
   akun: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-8 9a8 8 0 0 1 16 0",
   cari: "M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14Zm5-2 5 5",
   lokasi: "M12 21s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Zm0-9a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z",
+  tambah: "M12 5v14M5 12h14",
+  kurang: "M5 12h14",
+  hapus: "M4 7h16M10 11v6m4-6v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3",
+  gambar: "M4 5h16v14H4V5Zm0 11 4.5-4.5 3.5 3.5 2.5-2.5L20 17M15 9h.01",
 };
 
 /** Ikon garis sederhana orisinal NEKAT; selalu dekoratif (label teks ada di sampingnya). */

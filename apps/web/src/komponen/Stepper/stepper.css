@@ -1,0 +1,40 @@
+/* Stepper jumlah (T-008 §1.7). Hanya membaca token dari styles/tokens.css. */
+
+.stepper {
+  display: grid;
+  grid-template-columns: var(--tap-min) minmax(1.5rem, 1fr) var(--tap-min);
+  align-items: center;
+  gap: var(--tap-gap);
+  min-width: 0;
+}
+
+.stepper__tombol {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tap-min);
+  height: var(--tap-min);
+  padding: 0;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-primary);
+  cursor: pointer;
+}
+
+.stepper__tombol:hover:not([disabled]) {
+  background: var(--color-primary-soft);
+}
+
+.stepper__tombol[disabled] {
+  border-color: var(--color-border);
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+.stepper__qty {
+  text-align: center;
+  font-weight: var(--weight-bold);
+  font-size: var(--text-base);
+}

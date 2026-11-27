@@ -1,35 +1,13 @@
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect } from "react";
 import { Link, NavLink, Outlet, useLocation, useMatches } from "react-router";
+import { ID_PITA_OFFLINE, useOnline } from "../jaringan/online";
+import { jumlahBaris } from "../keranjang/keranjang";
+import { useKeranjang } from "../keranjang/simpanan";
 import { NAVIGASI_BAWAH, tampilkanNavigasiBawah } from "../rute";
-import { bacaZona, langgananZona } from "../zona/simpanan";
+import { TEKS } from "../teks/id";
+import { useZonaTerpilih } from "../zona/simpanan";
 import { Ikon } from "./Ikon";
 import "./shell.css";
-
-function subscribeOnline(cb: () => void) {
-  window.addEventListener("online", cb);
-  window.addEventListener("offline", cb);
-  return () => {
-    window.removeEventListener("online", cb);
-    window.removeEventListener("offline", cb);
-  };
-}
-
-function useOnline(): boolean {
-  return useSyncExternalStore(
-    subscribeOnline,
-    () => navigator.onLine,
-    () => true,
-  );
-}
-
-// useSyncExternalStore butuh nilai stabil antar render: cache per isi JSON.
-let cacheZona: { kunci: string; nilai: ReturnType<typeof bacaZona> } = { kunci: "", nilai: null };
-function bacaZonaStabil() {
-  const nilai = bacaZona();
-  const kunci = JSON.stringify(nilai);
-  if (kunci !== cacheZona.kunci) cacheZona = { kunci, nilai };
-  return cacheZona.nilai;
-}
 
 interface HandleRute {
   judul?: string;
@@ -39,7 +17,10 @@ interface HandleRute {
 export function AppShell() {
   const { pathname } = useLocation();
   const online = useOnline();
-  const zona = useSyncExternalStore(langgananZona, bacaZonaStabil, () => null);
+  const zona = useZonaTerpilih();
+  // Lencana keranjang (T-007 §3.3): jumlah baris keranjang sementara zona aktif.
+  const [keranjang] = useKeranjang(zona?.zonaKode ?? null);
+  const nBaris = jumlahBaris(keranjang);
   const denganNavigasi = tampilkanNavigasiBawah(pathname);
   const matches = useMatches();
   const judul = matches
@@ -75,16 +56,27 @@ export function AppShell() {
             <Link to="/cari" className="tap appbar__ikon" aria-label="Cari produk">
               <Ikon nama="cari" />
             </Link>
-            <Link to="/keranjang" className="tap appbar__ikon" aria-label="Keranjang">
-              <Ikon nama="keranjang" />
+            <Link
+              to="/keranjang"
+              className="tap appbar__ikon"
+              aria-label={nBaris > 0 ? `Keranjang, ${TEKS.jumlahBarangSr(nBaris)}` : "Keranjang"}
+            >
+              <span className="ikon-lencana">
+                <Ikon nama="keranjang" />
+                {nBaris > 0 && (
+                  <span className="lencana num" aria-hidden="true">
+                    {nBaris}
+                  </span>
+                )}
+              </span>
             </Link>
           </div>
         </div>
       </header>
 
       {!online && (
-        <div className="pita pita--offline" role="status">
-          Kamu sedang offline. Harga dan stok akan diperbarui saat tersambung lagi.
+        <div id={ID_PITA_OFFLINE} className="pita pita--offline" role="status">
+          {TEKS.offline}
         </div>
       )}
 
@@ -94,12 +86,23 @@ export function AppShell() {
 
       {denganNavigasi && (
         <nav className="l-bottomnav" aria-label="Navigasi utama">
-          {NAVIGASI_BAWAH.map((n) => (
-            <NavLink key={n.ke} to={n.ke} end={n.ke === "/"} className="tap bottomnav__item">
-              <Ikon nama={n.ikon} />
-              <span className="bottomnav__label">{n.label}</span>
-            </NavLink>
-          ))}
+          {NAVIGASI_BAWAH.map((n) => {
+            const lencana = n.ikon === "keranjang" && nBaris > 0;
+            return (
+              <NavLink key={n.ke} to={n.ke} end={n.ke === "/"} className="tap bottomnav__item">
+                <span className="ikon-lencana">
+                  <Ikon nama={n.ikon} />
+                  {lencana && (
+                    <span className="lencana num" aria-hidden="true">
+                      {nBaris}
+                    </span>
+                  )}
+                </span>
+                <span className="bottomnav__label">{n.label}</span>
+                {lencana && <span className="sr-only">, {TEKS.jumlahBarangSr(nBaris)}</span>}
+              </NavLink>
+            );
+          })}
         </nav>
       )}
     </div>

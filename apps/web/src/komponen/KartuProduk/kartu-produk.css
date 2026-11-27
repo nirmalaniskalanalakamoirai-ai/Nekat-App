@@ -1,0 +1,169 @@
+/* KartuProduk (T-008 §1, T-007 H-02). Hanya membaca token dari styles/tokens.css. */
+
+.kartu {
+  --kartu-pad: var(--space-2);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--kartu-pad);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+}
+
+.kartu__tautan {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  color: var(--color-text);
+  text-decoration: none;
+  border-radius: var(--radius-md);
+}
+
+.kartu__foto {
+  position: relative;
+  margin: 0;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+}
+
+.kartu__foto img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* K-20: hanya GAMBAR yang diabukan; teks tetap kontras penuh (bukan opacity). */
+.kartu__foto--habis img,
+.kartu__foto--habis .kartu__foto-kosong {
+  filter: grayscale(1);
+}
+
+.kartu__foto-kosong {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: var(--color-text-subtle);
+}
+
+.kartu__status {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  right: var(--space-2);
+  justify-content: flex-start;
+  white-space: normal;
+  line-height: var(--leading-tight);
+  padding-block: var(--space-1);
+  box-shadow: var(--shadow-1);
+  /* Sisakan ruang untuk tombol "+" di pojok kanan bawah foto. */
+  max-height: calc(100% - var(--tap-comfort) - var(--space-4));
+  overflow: hidden;
+}
+
+.kartu__nama {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-tight);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+/* Lapisan seukuran foto (1:1) untuk menaruh "+" di pojok kanan bawah foto, di LUAR tautan. */
+.kartu__aksi {
+  position: absolute;
+  top: var(--kartu-pad);
+  left: var(--kartu-pad);
+  right: var(--kartu-pad);
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: var(--space-2);
+  pointer-events: none;
+}
+
+.kartu__aksi > * {
+  pointer-events: auto;
+}
+
+.kartu__tambah {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tap-comfort);
+  height: var(--tap-comfort);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--color-primary);
+  color: var(--color-text-on-primary);
+  box-shadow: var(--shadow-2);
+  cursor: pointer;
+}
+
+.kartu__tambah:hover:not([disabled]) {
+  background: var(--color-primary-hover);
+}
+
+.kartu__tambah[disabled] {
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border-strong);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+/* Stok habis: teks biasa di kotak 48px, bukan tombol (TC-UI-06): tanpa bingkai/bentuk pil
+   agar tidak tampak bisa ditekan. */
+.kartu__habis {
+  display: flex;
+  align-items: center;
+  min-height: var(--tap-comfort);
+  margin: 0;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  cursor: default;
+}
+
+.kartu__bawah {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: auto;
+}
+
+.kartu__satuan {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/* Skeleton kartu (T-008 §1.5 "Memuat") */
+.kartu--skeleton .kartu__foto {
+  background: var(--color-skeleton);
+}
+
+.kartu__garis {
+  height: 1rem;
+}
+
+.kartu__garis--pendek {
+  width: 60%;
+}

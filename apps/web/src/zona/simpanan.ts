@@ -1,5 +1,6 @@
 // Zona terpilih disimpan di HP (sesi lokal, T-007 H-01). Bukan data rahasia: hanya kode & nama zona,
 // TIDAK menyimpan koordinat pembeli.
+import { useSyncExternalStore } from "react";
 
 export interface ZonaTerpilih {
   zonaKode: string;
@@ -46,6 +47,20 @@ export function langgananZona(cb: () => void): () => void {
     window.removeEventListener(PERISTIWA, cb);
     window.removeEventListener("storage", cb);
   };
+}
+
+// useSyncExternalStore butuh nilai stabil antar render: cache per isi JSON.
+let cacheZona: { kunci: string; nilai: ZonaTerpilih | null } = { kunci: "null", nilai: null };
+function bacaZonaStabil(): ZonaTerpilih | null {
+  const nilai = bacaZona();
+  const kunci = JSON.stringify(nilai);
+  if (kunci !== cacheZona.kunci) cacheZona = { kunci, nilai };
+  return cacheZona.nilai;
+}
+
+/** Zona terpilih (null = belum dipilih), ikut berubah saat zona diganti di tab mana pun. */
+export function useZonaTerpilih(): ZonaTerpilih | null {
+  return useSyncExternalStore(langgananZona, bacaZonaStabil, () => null);
 }
 
 /** Tujuan setelah memilih zona: kembali ke link grup bila datang dari sana, selain itu ke Belanja. */
