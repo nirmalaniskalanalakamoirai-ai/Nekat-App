@@ -6,6 +6,7 @@
 // endpoint keranjang, halaman ini TIDAK menampilkan total/subtotal sama sekali, hanya harga satuan
 // terbaru per baris dari server (GET /api/katalog/produk/:id, sama dengan kartu & detail).
 import { useQueries } from "@tanstack/react-query";
+import { useId, useRef } from "react";
 import { Link } from "react-router";
 import { GalatApi } from "../api/klien";
 import { labelSatuan } from "../harga/format";
@@ -22,12 +23,23 @@ import { useZonaTerpilih } from "../zona/simpanan";
 import "./keranjang.css";
 
 interface InfoBaris {
+  /** Sedang mengambil dari server dan belum ada data (offline/tertahan ≠ memuat). */
   readonly memuat: boolean;
+  /** Gagal selain 404 → tombol "Coba lagi". */
   readonly gagal: boolean;
   /** Produk tidak tayang lagi (404). */
   readonly hilang: boolean;
   readonly detail: DetailProdukApi | undefined;
+  readonly cobaLagi: () => void;
 }
+
+const INFO_KOSONG: InfoBaris = {
+  memuat: false,
+  gagal: false,
+  hilang: false,
+  detail: undefined,
+  cobaLagi: () => undefined,
+};
 
 function Baris({
   item,
@@ -48,7 +60,7 @@ function Baris({
   const tidakTersedia = info.hilang || satuanHilang;
   const labelStok = satuan && satuan.statusStok !== "TERSEDIA" ? satuan.labelStok : null;
   const bolehNaik = online && satuan?.tersedia === true;
-  const idStatus = `status-${item.idSatuanJual}`;
+  const idStatus = useId();
   const gambar = info.detail?.gambarUrl ?? null;
 
   return (
@@ -74,7 +86,7 @@ function Baris({
           <p className="baris__status" id={idStatus}>
             {info.hilang ? TEKS.barangTidakTersedia : TEKS.satuanTidakTersedia}
           </p>
-        ) : info.memuat && !info.detail ? (
+        ) : info.memuat ? (
           <div className="skeleton baris__garis" aria-hidden="true" />
         ) : (
           <Harga
@@ -88,7 +100,20 @@ function Baris({
             {labelStok}
           </p>
         )}
-        {info.gagal && !info.detail && <p className="baris__status">{TEKS.gagalMuat}</p>}
+        {info.gagal && !info.detail && (
+          <div className="baris__gagal" role="alert">
+            <p className="baris__status">{TEKS.gagalHarga}</p>
+            <button
+              type="button"
+              className="btn btn--ghost"
+              disabled={!online}
+              aria-describedby={online ? undefined : ID_PITA_OFFLINE}
+              onClick={info.cobaLagi}
+            >
+              {TEKS.cobaLagi}
+            </button>
+          </div>
+        )}
 
         <div className="baris__aksi">
           {tidakTersedia ? (
@@ -133,8 +158,10 @@ export function Keranjang() {
   const online = useOnline();
   const [keranjang, ubahKeranjang] = useKeranjang(zonaKode ?? null);
   const snack = useSnackbar();
+  const refJudul = useRef<HTMLHeadingElement>(null);
 
-  // Satu permintaan per PRODUK (bukan per baris): harga & stok terbaru dari server.
+  // Satu permintaan per PRODUK (bukan per baris): harga & stok terbaru dari server. Maks BARIS_MAKS
+  // baris. Utang: ganti dengan endpoint batch / keranjang server (T-022).
   const idProduk = [...new Set(keranjang.item.map((i) => i.idProduk))];
   const hasil = useQueries({
     queries: idProduk.map((id) => ({
@@ -148,11 +175,16 @@ export function Keranjang() {
   const infoPer = new Map<string, InfoBaris>();
   idProduk.forEach((id, i) => {
     const q = hasil[i];
+    if (!q) return;
+    const hilang = q.error instanceof GalatApi && q.error.status === 404;
     infoPer.set(id, {
-      memuat: q?.isPending ?? true,
-      gagal: q?.isError ?? false,
-      hilang: q?.error instanceof GalatApi && q.error.status === 404,
-      detail: q?.data,
+      memuat: q.data === undefined && q.fetchStatus === "fetching",
+      gagal: q.isError && !hilang,
+      hilang,
+      detail: q.data,
+      cobaLagi: () => {
+        void q.refetch();
+      },
     });
   });
 
@@ -178,6 +210,8 @@ export function Keranjang() {
     snack.umumkan(TEKS.dihapusLive(nama));
     snack.tampilkan({
       pesan: TEKS.dihapus(nama),
+      // Tombol baris yang ditekan hilang: fokus pindah ke "Urungkan" agar tidak tercecer.
+      fokusAksi: true,
       aksi: {
         label: TEKS.urungkan,
         onKlik: () => {
@@ -191,7 +225,7 @@ export function Keranjang() {
   return (
     <section className="keranjang l-stack" aria-labelledby="judul-halaman">
       <div className="l-stack l-stack--sm">
-        <h1 id="judul-halaman" className="keranjang__judul">
+        <h1 id="judul-halaman" className="keranjang__judul" ref={refJudul} tabIndex={-1}>
           {TEKS.keranjangJudul}
         </h1>
         <p className="keranjang__zona">{TEKS.keranjangZona(zona?.namaKelurahan ?? "")}</p>
@@ -210,20 +244,13 @@ export function Keranjang() {
         </div>
       ) : (
         <>
-          <ul className="keranjang__daftar" aria-label="Barang di keranjang">
+          <ul className="keranjang__daftar" aria-label={TEKS.daftarKeranjang}>
             {keranjang.item.map((item) => (
               <Baris
                 key={item.idSatuanJual}
                 item={item}
                 online={online}
-                info={
-                  infoPer.get(item.idProduk) ?? {
-                    memuat: true,
-                    gagal: false,
-                    hilang: false,
-                    detail: undefined,
-                  }
-                }
+                info={infoPer.get(item.idProduk) ?? INFO_KOSONG}
                 onUbah={(qty, bolehNaik) => {
                   const baru = ubahKeranjang((k) => ubahQty(k, item.idSatuanJual, qty, bolehNaik));
                   const n = baru.item.find((i) => i.idSatuanJual === item.idSatuanJual)?.qty ?? 0;
@@ -239,7 +266,15 @@ export function Keranjang() {
         </>
       )}
 
-      <Snackbar isi={snack.isi} umum={snack.umum} tutup={snack.tutup} />
+      <Snackbar
+        isi={snack.isi}
+        umum={snack.umum}
+        tutup={snack.tutup}
+        setJeda={snack.setJeda}
+        kembalikanFokus={() => {
+          refJudul.current?.focus();
+        }}
+      />
     </section>
   );
 }

@@ -2,13 +2,8 @@
 // deret (`.l-scroll-x`), bukan halaman. Pola WAI-ARIA tabs aktivasi manual: panah kiri/kanan,
 // Home/End memindah fokus; Enter/Spasi memilih. Jumlah dibaca "24 produk".
 import { useRef, type KeyboardEvent } from "react";
+import { indeksTabBerikut, type ItemTab } from "../../katalog/logika";
 import { TEKS } from "../../teks/id";
-
-export interface ItemTab {
-  readonly kunci: string;
-  readonly label: string;
-  readonly jumlah: number;
-}
 
 export interface DeretTabProps {
   readonly label: string;
@@ -32,11 +27,7 @@ export function DeretTab({ label, item, terpilih, idPanel, idAwalan, onPilih }: 
     );
     const i = tombol.findIndex((t) => t === document.activeElement);
     if (i < 0) return;
-    let j: number | null = null;
-    if (e.key === "ArrowRight") j = (i + 1) % tombol.length;
-    else if (e.key === "ArrowLeft") j = (i - 1 + tombol.length) % tombol.length;
-    else if (e.key === "Home") j = 0;
-    else if (e.key === "End") j = tombol.length - 1;
+    const j = indeksTabBerikut(e.key, i, tombol.length);
     if (j === null) return;
     e.preventDefault();
     tombol[j]?.focus();

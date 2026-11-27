@@ -132,3 +132,18 @@
 .baris__hapus {
   padding-inline: var(--space-3);
 }
+
+.keranjang__judul:focus {
+  outline: none;
+}
+
+.keranjang__judul:focus-visible {
+  outline: var(--focus-width) solid var(--color-focus);
+}
+
+.baris__gagal {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}

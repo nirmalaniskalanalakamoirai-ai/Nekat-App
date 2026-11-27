@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  BARIS_MAKS,
+  keranjangPenuh,
+  NAMA_MAKS,
   hapus,
   jumlahBaris,
   KERANJANG_KOSONG,
@@ -46,6 +49,19 @@ describe("tambah", () => {
     let k = ubahQty(tambah(KERANJANG_KOSONG, minyak), "sj-1", QTY_MAKS, true);
     k = tambah(k, minyak);
     expect(qtyDi(k, "sj-1")).toBe(QTY_MAKS);
+  });
+
+  it(`maks ${BARIS_MAKS} baris: baris baru ditolak, baris lama tetap bisa ditambah`, () => {
+    let k = KERANJANG_KOSONG;
+    for (let i = 0; i < BARIS_MAKS; i++) k = tambah(k, { ...minyak, idSatuanJual: `sj-${i}` });
+    expect(keranjangPenuh(k)).toBe(true);
+    expect(tambah(k, { ...minyak, idSatuanJual: "sj-baru" })).toBe(k);
+    expect(qtyDi(tambah(k, { ...minyak, idSatuanJual: "sj-0" }), "sj-0")).toBe(2);
+  });
+
+  it(`nama dipotong ${NAMA_MAKS} karakter`, () => {
+    const k = tambah(KERANJANG_KOSONG, { ...minyak, nama: "x".repeat(500) });
+    expect(k.item[0]?.nama).toHaveLength(NAMA_MAKS);
   });
 
   it("tidak mengubah objek lama (imutabel)", () => {
@@ -109,6 +125,15 @@ describe("uraiKeranjang (data tersimpan)", () => {
   it("tidak pernah menyimpan harga", () => {
     const k = tambah(KERANJANG_KOSONG, minyak);
     expect(serialisasi(k)).not.toMatch(/harga|Rp/i);
+  });
+
+  it(`data tersimpan dipotong ke ${BARIS_MAKS} baris`, () => {
+    const item = Array.from({ length: BARIS_MAKS + 10 }, (_, i) => ({
+      ...minyak,
+      idSatuanJual: `sj-${i}`,
+      qty: 1,
+    }));
+    expect(uraiKeranjang(JSON.stringify({ versi: 1, item })).item).toHaveLength(BARIS_MAKS);
   });
 
   it("data rusak / versi lain → kosong", () => {

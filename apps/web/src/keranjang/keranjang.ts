@@ -7,6 +7,12 @@ import { isKodeSatuan, type KodeSatuan } from "../harga/format";
 
 /** Batas jumlah per baris di keranjang sementara (sanity klien; stok final dicek server). */
 export const QTY_MAKS = 99;
+/**
+ * Batas baris keranjang sementara. Halaman keranjang memuat harga terbaru dengan 1 GET per produk
+ * (belum ada endpoint batch / keranjang server, T-022), jadi jumlah baris dibatasi.
+ */
+export const BARIS_MAKS = 50;
+export const NAMA_MAKS = 200;
 export const VERSI_KERANJANG = 1;
 
 export interface ItemKeranjang {
@@ -47,18 +53,25 @@ export function jumlahBaris(k: Keranjang): number {
   return k.item.length;
 }
 
+/** Baris baru tidak bisa ditambahkan lagi (baris yang sudah ada tetap bisa ditambah jumlahnya). */
+export function keranjangPenuh(k: Keranjang): boolean {
+  return k.item.length >= BARIS_MAKS;
+}
+
 /**
  * Tambah 1 satuan. Stok habis / tidak diketahui → keranjang TIDAK berubah (K-20, IG-02 DEFAULT).
- * Baris baru ditaruh di akhir; satuan berbeda = baris terpisah (T-007 H-03).
+ * Baris baru ditaruh di akhir; satuan berbeda = baris terpisah (T-007 H-03). Keranjang penuh
+ * (BARIS_MAKS) → baris baru ditolak (keranjang tidak berubah).
  */
 export function tambah(k: Keranjang, c: CalonItem): Keranjang {
   if (!c.tersedia) return k;
   const ada = k.item.find((i) => i.idSatuanJual === c.idSatuanJual);
   if (ada) return ubahQty(k, c.idSatuanJual, ada.qty + 1, true);
+  if (keranjangPenuh(k)) return k;
   const baru: ItemKeranjang = {
     idSatuanJual: c.idSatuanJual,
     idProduk: c.idProduk,
-    nama: c.nama,
+    nama: c.nama.slice(0, NAMA_MAKS),
     kodeSatuan: c.kodeSatuan,
     isi: c.isi,
     qty: 1,
@@ -119,6 +132,7 @@ export function uraiKeranjang(mentah: string | null): Keranjang {
   const terlihat = new Set<string>();
   const item: ItemKeranjang[] = [];
   for (const x of o["item"] as unknown[]) {
+    if (item.length >= BARIS_MAKS) break;
     if (typeof x !== "object" || x === null) continue;
     const i = x as Record<string, unknown>;
     const { idSatuanJual, idProduk, nama, kodeSatuan, isi, qty } = i;
@@ -138,7 +152,7 @@ export function uraiKeranjang(mentah: string | null): Keranjang {
     item.push({
       idSatuanJual,
       idProduk,
-      nama: nama.slice(0, 200),
+      nama: nama.slice(0, NAMA_MAKS),
       kodeSatuan,
       isi: isi as number,
       qty: batasi(qty as number),

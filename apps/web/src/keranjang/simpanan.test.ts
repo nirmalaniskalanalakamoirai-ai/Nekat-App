@@ -58,6 +58,18 @@ describe("simpanan keranjang", () => {
     expect(st.getItem("nekat:keranjang-sementara:zona-a")).toContain("sj-1");
   });
 
+  it("ganti zona bolak-balik: tiap zona membaca keranjangnya sendiri (snapshot stabil)", async () => {
+    pasangWindow(storageMemori());
+    const { perbaruiKeranjang, bacaKeranjang } = await import("./simpanan");
+    perbaruiKeranjang("zona-a", (k) => tambah(k, calon));
+    perbaruiKeranjang("zona-b", (k) => tambah(tambah(k, calon), calon));
+    const a1 = bacaKeranjang("zona-a");
+    expect(qtyDi(a1, "sj-1")).toBe(1);
+    expect(qtyDi(bacaKeranjang("zona-b"), "sj-1")).toBe(2);
+    // useSyncExternalStore butuh referensi sama bila tidak berubah.
+    expect(bacaKeranjang("zona-a")).toBe(a1);
+  });
+
   it("tanpa zona → selalu kosong", async () => {
     pasangWindow(storageMemori());
     const { bacaKeranjang } = await import("./simpanan");

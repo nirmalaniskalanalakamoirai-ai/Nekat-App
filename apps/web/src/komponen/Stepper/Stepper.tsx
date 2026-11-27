@@ -44,7 +44,7 @@ export function Stepper({
         ref={refTambah}
         type="button"
         className="stepper__tombol"
-        aria-label={`Tambah 1 ${nama}`}
+        aria-label={TEKS.tambahStepperAria(nama)}
         disabled={!bolehTambah}
         aria-describedby={!bolehTambah ? alasanTambahNonaktif : undefined}
         onClick={onTambah}

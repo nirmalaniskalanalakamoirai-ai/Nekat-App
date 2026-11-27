@@ -6,7 +6,7 @@
 // keranjang SEMENTARA per zona (keranjang server/grup menyusul T-022).
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
-import { Link, matchPath, useLocation, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import { GalatApi } from "../api/klien";
 import { satuanPendek } from "../harga/format";
 import { ID_PITA_OFFLINE, useOnline } from "../jaringan/online";
@@ -16,12 +16,20 @@ import {
   normalisasiCari,
   PANJANG_CARI_MAKS,
   type KartuProdukApi,
-  type KategoriApi,
   type SaringanProduk,
 } from "../katalog/api";
-import { hapus, qtyDi, tambah, ubahQty, urungkan } from "../keranjang/keranjang";
+import {
+  aksiCari,
+  bacaMode,
+  bolehMuatOtomatis,
+  JEDA_CARI_MS,
+  SEMUA,
+  tabKategori,
+  tabSubkategori,
+} from "../katalog/logika";
+import { hapus, keranjangPenuh, qtyDi, tambah, ubahQty, urungkan } from "../keranjang/keranjang";
 import { useKeranjang } from "../keranjang/simpanan";
-import { DeretTab, idTab, type ItemTab } from "../komponen/DeretTab/DeretTab";
+import { DeretTab, idTab } from "../komponen/DeretTab/DeretTab";
 import { KartuProduk } from "../komponen/KartuProduk/KartuProduk";
 import { Snackbar, useSnackbar } from "../komponen/Snackbar/Snackbar";
 import { Ikon } from "../layout/Ikon";
@@ -29,24 +37,7 @@ import { TEKS } from "../teks/id";
 import { useZonaTerpilih } from "../zona/simpanan";
 import "./katalog.css";
 
-export const JEDA_CARI_MS = 300;
 const JEDA_SKELETON_MS = 300;
-const SEMUA = "__semua";
-
-type Mode =
-  | { jenis: "semua" }
-  | { jenis: "kategori"; kategori: string; sub: string | undefined }
-  | { jenis: "cari"; q: string };
-
-/** Baca mode dari URL (sumber kebenaran filter). */
-export function bacaMode(pathname: string, search: string): Mode {
-  if (pathname === "/cari") return { jenis: "cari", q: new URLSearchParams(search).get("q") ?? "" };
-  const m = matchPath("/k/:kategori/:sub?", pathname);
-  if (m?.params.kategori) {
-    return { jenis: "kategori", kategori: m.params.kategori, sub: m.params.sub ?? undefined };
-  }
-  return { jenis: "semua" };
-}
 
 /** Tampilkan `true` hanya setelah `aktif` bertahan `ms` (T-007 §4.1: maks 300 ms tanpa apa-apa). */
 function useTertunda(aktif: boolean, ms: number): boolean {
@@ -73,17 +64,6 @@ function KartuSkeleton() {
       <div className="skeleton kartu__garis kartu__garis--pendek" />
     </div>
   );
-}
-
-function tabKategori(kategori: readonly KategoriApi[], terpilih: string | undefined): ItemTab[] {
-  const total = kategori.reduce((n, k) => n + k.jumlahProduk, 0);
-  return [
-    { kunci: SEMUA, label: TEKS.semua, jumlah: total },
-    // Kategori tanpa produk tayang disembunyikan, kecuali sedang dibuka (tautan langsung).
-    ...kategori
-      .filter((k) => k.jumlahProduk > 0 || k.kode === terpilih)
-      .map((k) => ({ kunci: k.kode, label: k.nama, jumlah: k.jumlahProduk })),
-  ];
 }
 
 function pesanGalat(err: unknown): { pesan: string; keZona: boolean } {
@@ -130,15 +110,10 @@ export function Katalog() {
   }, [diCari]);
 
   const terapkanCari = (nilai: string) => {
-    const target = nilai.trim();
-    // Tidak ada perubahan: kosong di luar /cari, atau kata kunci sama di /cari.
-    if (target === qTerakhir.current.trim() && (target === "") !== diCari) return;
-    qTerakhir.current = target;
-    if (target === "") {
-      if (diCari) void navigate("/", { replace: true });
-      return;
-    }
-    void navigate(`/cari?q=${encodeURIComponent(target)}`, { replace: diCari });
+    const aksi = aksiCari(nilai, qTerakhir.current, diCari);
+    if (aksi.jenis === "tetap") return;
+    qTerakhir.current = aksi.q;
+    void navigate(aksi.ke, { replace: aksi.replace });
   };
 
   useEffect(() => {
@@ -197,13 +172,19 @@ export function Katalog() {
 
   // ---- Muat lebih banyak otomatis saat gulir + tombol cadangan ----
   const refUjung = useRef<HTMLDivElement>(null);
-  const { hasNextPage, isFetchingNextPage, fetchNextPage } = produkQ;
+  const { fetchNextPage } = produkQ;
+  const otomatis = bolehMuatOtomatis({
+    hasNextPage: produkQ.hasNextPage,
+    isFetchingNextPage: produkQ.isFetchingNextPage,
+    isFetchNextPageError: produkQ.isFetchNextPageError,
+    online,
+  });
   useEffect(() => {
     const el = refUjung.current;
-    if (!el || !hasNextPage || !online || typeof IntersectionObserver === "undefined") return;
+    if (!el || !otomatis || typeof IntersectionObserver === "undefined") return;
     const io = new IntersectionObserver(
       (e) => {
-        if (e.some((x) => x.isIntersecting) && !isFetchingNextPage) void fetchNextPage();
+        if (e.some((x) => x.isIntersecting)) void fetchNextPage({ cancelRefetch: false });
       },
       { rootMargin: "400px 0px" },
     );
@@ -211,7 +192,7 @@ export function Katalog() {
     return () => {
       io.disconnect();
     };
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage, online]);
+  }, [otomatis, fetchNextPage]);
 
   // ---- Keranjang sementara ----
   const alasanHalaman = zonaKode === undefined ? idCatatanZona : null;
@@ -228,17 +209,21 @@ export function Katalog() {
       }),
     );
     const qty = qtyDi(baru, p.satuan.id);
-    if (qty === 0) return;
+    if (qty === 0) {
+      if (keranjangPenuh(baru)) {
+        snack.umumkan(TEKS.keranjangPenuh);
+        snack.tampilkan({ pesan: TEKS.keranjangPenuh });
+      }
+      return;
+    }
     snack.umumkan(TEKS.ditambahkanLive(p.nama, qty));
-    const pendek = satuanPendek(p.satuan.kode);
-    snack.tampilkan(
-      p.jumlahPilihanSatuan > 1
-        ? {
-            pesan: TEKS.ditambahkan(pendek),
-            aksi: { label: TEKS.gantiSatuan, ke: `/p/${encodeURIComponent(p.id)}` },
-          }
-        : { pesan: "Ditambahkan ke keranjang" },
-    );
+    // Aksi "Ganti satuan" (T-008 §1.7) baru ditampilkan setelah halaman detail ada (T-028).
+    snack.tampilkan({
+      pesan:
+        p.jumlahPilihanSatuan > 1
+          ? TEKS.ditambahkan(satuanPendek(p.satuan.kode))
+          : TEKS.ditambahkanKeranjang,
+    });
   };
 
   const onUbahQty = (p: KartuProdukApi, qty: number) => {
@@ -268,15 +253,7 @@ export function Katalog() {
   const katTerpilih = mode.jenis === "kategori" ? mode.kategori : undefined;
   const katAktif = kategori.find((k) => k.kode === katTerpilih);
   const itemKat = tabKategori(kategori, katTerpilih);
-  const itemSub: ItemTab[] =
-    katAktif && katAktif.subkategori.length > 0
-      ? [
-          { kunci: SEMUA, label: TEKS.semua, jumlah: katAktif.jumlahProduk },
-          ...katAktif.subkategori
-            .filter((s) => s.jumlahProduk > 0 || (mode.jenis === "kategori" && s.kode === mode.sub))
-            .map((s) => ({ kunci: s.kode, label: s.nama, jumlah: s.jumlahProduk })),
-        ]
-      : [];
+  const itemSub = tabSubkategori(katAktif, mode.jenis === "kategori" ? mode.sub : undefined);
   const kunciKat = katTerpilih ?? SEMUA;
   const kunciSub = mode.jenis === "kategori" ? (mode.sub ?? SEMUA) : SEMUA;
   const labelPanel =
@@ -296,7 +273,7 @@ export function Katalog() {
         ? [katAktif?.nama, katAktif?.subkategori.find((s) => s.kode === mode.sub)?.nama]
             .filter(Boolean)
             .join(" · ") || TEKS.kategoriLabel
-        : "Belanja";
+        : TEKS.belanja;
 
   // ---- Isi daftar ----
   let isi: ReactNode;
@@ -357,7 +334,7 @@ export function Katalog() {
           <p>{mode.jenis === "kategori" ? TEKS.kategoriKosong : TEKS.katalogKosong}</p>
           {mode.jenis === "kategori" && (
             <Link to="/" className="btn btn--secondary">
-              Lihat semua produk
+              {TEKS.lihatSemuaProduk}
             </Link>
           )}
         </div>
@@ -448,6 +425,21 @@ export function Katalog() {
         </div>
       )}
 
+      {mode.jenis !== "cari" && kategoriQ.isError && kategori.length === 0 && (
+        <div className="katalog__galat-kategori" role="alert">
+          <p>{TEKS.gagalKategori}</p>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            onClick={() => {
+              void kategoriQ.refetch();
+            }}
+          >
+            {TEKS.cobaLagi}
+          </button>
+        </div>
+      )}
+
       {mode.jenis !== "cari" && kategori.length > 0 && (
         <nav className="katalog__tab l-stack l-stack--sm" aria-label={TEKS.kategoriLabel}>
           <DeretTab
@@ -482,6 +474,7 @@ export function Katalog() {
           ? { role: "tabpanel", "aria-labelledby": labelPanel }
           : {})}
       >
+        <h2 className="sr-only">{TEKS.daftarProduk}</h2>
         <p className="katalog__jumlah" role="status">
           {produkQ.isSuccess && produk.length > 0
             ? mode.jenis === "cari"
@@ -492,7 +485,7 @@ export function Katalog() {
         {isi}
       </div>
 
-      <Snackbar isi={snack.isi} umum={snack.umum} tutup={snack.tutup} />
+      <Snackbar isi={snack.isi} umum={snack.umum} tutup={snack.tutup} setJeda={snack.setJeda} />
     </section>
   );
 }
