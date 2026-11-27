@@ -32,6 +32,23 @@ pnpm build && pnpm --filter @nekat/api start   # API, cek http://localhost:3000/
 DATABASE_URL=postgres://... pnpm --filter @nekat/worker start   # worker pg-boss
 ```
 
+Zona & drop point (T-015b): `config/lokasi.json` adalah satu-satunya sumber koordinat dan radius;
+tabel `gudang`/`zona`/`drop_point` hanya cerminannya (tanpa koordinat). Setiap kali config
+berubah, jalankan setelah `pnpm build`:
+
+```bash
+DATABASE_URL=postgres://... pnpm db:sinkron-lokasi --kering   # pratinjau, tidak menulis
+DATABASE_URL=postgres://... pnpm db:sinkron-lokasi            # terapkan (idempoten, dicatat di log_audit)
+# opsi: --config <path> (default $LOKASI_CONFIG atau config/lokasi.json), --izinkan-uji (config "uji": true),
+#       --paksa (lepas/pindah gudang walau masih ada slot DIBUKA / grup belum final; dicatat)
+```
+
+Entri yang dihapus dari config dihapus dari DB bila belum dipakai, selain itu hanya dinonaktifkan.
+Zona/drop point/gudang yang masih dipakai slot kirim DIBUKA atau grup belum final tidak dilepas
+(dan zonanya tidak pindah gudang) tanpa `--paksa`.
+Drop point tidak boleh pindah zona (pakai kode baru). API memperingatkan di log saat start bila DB
+belum sesuai config.
+
 Daftar variabel ada di `.env.example`. Untuk dev lokal boleh salin ke `.env` (diabaikan git) lalu
 muat ke shell; app belum membaca file `.env` sendiri.
 

@@ -1,6 +1,7 @@
 {
-  "$komentar": "CONTOH format config/lokasi.json (T-015). Salin ke config/lokasi.json lalu isi koordinat ASLI gudang & drop point (keputusan #5). Koordinat di contoh ini fiktif. radiusMeter wajib 2000–3000. kode = kode_konfig di database (huruf kecil, angka, tanda minus).",
+  "$komentar": "CONTOH format config/lokasi.json (T-015). Salin ke config/lokasi.json lalu isi koordinat ASLI gudang & drop point (keputusan #5). Koordinat di contoh ini fiktif (uji: true) — hapus \"uji\" setelah koordinat asli diisi. radiusMeter wajib 2000–3000. kode = kode_konfig di database (huruf kecil, angka, tanda minus, unik lintas gudang/zona/drop point). Tepat satu gudang PUSAT. Setelah mengubah file ini jalankan `pnpm db:sinkron-lokasi` (T-015b).",
   "versi": 1,
+  "uji": true,
   "gudang": [
     {
       "kode": "gudang-pusat",
