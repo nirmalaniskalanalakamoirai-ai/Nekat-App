@@ -35,3 +35,11 @@ export {
   type SatuanAdmin,
   type SkuAdmin,
 } from "./repo/admin-katalog.js";
+// T-019: snapshot lokal inventori (pemetaan sumber, pembaca katalog, penulis job sinkron), outbox picking.
+export {
+  buatPemetaanSumberPg,
+  buatPembacaSnapshotInventori,
+  buatRepoSinkronInventori,
+  uuidDariTeks,
+} from "./repo/snapshot-inventori.js";
+export { buatRepoOutboxPicking } from "./repo/outbox-picking.js";

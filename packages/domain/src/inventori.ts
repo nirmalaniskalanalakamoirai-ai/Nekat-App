@@ -9,6 +9,7 @@ import {
   type NamaSumberInventory,
   type PermintaanPicking,
   type SkuSumber,
+  type StatusStok,
   type StokSumber,
   type StokTerkonfirmasi,
 } from "@nekat/shared";
@@ -90,9 +91,161 @@ export interface PenyimpanIdempotensi {
     kunci: string,
     entri: EntriIdempotensi<T>,
   ): Promise<{ baru: boolean; entri: EntriIdempotensi<T> }>;
+  /**
+   * Baca entri yang sudah ada (T-019, I-02: NEKAT cek dulu sebelum mengirim ulang ke Gudang).
+   * null = kunci belum pernah dipakai.
+   */
+  ambil<T>(ruang: "konfirmasi" | "picking", kunci: string): Promise<EntriIdempotensi<T> | null>;
+}
+
+// ---- Port untuk GudangApiInventory & snapshot lokal (T-019) ----
+
+/**
+ * Pemetaan ID NEKAT ↔ ID sumber (Gudang). SKU: tabel `pemetaan_sku_sumber` (T-009 §7).
+ * Lokasi: DEFAULT SEMENTARA (IG-03) `gudang.kode_konfig` dipakai sebagai kode lokasi di Gudang.
+ * Hanya baca; adapter tidak menulis ke DB NEKAT.
+ */
+export interface PemetaanSumberInventori {
+  /** skuId NEKAT → skuSumberId. SKU tanpa pemetaan tidak ada di peta. */
+  skuKeSumber(skuIds: readonly string[]): Promise<ReadonlyMap<string, string>>;
+  /** skuSumberId → skuId NEKAT. ID sumber tanpa pemetaan tidak ada di peta. */
+  skuDariSumber(skuSumberIds: readonly string[]): Promise<ReadonlyMap<string, string>>;
+  /** `gudang.id` NEKAT → kode lokasi di sumber; null bila tidak ada / nonaktif. */
+  lokasiKeSumber(lokasiId: string): Promise<string | null>;
+}
+
+/**
+ * Pembaca snapshot lokal stok & modal (T-009 §6): katalog, engine harga, dan reservasi SELALU
+ * membaca ini, tidak pernah memanggil `InventorySource` per request (T-019, tindak lanjut T-025).
+ * `dataPada` = waktu tertua antara data sumber dan sinkron terakhir (dipakai cek batas usia P-10).
+ */
+export interface PembacaSnapshotInventori {
+  stok(skuIds: readonly string[], gudangId: string): Promise<BarisStokLokal[]>;
+  modal(skuIds: readonly string[]): Promise<BarisModalLokal[]>;
+}
+
+/** Tinjauan admin dari job sinkron (T-004 §3.15 `antrean_tinjauan`). Tanpa data pribadi. */
+export type TinjauanSinkron =
+  | {
+      readonly jenis: "MODAL_PECAHAN";
+      readonly skuId: string;
+      readonly satuan: string;
+      /** Nilai modal apa adanya (teks), tidak dibulatkan (K-01). */
+      readonly nilaiMentah: string;
+    }
+  | { readonly jenis: "SKU_BELUM_DIPETAKAN"; readonly skuSumberId: string; readonly nama: string };
+
+/**
+ * Penulis snapshot lokal oleh job sinkron (modul `inventori`, T-009 §1/§6). Adapter tidak menulis DB;
+ * worker memanggil adapter lalu menulis lewat port ini. Modal hanya disimpan sebagai modal: harga jual &
+ * margin TIDAK dihitung/diisi di sini.
+ */
+export interface RepoSinkronInventori {
+  /** SKU NEKAT yang punya `pemetaan_sku_sumber` (dikelola Gudang), urut id. */
+  skuTerpetakan(): Promise<string[]>;
+  /** `gudang.id` aktif yang punya kode lokasi sumber. */
+  lokasiAktif(): Promise<string[]>;
+  /**
+   * Terapkan status SKU dari sumber (`sku.aktif_di_sumber`). `penuh`: SKU terpetakan yang tidak
+   * muncul di `listSku()` dinonaktifkan (tak dikenal / kategori terlarang → tidak tayang), KECUALI
+   * jumlahnya > `maksNonaktif` (anomali): penonaktifan itu ditahan (`ditahan: true`) + log audit.
+   */
+  terapkanSku(
+    hasil: readonly SkuSumber[],
+    opsi: { readonly penuh: boolean; readonly maksNonaktif: number; readonly waktu: Date },
+  ): Promise<{ diubah: number; dinonaktifkan: number; satuanBeda: number; ditahan: boolean }>;
+  /**
+   * Simpan stok satu cabang. `isiNol`: SKU diminta yang tidak dikembalikan sumber = tak dikenal →
+   * stok 0 (T-009 §3); false bila ada baris tidak valid di respons (data lama dibiarkan menua →
+   * "tidak diketahui", bukan "habis").
+   */
+  simpanStok(
+    lokasiId: string,
+    diminta: readonly string[],
+    stok: readonly StokSumber[],
+    opsi: { readonly isiNol: boolean; readonly waktu: Date },
+  ): Promise<number>;
+  /**
+   * Simpan modal per satuan jual (K-01) untuk SKU yang diminta. Satuan jual yang tidak dikembalikan
+   * atau tidak valid → modal kosong (tidak tayang; snapshot lama TIDAK dipakai, T-009 §4).
+   * Penurunan modal hanya dicatat di log audit (K-02); kenaikan juga dicatat, plus peringatan bila
+   * modal baru ≥ harga jual RUPIAH tersimpan (satuan itu berhenti tayang). Data sumber yang lebih
+   * tua dari snapshot tidak menimpa.
+   */
+  simpanModal(
+    diminta: readonly string[],
+    modal: readonly ModalSumber[],
+    waktu: Date,
+  ): Promise<{
+    disimpan: number;
+    dikosongkan: number;
+    turun: number;
+    naik: number;
+    peringatanRupiah: number;
+  }>;
+  catatTinjauan(t: TinjauanSinkron): Promise<void>;
+  /** `log_audit` aktor SISTEM. `data` tanpa PII/rahasia. */
+  catatAudit(jenis: string, data: Readonly<Record<string, unknown>>): Promise<void>;
+}
+
+/** Entri outbox picking yang sedang diklaim worker (T-009 §5: retry berjenjang sampai 6 jam). */
+export interface EntriOutboxPicking {
+  readonly id: string;
+  readonly kunciIdempotensi: string;
+  /** Payload mentah (divalidasi ulang sebelum dikirim). */
+  readonly payload: unknown;
+  /** Termasuk percobaan yang sedang berjalan. */
+  readonly percobaan: number;
+  readonly dibuatPada: Date;
+}
+
+/** Identitas klaim outbox: id + `percobaan` saat diklaim (token pemilik lease). */
+export type KlaimOutbox = Pick<EntriOutboxPicking, "id" | "percobaan">;
+
+export interface RepoOutboxPicking {
+  /** Masukkan permintaan picking ke outbox; kunci sama → tidak dobel. */
+  antrekan(p: PermintaanPicking): Promise<{ baru: boolean }>;
+  /** Klaim entri MENUNGGU yang jatuh tempo dengan lease (mencegah kirim ganda antar-worker). */
+  klaim(batas: number, sekarang: Date, leaseMs: number): Promise<EntriOutboxPicking[]>;
+  /*
+   * Tiga method di bawah hanya berlaku untuk pemegang klaim: entri masih `MENUNGGU` DAN
+   * `percobaan` sama dengan saat diklaim (klaim ulang oleh worker lain setelah lease habis menaikkan
+   * `percobaan`). false = klaim sudah tidak dipegang, tidak ada yang diubah.
+   */
+  tandaiTerkirim(klaim: KlaimOutbox, hasil: HasilPicking, sekarang: Date): Promise<boolean>;
+  jadwalkanUlang(klaim: KlaimOutbox, kirimSetelah: Date, kodeGalat: string): Promise<boolean>;
+  /** Status GAGAL + antrean tinjauan admin (`PICKING_GAGAL` / `KONFLIK_IDEMPOTENSI`). */
+  tandaiGagal(
+    klaim: KlaimOutbox,
+    kodeGalat: string,
+    jenisTinjauan: "PICKING_GAGAL" | "KONFLIK_IDEMPOTENSI",
+  ): Promise<boolean>;
 }
 
 // ---- Aturan murni ----
+
+/** T-009 §5: retry picking sampai 6 jam sejak masuk outbox, lalu `GAGAL` di panel admin. */
+export const BATAS_RETRY_PICKING_MS = 6 * 60 * 60_000;
+const JEDA_AWAL_PICKING_MS = 30_000;
+const JEDA_MAKS_PICKING_MS = 30 * 60_000;
+
+/**
+ * Waktu kirim ulang picking (backoff eksponensial 30 dtk × 2^(n−1), maks. 30 menit, jitter ≤ 10%).
+ * null = batas 6 jam terlampaui → `GAGAL`. `acak` ∈ [0, 1) diberikan pemanggil (domain murni).
+ */
+export function jadwalUlangPicking(
+  percobaan: number,
+  dibuatPada: Date,
+  sekarang: Date,
+  acak: number,
+): Date | null {
+  const n = Math.max(1, Math.trunc(percobaan));
+  const dasar = Math.min(JEDA_MAKS_PICKING_MS, JEDA_AWAL_PICKING_MS * 2 ** Math.min(n - 1, 30));
+  const jeda = dasar + Math.floor(Math.min(Math.max(acak, 0), 0.999) * dasar * 0.1);
+  const berikut = sekarang.getTime() + jeda;
+  if (berikut - dibuatPada.getTime() > BATAS_RETRY_PICKING_MS) return null;
+  return new Date(berikut);
+}
 
 /** Memecah daftar menjadi potongan maks. `ukuran` (bawaan 200, T-009 §3). */
 export function pecahBatch<T>(daftar: readonly T[], ukuran = BATAS_SKU_PER_PANGGILAN): T[][] {
@@ -139,6 +292,33 @@ export function dataInventoriSegar(
   const umurMs = sekarang.getTime() - dataPada.getTime();
   if (Number.isNaN(umurMs)) return false;
   return umurMs <= maksUmurMenit * 60_000;
+}
+
+export interface MasukanStatusStok {
+  readonly sumber: NamaSumberInventory;
+  /** Baris snapshot stok SKU di cabang itu; undefined = tidak ada baris. */
+  readonly stok: { readonly tersedia: number; readonly dataPada: Date } | undefined;
+  /** Σ reservasi AKTIF SKU di cabang itu (satuan dasar). */
+  readonly reservasi: number;
+  readonly isiSatuanDasar: number;
+  readonly sekarang: Date;
+  readonly maksUmurDataMenit: number;
+}
+
+/**
+ * Status stok satu satuan jual dari snapshot lokal (T-019, tindak lanjut T-025): data basi ≠ stok habis.
+ * - Snapshot lewat batas usia (P-10) → `TIDAK_DIKETAHUI`, bukan `HABIS`.
+ * - Tidak ada baris snapshot: `local` → `HABIS` (tabel NEKAT = sumber, T-009 §3 "tak dikenal = stok 0");
+ *   `gudang` → `TIDAK_DIKETAHUI` (belum pernah disinkron). Job sinkron menulis stok 0 untuk SKU yang
+ *   tidak dikenal Gudang, jadi baris yang hilang di mode Gudang memang berarti "belum ada data".
+ * - Selain itu `statusStokSatuanJual` (K-20).
+ */
+export function statusStokSnapshot(m: MasukanStatusStok): StatusStok {
+  if (m.stok === undefined) return m.sumber === "local" ? "HABIS" : "TIDAK_DIKETAHUI";
+  if (!dataInventoriSegar(m.sumber, m.stok.dataPada, m.sekarang, m.maksUmurDataMenit)) {
+    return "TIDAK_DIKETAHUI";
+  }
+  return statusStokSatuanJual(m.stok.tersedia - m.reservasi, m.isiSatuanDasar).status;
 }
 
 /** Kata kategori terlarang Fase 1 (keputusan #7). Dicocokkan per segmen kode kategori. */

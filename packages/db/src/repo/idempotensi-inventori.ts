@@ -29,5 +29,16 @@ export function buatPenyimpanIdempotensiPg(db: Db): PenyimpanIdempotensi {
       if (!lama) throw new Error("Entri idempotensi hilang setelah konflik insert");
       return { baru: false, entri: { hash: lama.hash, hasil: lama.hasil as T } };
     },
+
+    async ambil<T>(
+      ruang: "konfirmasi" | "picking",
+      kunci: string,
+    ): Promise<EntriIdempotensi<T> | null> {
+      const [lama] = await db
+        .select({ hash: idempotensiInventori.hash, hasil: idempotensiInventori.hasil })
+        .from(idempotensiInventori)
+        .where(and(eq(idempotensiInventori.ruang, ruang), eq(idempotensiInventori.kunci, kunci)));
+      return lama ? { hash: lama.hash, hasil: lama.hasil as T } : null;
+    },
   };
 }

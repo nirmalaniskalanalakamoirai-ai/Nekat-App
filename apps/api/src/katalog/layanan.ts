@@ -1,5 +1,6 @@
-// Use case katalog pembeli (T-025): rangkai RepoKatalog (tabel T-013a) + InventorySource (stok &
-// modal, T-018) + engine harga (T-020) → snapshot tayang per gudang. Hanya baca.
+// Use case katalog pembeli (T-025): rangkai RepoKatalog (tabel T-013a) + snapshot lokal stok & modal
+// (T-019: `PembacaSnapshotInventori`, TIDAK memanggil InventorySource/Gudang per request, T-009 §6)
+// + engine harga (T-020) → snapshot tayang per gudang. Hanya baca.
 //
 // Snapshot dipakai bersama oleh daftar, pencarian, jumlah per kategori, dan detail, sehingga harga
 // kartu = harga detail (PG-6) dan jumlah per kategori = isi daftar. Cache singkat per gudang
@@ -8,18 +9,22 @@ import {
   kunciModal,
   pecahBatch,
   susunKatalog,
-  type InventorySource,
   type KonfigurasiHarga,
   type ModalKatalog,
+  type PembacaSnapshotInventori,
   type RepoKatalog,
   type SatuanDitahan,
   type SnapshotKatalog,
   type StokKatalog,
 } from "@nekat/domain";
+import { isRupiah, type NamaSumberInventory } from "@nekat/shared";
 
 export interface OpsiLayananKatalog {
   readonly repo: RepoKatalog;
-  readonly inventory: InventorySource;
+  /** Snapshot lokal `stok_lokasi` & `modal_satuan_jual` (diisi job sinkron di mode Gudang). */
+  readonly snapshot: PembacaSnapshotInventori;
+  /** `INVENTORY_SOURCE`: menentukan aturan umur data (local tidak pernah basi, T-009 §6). */
+  readonly sumber: NamaSumberInventory;
   readonly konfigurasiHarga: KonfigurasiHarga;
   /** P-10 (INVENTORY_MAKS_UMUR_DATA_MENIT). */
   readonly maksUmurDataMenit: number;
@@ -91,14 +96,14 @@ export class LayananKatalog {
     const stok = new Map<string, StokKatalog>();
     const modal = new Map<string, ModalKatalog>();
     for (const batch of pecahBatch(skuIds)) {
-      for (const s of await this.#o.inventory.getStok(batch, gudangId)) {
-        stok.set(s.skuId, { tersedia: s.tersedia, dataPada: new Date(s.dataPada) });
+      for (const s of await this.#o.snapshot.stok(batch, gudangId)) {
+        if (s.gudangId !== gudangId) continue;
+        stok.set(s.skuId, { tersedia: Math.max(0, s.tersedia), dataPada: s.dataPada });
       }
-      for (const x of await this.#o.inventory.getHargaModal(batch)) {
-        modal.set(kunciModal(x.skuId, x.satuan), {
-          modal: x.modalPerSatuan,
-          dataPada: new Date(x.dataPada),
-        });
+      for (const x of await this.#o.snapshot.modal(batch)) {
+        // Modal kosong / ≤ 0 / pecahan → null (tidak tayang), tidak pernah 0 (H6, K-01).
+        const nilai = x.modalRp !== null && isRupiah(x.modalRp) && x.modalRp > 0 ? x.modalRp : null;
+        modal.set(kunciModal(x.skuId, x.jenis), { modal: nilai, dataPada: x.dataPada });
       }
     }
 
@@ -108,7 +113,7 @@ export class LayananKatalog {
       modal,
       // Tabel reservasi_stok menyusul di T-013b; sampai itu stok bebas = stok snapshot.
       reservasi: new Map(),
-      sumber: this.#o.inventory.nama,
+      sumber: this.#o.sumber,
       maksUmurDataMenit: this.#o.maksUmurDataMenit,
       konfigurasiHarga: this.#o.konfigurasiHarga,
       sekarang: this.#sekarang(),
