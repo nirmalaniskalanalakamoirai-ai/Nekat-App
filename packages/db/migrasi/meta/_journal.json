@@ -43,6 +43,13 @@
       "when": 1795326974889,
       "tag": "0005_perbaikan_review",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795734466111,
+      "tag": "0006_panel_admin",
+      "breakpoints": true
     }
   ]
 }

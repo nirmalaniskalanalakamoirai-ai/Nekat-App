@@ -6,6 +6,7 @@ import {
 } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { tentukanZona } from "@nekat/domain";
+import { ruteAdmin, type OpsiRuteAdmin } from "./admin/rute.js";
 import type { LayananKatalog } from "./katalog/layanan.js";
 import { ruteKatalog } from "./katalog/rute.js";
 import { ruteSaldo, type OpsiRuteSaldo } from "./saldo/rute.js";
@@ -35,6 +36,13 @@ export interface OpsiApp {
   readonly lokasi?: KonfigLokasi | null;
   /** Katalog (T-025); null/undefined = DB belum dikonfigurasi (rute katalog menjawab 503). */
   readonly katalog?: LayananKatalog | null;
+  /** Panel admin (T-036); null/undefined = belum dikonfigurasi (rute /api/admin menjawab 503). */
+  readonly admin?: OpsiRuteAdmin | null;
+  /**
+   * Alamat/CIDR reverse proxy tepercaya (mis. ["127.0.0.1"]). X-Forwarded-For hanya dipakai bila
+   * koneksi datang dari alamat ini. Kosong = XFF diabaikan (req.ip = alamat koneksi).
+   */
+  readonly trustProxy?: readonly string[];
   /**
    * Saldo pengguna (T-021). Tanpa `autentikasi` (T-016 belum ada) rute selalu menjawab 401.
    * Tanpa repo: 503 setelah lolos autentikasi.
@@ -92,7 +100,10 @@ export function buatApp(opsi: OpsiApp = {}) {
           ...(opsi.logStream ? { stream: opsi.logStream } : {}),
         };
 
-  const app = Fastify({ logger }).withTypeProvider<ZodTypeProvider>();
+  const app = Fastify({
+    logger,
+    ...(opsi.trustProxy && opsi.trustProxy.length > 0 ? { trustProxy: [...opsi.trustProxy] } : {}),
+  }).withTypeProvider<ZodTypeProvider>();
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
 
@@ -143,6 +154,17 @@ export function buatApp(opsi: OpsiApp = {}) {
 
   // T-025 katalog pembeli: kategori + jumlah, daftar/pencarian, detail.
   void app.register(ruteKatalog, { layanan: opsi.katalog ?? null, lokasi });
+
+  // T-036 panel admin: login + TOTP, RBAC, CSRF, CRUD katalog, stok, log.
+  void app.register(ruteAdmin, {
+    prefix: "/api/admin",
+    ...(opsi.admin ?? {
+      auth: null,
+      katalog: null,
+      sumberInventori: "local",
+      originDiizinkan: [],
+    }),
+  });
 
   // T-021 saldo pengguna: GET /api/saldo (saldo + riwayat). Ditolak 401 sampai login pembeli (T-016).
   void app.register(ruteSaldo, opsi.saldo ?? { repo: null });

@@ -3,12 +3,18 @@ import { bacaKonfigInventory, type KonfigInventory } from "@nekat/adapters";
 import {
   buatDb,
   buatPembacaSnapshotInventori,
+  buatRepoAdminKatalog,
+  buatRepoAuthAdmin,
   buatRepoKatalog,
   buatRepoSaldo,
+  type Db,
   type RepoSaldo,
 } from "@nekat/db";
 import { KONFIGURASI_HARGA_BAWAAN } from "@nekat/domain";
 import { z } from "zod";
+import { alamatAtauCidr, bacaKonfigAdmin, type KonfigAdmin } from "./admin/konfig.js";
+import { LayananAuthAdmin } from "./admin/layanan-auth.js";
+import type { OpsiRuteAdmin } from "./admin/rute.js";
 import { buatApp } from "./app.js";
 import { LayananKatalog } from "./katalog/layanan.js";
 import { muatKonfigLokasi } from "./lokasi.js";
@@ -35,6 +41,18 @@ const skemaEnv = z.object({
     (v) => (v === "" ? undefined : v),
     z.coerce.number().int().min(0).max(300).default(10),
   ),
+  // Alamat/CIDR reverse proxy tepercaya, dipisah koma (mis. "127.0.0.1" atau "10.0.0.0/8").
+  // Kosong = X-Forwarded-For diabaikan. Lihat .env.example (wajib HOST=127.0.0.1 / firewall).
+  TRUST_PROXY: z.preprocess(
+    (v) =>
+      typeof v === "string"
+        ? v
+            .split(",")
+            .map((x) => x.trim())
+            .filter((x) => x !== "")
+        : [],
+    z.array(z.string().refine(alamatAtauCidr)).max(16),
+  ),
 });
 
 const env = skemaEnv.safeParse(process.env);
@@ -54,10 +72,21 @@ try {
   process.exit(1);
 }
 
+// Panel admin (T-036): aktif bila DATABASE_URL + ADMIN_TOTP_KUNCI + ADMIN_HMAC_KUNCI diisi.
+let konfigAdmin: KonfigAdmin | null;
+try {
+  konfigAdmin = bacaKonfigAdmin(process.env);
+} catch (err) {
+  console.error((err as Error).message);
+  process.exit(1);
+}
+
 let katalog: LayananKatalog | null = null;
+let admin: OpsiRuteAdmin | null = null;
+let db: Db | null = null;
 let repoSaldo: RepoSaldo | null = null;
 if (env.data.DATABASE_URL !== undefined) {
-  const db = buatDb(env.data.DATABASE_URL);
+  db = buatDb(env.data.DATABASE_URL);
   // T-021: rute saldo tetap 401 untuk semua permintaan sampai autentikasi pembeli (T-016) disuntikkan.
   repoSaldo = buatRepoSaldo(db);
   katalog = new LayananKatalog({
@@ -86,6 +115,16 @@ if (env.data.DATABASE_URL !== undefined) {
   });
 }
 
+if (db && konfigAdmin) {
+  admin = {
+    auth: new LayananAuthAdmin({ repo: buatRepoAuthAdmin(db), konfig: konfigAdmin }),
+    katalog: buatRepoAdminKatalog(db),
+    sumberInventori: konfigInventory.sumber,
+    originDiizinkan: konfigAdmin.originDiizinkan,
+    batasMasukGlobalPerMenit: konfigAdmin.masukGlobalPerMenit,
+  };
+}
+
 let lokasi;
 try {
   lokasi = await muatKonfigLokasi(env.data.LOKASI_CONFIG);
@@ -94,9 +133,16 @@ try {
   process.exit(1);
 }
 
-const app = buatApp({ lokasi, katalog, saldo: { repo: repoSaldo } });
+const app = buatApp({
+  lokasi,
+  katalog,
+  admin,
+  trustProxy: env.data.TRUST_PROXY,
+  saldo: { repo: repoSaldo },
+});
 if (!lokasi) app.log.warn("config/lokasi.json belum ada: rute zona menjawab 503");
 if (!katalog) app.log.warn("DATABASE_URL belum diisi: rute katalog menjawab 503");
+if (!admin) app.log.warn("Panel admin belum dikonfigurasi (DATABASE_URL/ADMIN_*): /api/admin 503");
 try {
   await app.listen({ host: env.data.HOST, port: env.data.PORT });
 } catch (err) {

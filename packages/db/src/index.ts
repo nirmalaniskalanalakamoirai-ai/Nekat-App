@@ -11,6 +11,30 @@ export { jalankanSeed, SEED_KATEGORI, SEED_ARMADA, KATA_TERLARANG } from "./seed
 export { buatRepoInventoriLokal } from "./repo/inventori-lokal.js";
 export { buatPenyimpanIdempotensiPg } from "./repo/idempotensi-inventori.js";
 export { buatRepoKatalog } from "./repo/katalog.js";
+export {
+  buatRepoAuthAdmin,
+  type AdminUntukMasuk,
+  type DataAdminBaru,
+  type RepoAuthAdmin,
+  type SesiAdminAktif,
+} from "./repo/admin-auth.js";
+export {
+  buatRepoAdminKatalog,
+  GalatRepoAdmin,
+  type BarisLogAdmin,
+  type BarisStokAdmin,
+  type CekProdukRepo,
+  type DataProduk,
+  type DataSku,
+  type Halaman,
+  type KategoriAdmin,
+  type KodeGalatRepoAdmin,
+  type KonteksLog,
+  type ProdukAdmin,
+  type RepoAdminKatalog,
+  type SatuanAdmin,
+  type SkuAdmin,
+} from "./repo/admin-katalog.js";
 // T-019: snapshot lokal inventori (pemetaan sumber, pembaca katalog, penulis job sinkron), outbox picking.
 export {
   buatPemetaanSumberPg,
