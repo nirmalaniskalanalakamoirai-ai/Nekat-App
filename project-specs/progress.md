@@ -1,5 +1,12 @@
 # Progress
 
+**Update 27 Nov siang WIB (lanjutan sesi Build, mode kebut):**
+- Di-merge manusia: #28 (keputusan.md §15), #29 (T-005), #30 (T-008), #31 (gitlink), #33 (T-019). #32 (T-015b) terbuka, CI hijau.
+- **T-006 ongkir & slot → PR #34**: Operations Manager + Code Reviewer 3 putaran, LULUS. Baru O-01–O-13.
+- **T-036 panel admin dasar → PR #35**: Code Reviewer + Security Auditor (2 audit, lockout paralel S1 ditutup & dibuktikan) + Evidence Collector (putaran 1 GAGAL: login macet & keluar tidak berfungsi → diperbaiki; putaran 2 LULUS semua skenario). 476 tes. Putaran ke-3 dipakai (batas CLAUDE.md 3; batas prompt terjadwal 2). Baru A-01–A-05.
+- Butuh manusia: review & merge #32, #34, #35 (#35 sebaiknya setelah #32); jawab keputusan di issue #5/#6/#7 — tidak ada yang mendesak (semua punya default).
+- Siap berikutnya: T-021 ledger saldo, T-029 Xendit sandbox, T-026 UI katalog, T-049; T-010 setelah #34.
+
 **Update 27 Nov WIB (sesi Build 26–27 Nov; mode kebut atas arahan pemilik, terputus batas API semalam):**
 - Langkah 0: dicatat dari issue — Randy: 5, F-10, F-13–F-19, F-21–F-25, F-27, F-28, P-17, P-18, P-24, K-45 (F-15 = "terbuka", jawaban terakhir 25 Nov); Joseph: K-43; Efan: K-46. K-44 dialihkan ke Randy (Efan "ikut jawaban Randy", Randy belum menjawab). PR gabungan keputusan.md §15 → **#28**.
 - **T-005 flow pembayaran → PR #29**: Workflow Architect + Code Reviewer (sudut keamanan) 2 putaran, LULUS. Baru K-47–K-60.
