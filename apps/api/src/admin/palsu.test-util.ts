@@ -17,6 +17,7 @@ export const KONFIG_UJI: KonfigAdmin = {
   kunciHmac: Buffer.alloc(32, 9),
   sesiMenit: 60,
   sesiIdleMenit: 30,
+  masukGlobalPerMenit: 600,
   originDiizinkan: ["https://nekat.contoh"],
 };
 

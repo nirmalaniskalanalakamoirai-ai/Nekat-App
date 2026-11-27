@@ -13,6 +13,11 @@ export interface KonfigAdmin {
   readonly sesiMenit: number;
   /** Sesi admin berakhir bila tidak ada permintaan selama ini (menit). */
   readonly sesiIdleMenit: number;
+  /**
+   * Batas laju masuk GLOBAL per menit (semua IP), 0 = mati. Hanya rem darurat di atas semafor scrypt
+   * (yang sudah membatasi beban); dibuat tinggi agar tidak mudah dipakai untuk mengunci semua admin.
+   */
+  readonly masukGlobalPerMenit: number;
   /** Origin yang boleh memanggil API admin (dari APP_BASE_URL). Kosong = harus sama dengan Host. */
   readonly originDiizinkan: readonly string[];
 }
@@ -78,6 +83,7 @@ export function bacaKonfigAdmin(env: Env): KonfigAdmin | null {
   const kunciTotpVersi = bulat(env, "ADMIN_TOTP_KUNCI_VERSI", 1, 1, 32767, salah);
   const sesiMenit = bulat(env, "ADMIN_SESI_MENIT", 240, 5, 720, salah);
   const sesiIdleMenit = bulat(env, "ADMIN_SESI_IDLE_MENIT", 30, 5, 240, salah);
+  const masukGlobalPerMenit = bulat(env, "ADMIN_MASUK_GLOBAL_PER_MENIT", 600, 0, 100_000, salah);
   // Dua kunci harus berbeda (pemisahan fungsi enkripsi vs HMAC).
   if (kunciTotp && kunciHmac && kunciTotp.equals(kunciHmac.subarray(0, kunciTotp.length))) {
     salah.push("ADMIN_HMAC_KUNCI");
@@ -92,7 +98,15 @@ export function bacaKonfigAdmin(env: Env): KonfigAdmin | null {
     }
   }
   if (salah.length > 0 || !kunciTotp || !kunciHmac) throw new KonfigAdminTidakValidError(salah);
-  return { kunciTotp, kunciTotpVersi, kunciHmac, sesiMenit, sesiIdleMenit, originDiizinkan };
+  return {
+    kunciTotp,
+    kunciTotpVersi,
+    kunciHmac,
+    sesiMenit,
+    sesiIdleMenit,
+    masukGlobalPerMenit,
+    originDiizinkan,
+  };
 }
 
 /**

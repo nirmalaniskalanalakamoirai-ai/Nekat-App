@@ -557,18 +557,54 @@ describe("perbaikan audit S1–S7", () => {
     expect(benar.json<{ kode: string }>().kode).toBe("SESI_PRA_HABIS");
   });
 
-  it("kata sandi benar tidak memakan jatah; akun terkunci mencabut sesi penuh yang aktif", async () => {
+  it("kunci karena kata sandi salah: login baru ditahan, sesi yang sedang berjalan TIDAK dicabut", async () => {
     const l = await siapkan();
     const { sesi } = await masukPenuh(l);
     for (let i = 0; i < 3; i++) await langkah1(l); // kata sandi benar berulang
     expect(l.repo.admin.get(l.adminId)?.gagalBeruntun).toBe(0);
     for (let i = 0; i < 5; i++) await langkah1(l, `salah-salah-${String(i)}-xx`);
+    expect((await langkah1(l)).statusCode).toBe(401); // login baru ditahan
+    const saya = await l.app.inject({
+      method: "GET",
+      url: "/api/admin/saya",
+      headers: { cookie: `${COOKIE_SESI}=${sesi}` },
+    });
+    expect(saya.statusCode).toBe(200);
+  });
+
+  it("kunci karena TOTP salah (kata sandi sudah benar) mencabut semua sesi penuh", async () => {
+    const l = await siapkan();
+    const { sesi } = await masukPenuh(l);
+    l.majukan(30);
+    for (let i = 0; i < 5; i++) {
+      const h = await pra(l);
+      await l.app.inject({
+        method: "POST",
+        url: "/api/admin/masuk/totp",
+        headers: h,
+        payload: { kode: kodeSalah(l) },
+      });
+    }
+    expect(l.repo.audit.at(-1)).toMatchObject({
+      jenis: "LOGIN_ADMIN_DIKUNCI",
+      data: { sesiDicabut: true },
+    });
     const saya = await l.app.inject({
       method: "GET",
       url: "/api/admin/saya",
       headers: { cookie: `${COOKIE_SESI}=${sesi}` },
     });
     expect(saya.statusCode).toBe(401);
+  });
+
+  it("semafor penuh tidak membuat HP tak dikenal 503 permanen (hash dummy di luar semafor)", async () => {
+    const l = await siapkan({}, "owner", { semafor: { maks: 1, maksAntre: 0, tungguMs: 10 } });
+    const takDikenal = () => langkah1(l, "salah-salah-salah", "+6281299999999");
+    const serbu = await Promise.all(Array.from({ length: 5 }, takDikenal));
+    expect(serbu.map((x) => x.statusCode)).toContain(503);
+    // Setelah beban reda: HP tak dikenal & HP dikenal sama-sama 401 (bukan 503 tersangkut).
+    expect((await takDikenal()).statusCode).toBe(401);
+    expect((await langkah1(l, "salah-salah-salah")).statusCode).toBe(401);
   });
 
   it("sesi idle > ADMIN_SESI_IDLE_MENIT berakhir; aktivitas memperpanjang", async () => {
@@ -608,6 +644,19 @@ describe("perbaikan audit S1–S7", () => {
     expect(kode).toContain(503);
     // Percobaan yang ditolak karena sibuk tidak memakan jatah penguncian.
     expect(l.repo.admin.get(l.adminId)?.gagalBeruntun).toBe(0);
+  });
+
+  it("batas laju masuk global bisa dimatikan (0)", async () => {
+    const l = await siapkan({ batasMasukGlobalPerMenit: 0, batasMasukPerMenit: 1000 });
+    for (let i = 0; i < 20; i++) {
+      const r = await l.app.inject({
+        method: "POST",
+        url: "/api/admin/masuk",
+        remoteAddress: `198.51.100.${String(i)}`,
+        payload: { nomorHp: "+6281299999999", kataSandi: "salah-salah-salah" },
+      });
+      expect(r.statusCode).toBe(401);
+    }
   });
 
   it("batas laju masuk global (semua IP) → 503", async () => {

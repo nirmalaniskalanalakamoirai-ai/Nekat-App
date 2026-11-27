@@ -171,6 +171,7 @@ describe("konfigurasi admin dari env", () => {
     });
     expect(k?.originDiizinkan).toEqual(["https://nekat.contoh"]);
     expect(k?.sesiMenit).toBe(240);
+    expect(k?.masukGlobalPerMenit).toBe(600);
     try {
       bacaKonfigAdmin({ ADMIN_TOTP_KUNCI: "rahasia-pendek", ADMIN_SESI_MENIT: "99999" });
       expect.unreachable();

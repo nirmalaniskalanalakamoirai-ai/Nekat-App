@@ -55,7 +55,7 @@ export interface OpsiRuteAdmin {
   /** Batas laju (untuk tes). */
   readonly batasMasukPerMenit?: number;
   readonly batasUmumPerMenit?: number;
-  /** Batas laju masuk GLOBAL (semua IP), membatasi beban scrypt saat serangan terdistribusi. */
+  /** Batas laju masuk GLOBAL per menit (semua IP), 0 = mati. Bawaan 600 (ADMIN_MASUK_GLOBAL_PER_MENIT). */
   readonly batasMasukGlobalPerMenit?: number;
 }
 
@@ -249,7 +249,7 @@ export const ruteAdmin: FastifyPluginCallbackZod<OpsiRuteAdmin> = (r, opsi, sele
   const batasMasuk = new BatasLaju({ maks: opsi.batasMasukPerMenit ?? 10, jendelaMs: 60_000 });
   const batasUmum = new BatasLaju({ maks: opsi.batasUmumPerMenit ?? 300, jendelaMs: 60_000 });
   const batasMasukGlobal = new BatasLaju({
-    maks: opsi.batasMasukGlobalPerMenit ?? 60,
+    maks: opsi.batasMasukGlobalPerMenit ?? 600,
     jendelaMs: 60_000,
   });
 
@@ -359,7 +359,7 @@ export const ruteAdmin: FastifyPluginCallbackZod<OpsiRuteAdmin> = (r, opsi, sele
       void reply.code(429).send(GALAT.TERLALU_SERING);
       return true;
     }
-    if (!batasMasukGlobal.ambil("global")) {
+    if (opsi.batasMasukGlobalPerMenit !== 0 && !batasMasukGlobal.ambil("global")) {
       void reply.header("retry-after", String(batasMasukGlobal.sisaDetik("global")));
       void reply.code(503).send(GALAT.SIBUK);
       return true;

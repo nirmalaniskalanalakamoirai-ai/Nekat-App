@@ -61,15 +61,24 @@ export class LayananAuthAdmin {
     this.#kunci = o.kebijakanKunci ?? KEBIJAKAN_KUNCI_BAWAAN;
     this.#scrypt = o.scrypt ?? SCRYPT_BAWAAN;
     this.#semafor = new Semafor(o.semaforScrypt ?? SEMAFOR_SCRYPT_BAWAAN);
+    // Hash dummy dihitung SEKALI saat start, di luar semafor (tidak bisa gagal karena sibuk).
+    void this.#hashDummy().catch(() => undefined);
   }
 
   get sesiMenit(): number {
     return this.#k.sesiMenit;
   }
 
-  /** Hash pengganti agar waktu respons akun tak dikenal ≈ akun dikenal. */
+  /**
+   * Hash pengganti agar waktu respons akun tak dikenal ≈ akun dikenal. Dihitung di luar semafor;
+   * bila (sangat jarang) gagal, cache dikosongkan agar dicoba lagi — tidak pernah tersimpan sebagai
+   * penolakan permanen (yang akan membedakan HP tak dikenal = celah enumerasi).
+   */
   #hashDummy(): Promise<string> {
-    this.#dummy ??= this.#semafor.jalankan(() => hashKataSandi(tokenAcak(), this.#scrypt));
+    this.#dummy ??= hashKataSandi(tokenAcak(), this.#scrypt).catch((err: unknown) => {
+      this.#dummy = null;
+      throw err;
+    });
     return this.#dummy;
   }
 
@@ -90,10 +99,20 @@ export class LayananAuthAdmin {
     await this.#repo.catatAudit(jenis, data, adminId);
   }
 
-  /** Akun baru saja terkunci: cabut semua sesinya (termasuk sesi penuh yang sedang dipakai). */
-  async #setelahTerkunci(adminId: string, kini: Date, data: Record<string, unknown>) {
-    await this.#repo.cabutSemuaSesi(adminId, kini);
-    await this.#audit("LOGIN_ADMIN_DIKUNCI", adminId, data);
+  /**
+   * Akun baru saja terkunci. Kunci selalu menahan login BARU. Sesi yang sedang berjalan hanya dicabut
+   * bila kegagalan terjadi di langkah TOTP (`cabutSesi`): penebak sudah lolos kata sandi = indikasi
+   * kata sandi bocor. Kegagalan kata sandi saja tidak mencabut sesi, agar orang yang hanya tahu nomor
+   * HP tidak bisa "menendang" admin yang sedang bekerja.
+   */
+  async #setelahTerkunci(
+    adminId: string,
+    kini: Date,
+    data: Record<string, unknown>,
+    cabutSesi: boolean,
+  ) {
+    if (cabutSesi) await this.#repo.cabutSemuaSesi(adminId, kini);
+    await this.#audit("LOGIN_ADMIN_DIKUNCI", adminId, { ...data, sesiDicabut: cabutSesi });
   }
 
   /** Langkah 1: nomor HP + kata sandi → token sesi pra (5 menit). */
@@ -131,7 +150,7 @@ export class LayananAuthAdmin {
     }
     if (!benar) {
       const data = { alasan: "KATA_SANDI_SALAH", gagalBeruntun: jatah.gagalBeruntun, ip };
-      if (sedangDikunci(jatah, kini)) await this.#setelahTerkunci(a.id, kini, data);
+      if (sedangDikunci(jatah, kini)) await this.#setelahTerkunci(a.id, kini, data, false);
       else await this.#audit("LOGIN_ADMIN_GAGAL", a.id, data);
       return { ok: false };
     }
@@ -220,7 +239,7 @@ export class LayananAuthAdmin {
         ip,
       };
       if (sedangDikunci(jatah, kini)) {
-        await this.#setelahTerkunci(a.id, kini, data);
+        await this.#setelahTerkunci(a.id, kini, data, true);
       } else {
         if (ke >= BATAS_PERCOBAAN_PRA) await this.#repo.cabutSesi(hashPra, kini);
         await this.#audit("LOGIN_ADMIN_GAGAL", a.id, data);

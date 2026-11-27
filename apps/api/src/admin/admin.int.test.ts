@@ -534,10 +534,11 @@ describe.skipIf(!URL_ADMIN)("panel admin (PostgreSQL nyata)", () => {
     );
     expect(Number(a2?.["gagal_beruntun"])).toBe(5);
     expect(a2?.["dikunci_sampai"]).not.toBeNull();
-    // Terkunci → semua sesi admin (termasuk sesi penuh tes ini) dicabut.
+    // Terkunci karena kata sandi salah → login baru ditahan, sesi penuh yang aktif TETAP berlaku.
+    expect((await layanan.masukKataSandi("+6281300000001", SANDI, ip)).ok).toBe(false);
     expect(
       (await app.inject({ method: "GET", url: "/api/admin/saya", headers: h() })).statusCode,
-    ).toBe(401);
+    ).toBe(200);
     await repo.resetGagal(ownerId);
   });
 
@@ -569,7 +570,7 @@ describe.skipIf(!URL_ADMIN)("panel admin (PostgreSQL nyata)", () => {
   });
 
   it("keluar mencabut sesi di DB", async () => {
-    // Sesi sebelumnya dicabut oleh tes penguncian: masuk ulang.
+    // Masuk ulang dengan sesi baru (penguncian di tes sebelumnya sudah direset).
     // Langkah TOTP harus melewati langkah "masa depan" yang diterima tes repo di atas (+1000).
     jam = new Date(Date.now() + 1002 * 30_000);
     const r1 = await app.inject({
