@@ -180,3 +180,36 @@ Sumber: komentar manusia di issue #5 (Randy), #6 (Efan), #7 (Joseph) 16–19 Nov
 - **H13:** Fase 1 daftar antar per slot dibagikan admin, tanpa akun kurir; akun kurir nanti lewat integrasi pihak ketiga.
 - **H11:** deferred deep link iOS ditunda ke Fase 5. **G-02:** daftar grup/tetangga tersimpan → Fase 2.
 - **K-19:** untuk saat ini **tanpa server staging**; preview dibuat di Claude dulu; penyedia server menyusul.
+
+## 15. Jawaban issue keputusan — DIPUTUSKAN 19–26 Nov 2026
+
+Sumber: issue #5 (Randy), #6 (Efan), #7 (Joseph); riwayat di `keputusan-terbuka.md`. Bila ada dua jawaban, dipakai yang terakhir. "Rekomendasi" = DEFAULT/rekomendasi yang tertulis di `docs/flow/group-order.md` §12, `docs/spec/engine-harga.md` §11, atau `docs/spec/T-007-ux-halaman.md` §9.
+
+**Group order & pembatalan**
+- **K-40** (menggantikan K-30): ikut F-07 — **tidak bisa batal setelah bayar**; dana kembali ke saldo hanya bila grup batal / stok habis. S&K §7.1 disesuaikan.
+- **K-39:** host tidak menerbitkan tagihan → anggota yang belum "Siap" 60 menit sebelum grup tutup dikeluarkan otomatis, dengan **peringatan 5 menit** sebelumnya; syarat terpenuhi → tagihan terbit otomatis, tidak → grup batal (K-11).
+- **K-45:** grup batal setelah sebagian lunas → tagihan LUNAS tetap LUNAS (bukti bayar); dana kembali lewat ledger REFUND.
+- **F-10:** dana akun curang ditahan; barang tetap dikirim.
+- **F-13:** grup DITAHAN sampai sebelum picking slot → BATAL + refund ke saldo.
+- **F-14:** grup per keranjang campur produk (G-01). **F-16:** boleh ikut produk yang sama di slot berbeda.
+- **F-15:** istilah resmi grup ≥3 akun = **"terbuka"**; S&K §4.2 diselaraskan.
+- **F-17, F-19, F-22, F-24:** ikut rekomendasi (pengingat WA, pengguna zona lain, atribusi pengundang, keluhan barang).
+- **F-18:** daftar tunggu WhatsApp untuk pengguna di luar zona.
+- **F-21:** slot dibatalkan operasional setelah harga dikunci → admin memindahkan slot, harga tetap, anggota boleh minta batal → saldo pembayar.
+- **F-23:** S&K/Kebijakan Privasi berubah → persetujuan ulang wajib sebelum gabung berikutnya.
+- **F-25:** ganti alamat setelah tagihan terbit tidak bisa; dalam zona sama sebelum checkout boleh.
+- **F-27:** ada jalur "Beli sendiri" di luar grup (harga satuan).
+- **F-28:** barang yang sudah dikirim ke drop point dan pesanan berstatus selesai dianggap berhasil diterima.
+
+**Harga**
+- **K-41:** margin minimum 5% tidak berlaku untuk harga dasar; cukup harga > modal.
+- **K-42:** pagar dilanggar → **tahan kedua harga** dan laporkan ke admin.
+- **P-17:** harga coret = harga satuan riil. **P-18:** batas COD dibandingkan dengan total sebelum saldo.
+- **K-46:** tarif & DPP PPN diisi Efan/konsultan pajak lewat panel admin (T-037) sebelum pilot; sampai itu hanya produk bebas PPN yang tayang.
+
+**Produk, data, hukum**
+- **P-24:** kategori terlarang Fase 1 = semua tembakau/nikotin & alkohol.
+- **H12:** data disimpan di region Indonesia. **K-43:** log & error tracking SaaS luar negeri boleh dengan penyamaran data pribadi aktif; data transaksi & data pribadi tetap di region Indonesia.
+- **#5:** data badan usaha & [kurung siku] di `docs/legal/` dibiarkan kosong dulu, diisi kemudian.
+
+Masih terbuka: **K-44** (sisa pembagian ongkir) — dialihkan dari Efan ke Randy (issue #5).

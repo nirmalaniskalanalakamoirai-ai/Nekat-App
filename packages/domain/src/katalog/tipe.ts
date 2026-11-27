@@ -1,5 +1,5 @@
 // Tipe katalog pembeli (T-025). Port `RepoKatalog` diimplementasi @nekat/db; domain hanya bentuknya.
-import type { NamaSumberInventory, Rupiah } from "@nekat/shared";
+import type { NamaSumberInventory, Rupiah, StatusStok } from "@nekat/shared";
 import type { KodeSatuan, KonfigurasiHarga } from "../harga/tipe.js";
 
 // ---- Baris mentah dari tabel katalog T-013a (hanya baca) ----
@@ -75,7 +75,7 @@ export interface RepoKatalog {
   idGudang(kodeKonfig: string): Promise<string | null>;
 }
 
-// ---- Masukan stok & modal (dari InventorySource) ----
+// ---- Masukan stok & modal (dari snapshot lokal, `PembacaSnapshotInventori`) ----
 
 export interface StokKatalog {
   /** Satuan dasar, sebelum dikurangi reservasi. */
@@ -120,9 +120,17 @@ export interface TampilanHargaKatalog {
 }
 
 export interface StatusStokTampil {
-  /** false = tombol beli nonaktif, tidak bisa masuk keranjang/grup (K-20). */
+  /**
+   * `HABIS` = stok sumber 0 (K-20); `TIDAK_DIKETAHUI` = data stok basi / belum disinkron (T-019:
+   * data basi ≠ stok habis).
+   */
+  readonly status: StatusStok;
+  /**
+   * false = tombol beli nonaktif, tidak bisa masuk keranjang/grup. `true` hanya untuk `TERSEDIA`
+   * (K-20; DEFAULT SEMENTARA IG-02 untuk `TIDAK_DIKETAHUI`).
+   */
   readonly tersedia: boolean;
-  /** `LABEL_STOK_HABIS` bila tidak tersedia; null bila tersedia. */
+  /** `LABEL_STOK_HABIS` / `LABEL_STOK_TIDAK_DIKETAHUI`; null bila tersedia. */
   readonly label: string | null;
 }
 

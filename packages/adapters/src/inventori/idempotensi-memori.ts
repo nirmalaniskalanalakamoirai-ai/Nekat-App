@@ -20,6 +20,11 @@ export class PenyimpanIdempotensiMemori implements PenyimpanIdempotensi {
     return Promise.resolve({ baru: true, entri });
   }
 
+  ambil<T>(ruang: "konfirmasi" | "picking", kunci: string): Promise<EntriIdempotensi<T> | null> {
+    const lama = this.#data.get(`${ruang}\u0000${kunci}`) as EntriIdempotensi<T> | undefined;
+    return Promise.resolve(lama ?? null);
+  }
+
   /** Jumlah entri per ruang (untuk tes: "picking hanya satu"). */
   jumlah(ruang: "konfirmasi" | "picking"): number {
     let n = 0;

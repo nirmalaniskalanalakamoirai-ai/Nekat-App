@@ -432,6 +432,16 @@ Guard (domain + query): ikut/membuat grup ditolak bila akun belum menyetujui ver
 | status | text | `AKTIF`, `NONAKTIF` |
 
 **`kode_pemulihan_totp`**: `admin_id` FK, `kode_hash` bytea **[RAHASIA]**, `dipakai_pada`. Sekali pakai.
+`kode_hash` = HMAC-SHA256(kunci env `ADMIN_HMAC_KUNCI`, `admin_id|kode`) (T-036); `UK (admin_id, kode_hash)`.
+
+> **DEFAULT SEMENTARA (T-036, menunggu keputusan terbuka A-01):** faktor pertama login admin saat ini
+> **kata sandi** (kolom `admin.kata_sandi_hash` scrypt N=2^17 + `kata_sandi_diubah_pada`, migrasi 0006),
+> bukan OTP WA seperti tertulis di baris `nomor_hp_e164` di atas, karena gateway WhatsApp (T-016/H2)
+> belum ada. Faktor kedua **TOTP tetap wajib** (H9). Bila A-01 memutuskan OTP WA, `otp_permintaan`
+> `LOGIN_ADMIN` menggantikan/menambah kata sandi tanpa mengubah alur TOTP & sesi.
+> Penguncian T-036: jatah percobaan dipesan atomik sebelum verifikasi (5 gagal → 15 menit, kata sandi &
+> TOTP digabung); `sesi.percobaan_faktor_kedua` (maks. 3 per sesi pra) dan `sesi.aktif_terakhir_pada`
+> (batas idle `ADMIN_SESI_IDLE_MENIT`).
 
 **`peran`** (`kode` PK: `owner`, `admin`), **`izin`** (`kode` PK, pola `<domain>.<aksi>`), **`peran_izin`** (`UK (peran_kode, izin_kode)`),
 **`admin_peran`** (`UK (admin_id, peran_kode)`). Fase 1 (ADR §7):

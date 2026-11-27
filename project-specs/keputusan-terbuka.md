@@ -214,3 +214,46 @@ DEFAULT SEMENTARA = rekomendasi, kecuali disebut lain. Detail: `docs/flow/pembay
 | U-07 | Stok cukup untuk pcs, tidak untuk dus/koli | Efan + Randy | belum — rekomendasi: opsi satuan itu nonaktif "Stok habis"; label K-20 hanya bila semua satuan habis |
 | U-08 | Sebutan UI grup <3 akun (F-15 "terbuka" = ≥3 akun) | Randy | belum — rekomendasi: <3 "Kurang {x} orang"; ≥3 "Grup terbuka" |
 | U-09 | Chip promo di kartu: nominal atau label saja? | Efan | belum — rekomendasi: label saja (+ "s.d. tanggal"); nominal hanya untuk promo per produk yang ditandai server |
+
+## Dari T-015b (sinkron zona, PR #32) dan T-019 (Gudang API, PR berikutnya) — 27 Nov
+
+DEFAULT SEMENTARA = rekomendasi, sudah dipakai di kode. Detail: `README.md` (sinkron lokasi), `docs/spec/T-009-kontrak-inventory-source.md` §12.
+
+| # | Keputusan | Pemilik | Status |
+|---|---|---|---|
+| Z-01 | Sinkron `config/lokasi.json` → DB otomatis saat deploy atau manual? | Joseph | belum — rekomendasi: otomatis di pipeline deploy setelah migrasi (`--kering` lalu terapkan); staging pakai `--izinkan-uji` |
+| Z-02 | Drop point boleh dilayani gudang berbeda dari gudang zonanya? | Efan (+ Operations) | belum — rekomendasi: tidak, drop point selalu ikut gudang zona (F-20) sampai ada kebutuhan nyata |
+| Z-03 | Zona/drop point/gudang dihapus dari config atau zona pindah gudang saat masih ada slot DIBUKA / grup belum final / peserta aktif | Randy (+ Operations) | belum — DEFAULT SEMENTARA: sinkron ditolak, bisa dipaksa admin (`--paksa`, tercatat); grup/peserta yang terdampak belum punya alur (perlu Workflow Architect) |
+| IG-01 | Data master SKU dari Gudang | Joseph | belum — DEFAULT: hanya `aktif_di_sumber` disinkron; satuan dasar beda → SKU dinonaktifkan + log audit |
+| IG-02 | Stok "tidak diketahui" (data Gudang basi): tombol beli & keranjang | Randy | belum — DEFAULT: produk tampil, tombol beli nonaktif, label "Stok sedang dicek". Rekomendasi agen: izinkan masuk keranjang, tagihan ditahan |
+| IG-03 | Kode lokasi cabang di sistem Gudang | Joseph | belum — DEFAULT: pakai `gudang.kode_konfig`; ikuti spesifikasi Gudang bila ada |
+| IG-04 | Satuan jumlah saat konfirmasi stok/picking ke Gudang | Joseph | belum — DEFAULT: satuan dasar NEKAT (pcs/gram/ml); konfirmasi ke tim Gudang untuk barang curah |
+| IG-05 | SKU yang hilang dari daftar/respons Gudang | Joseph | belum — DEFAULT: hilang dari daftar → nonaktif; hilang dari respons stok yang valid → stok 0 |
+| IG-06 | Modal dari Gudang vs modal MANUAL lama | Efan | belum — DEFAULT: modal Gudang menimpa; tanpa modal valid → kosong, produk tidak tayang; timpaan admin tetap lewat `modal_timpaan` |
+| IG-07 | Mekanisme retry permintaan picking | Joseph | belum — DEFAULT: lewat outbox NEKAT (backoff sampai 6 jam, lalu antrean admin) |
+| IG-08 | Ambang anomali sinkron: berapa SKU boleh dinonaktifkan sekali sinkron sebelum ditahan untuk ditinjau | Joseph | belum — DEFAULT: min(50 SKU, 20%) dengan lantai untuk katalog kecil; dapat diubah lewat env |
+
+## Dari T-006 (ongkir & slot, PR #34) dan T-036 (panel admin, PR #35) — 27 Nov
+
+DEFAULT SEMENTARA = rekomendasi, kecuali disebut lain. Detail: `docs/flow/ongkir-slot.md` §13; deskripsi PR #35.
+
+| # | Keputusan | Pemilik | Status |
+|---|---|---|---|
+| O-01 | Rumus ongkir fallback bisa menghasilkan pecahan < Rp1 (H6/K-28 tanpa pembulatan) | Efan | belum — rekomendasi: hitung eksak, pecahan < Rp1 dibuang (pembeli diuntungkan), dicatat per kuotasi |
+| O-02 | "Jarak km" di rumus ongkir: titik asal & cara ukur untuk grup banyak alamat | Efan (+ Operations) | belum — rekomendasi: asal = gudang penerima zona; jarak rute multi-titik dari aplikasi eksternal; fallback garis lurus terjauh |
+| O-03 | Ongkir dihitung per grup (satu rute, lalu dibagi K-25) atau per alamat? | Randy + Efan | belum — rekomendasi: per grup |
+| O-04 | Sisa pembagian ongkir (K-44 "ke host") bila host sendiri ambil di drop point | Randy | belum — rekomendasi: sisa ke anggota antar rumah yang paling awal bergabung |
+| O-05 | Keputusan §4 "pesanan di drop point dihitung tingkat Mitra bila total memenuhi syarat": tafsiran mana? (a) hanya lewat syarat grup; (b) total belanja akun di drop point ≥ ambang; (c) agregasi lintas akun per drop point per slot | Efan | belum — DEFAULT SEMENTARA (a); kode menyiapkan flag `hargaMitraDropPoint` (mati) |
+| O-06 | Kapasitas armada hanya berat; volume belum ada | Joseph (+ Operations) | belum — rekomendasi: Fase 1 berat saja; kolom volume opsional nanti |
+| O-07 | Ongkir setelah alokasi parsial / stok habis / anggota dikeluarkan: hitung ulang atau tetap? | Efan | belum — rekomendasi: tetap (tanpa tagihan tambahan); refund bagian ongkir hanya bila semua barang antar peserta batal |
+| O-08 | Tagihan terbit otomatis (K-39) saat semua sumber tarif mati; perlu pengecualian F-25? | Randy | belum — rekomendasi: peserta antar rumah dialihkan ke drop point (ongkir 0) + WA; F-25 berlaku penuh sampai diputuskan |
+| O-09 | Slot penuh saat tagihan akan terbit: boleh host pindah slot? | Randy (+ Operations) | belum — DEFAULT SEMENTARA: tagihan ditolak SLOT_PENUH; admin tambah kapasitas / pindah grup (tercatat). Rekomendasi: host boleh pindah sebelum terbit |
+| O-10 | Slot dibatalkan operasional sebelum harga dikunci | Randy | belum — rekomendasi: sama dengan F-21 |
+| O-11 | Antar rumah gagal (penerima tidak ada) | Randy (+ Operations) | belum — rekomendasi: paket ke drop point, WA "Siap diambil", tanpa ongkir tambahan; tidak diambil → F-28 |
+| O-12 | Cara admin membagikan daftar antar (nama, HP, alamat) ke kurir tanpa akun (H13) & masa simpan | Joseph (+ hukum) | belum — rekomendasi: unduh/cetak dari panel admin ber-TOTP, setiap unduhan dicatat, data pribadi tidak disimpan di server |
+| O-13 | P-19 "ditanggung NEKAT selama ≥ modal + ongkir": total bersih tagihan wajib ≥ modal + ongkir aktual? grup ditahan bila tidak? | Efan + Randy | belum — rekomendasi: pagar keras hanya pada barang (≥ modal); kekurangan ongkir tidak menahan grup, dicatat di `penanggungan_ongkir` & laporan harian |
+| A-01 | Faktor pertama login admin: kata sandi atau OTP WA (H9 menyebut OTP WA; gateway WA belum ada) | Joseph | belum — DEFAULT SEMENTARA: kata sandi + TOTP; OTP WA ditambah setelah T-016 |
+| A-02 | Mode Gudang: siapa pemilik data master produk/SKU | Joseph + Efan | belum — rekomendasi: nama/kategori/deskripsi milik NEKAT; kode SKU, satuan dasar, status aktif milik Gudang |
+| A-03 | Izin baca terpisah (`log.lihat`, `produk.lihat`) | Joseph | belum — DEFAULT: log terbuka untuk semua admin bersesi; tambah `log.lihat` saat ada peran CS |
+| A-04 | Daftar kata pemicu tinjauan nama produk (mirip kategori terlarang) | Randy + Efan | belum — DEFAULT: daftar longgar di kode, hanya memicu tinjauan, tidak menolak |
+| A-05 | Umur sesi admin (240 menit absolut, idle 30 menit), SameSite=Strict, penguncian 5 gagal/15 menit | Joseph | belum — DEFAULT seperti tertulis, dapat diubah lewat env |

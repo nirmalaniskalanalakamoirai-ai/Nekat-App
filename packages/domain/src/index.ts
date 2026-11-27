@@ -7,3 +7,4 @@ export * from "./zona.js";
 export * from "./inventori.js";
 export * from "./harga/index.js";
 export * from "./katalog/index.js";
+export * from "./admin/index.js";
