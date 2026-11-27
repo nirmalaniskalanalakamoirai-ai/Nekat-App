@@ -364,7 +364,7 @@ export const pembayaran = pgTable(
     ),
     check(
       "pembayaran_alasan_gagal",
-      sql`alasan_gagal IS NULL OR (status = 'GAGAL' AND ${dalam("alasan_gagal", ALASAN_GAGAL_PEMBAYARAN)})`,
+      sql`alasan_gagal IS NULL OR (status IN ('GAGAL', 'LUNAS_TERLAMBAT') AND ${dalam("alasan_gagal", ALASAN_GAGAL_PEMBAYARAN)})`,
     ),
     check("pembayaran_kanal_va", sql`(metode = 'VA') = (kanal IS NOT NULL)`),
     uniqueIndex("pembayaran_xendit_ref_uk").on(t.xenditRef),

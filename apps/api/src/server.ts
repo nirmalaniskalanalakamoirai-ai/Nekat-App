@@ -14,9 +14,11 @@ import {
   buatRepoAuthAdmin,
   buatRepoKatalog,
   buatRepoPembayaran,
+  buatRepoSaldo,
   rencanakanSinkronLokasi,
   teksPerubahanLokasi,
   type Db,
+  type RepoSaldo,
 } from "@nekat/db";
 import { KONFIGURASI_HARGA_BAWAAN, LayananBayar } from "@nekat/domain";
 import { z } from "zod";
@@ -102,8 +104,11 @@ try {
 let katalog: LayananKatalog | null = null;
 let admin: OpsiRuteAdmin | null = null;
 let db: Db | null = null;
+let repoSaldo: RepoSaldo | null = null;
 if (env.data.DATABASE_URL !== undefined) {
   db = buatDb(env.data.DATABASE_URL);
+  // T-021: rute saldo tetap 401 untuk semua permintaan sampai autentikasi pembeli (T-016) disuntikkan.
+  repoSaldo = buatRepoSaldo(db);
   katalog = new LayananKatalog({
     repo: buatRepoKatalog(db),
     // T-019: katalog membaca snapshot lokal, tidak memanggil Gudang per request (T-009 §6). Snapshot
@@ -169,7 +174,14 @@ try {
   process.exit(1);
 }
 
-const app = buatApp({ lokasi, katalog, admin, trustProxy: env.data.TRUST_PROXY, tagihan });
+const app = buatApp({
+  lokasi,
+  katalog,
+  admin,
+  trustProxy: env.data.TRUST_PROXY,
+  saldo: { repo: repoSaldo },
+  tagihan,
+});
 if (!lokasi) app.log.warn("config/lokasi.json belum ada: rute zona menjawab 503");
 if (!katalog) app.log.warn("DATABASE_URL belum diisi: rute katalog menjawab 503");
 if (!tagihan.layanan) {
