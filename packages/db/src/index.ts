@@ -19,3 +19,24 @@ export {
   uuidDariTeks,
 } from "./repo/snapshot-inventori.js";
 export { buatRepoOutboxPicking } from "./repo/outbox-picking.js";
+// T-021: ledger saldo pengguna (dipanggil di dalam transaksi pemanggil) + pembaca riwayat.
+export {
+  ajukanKoreksiSaldo,
+  BATAS_RIWAYAT_MAKS,
+  buatRepoSaldo,
+  cariSelisihSaldo,
+  debitCheckout,
+  kembalikanSaldoInvoice,
+  kredit,
+  PANJANG_ALASAN_KOREKSI_MAKS,
+  putuskanKoreksiSaldo,
+  type EntriRiwayat,
+  type HalamanRiwayat,
+  type HasilDebitCheckout,
+  type HasilKeputusanKoreksi,
+  type HasilKredit,
+  type MasukanDebitCheckout,
+  type MasukanKredit,
+  type RepoSaldo,
+  type Tx,
+} from "./repo/ledger-saldo.js";

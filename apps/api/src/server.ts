@@ -1,6 +1,12 @@
 // Entry proses API. Tidak diimpor oleh tes (tes memakai `buatApp` + `inject`).
 import { bacaKonfigInventory, type KonfigInventory } from "@nekat/adapters";
-import { buatDb, buatPembacaSnapshotInventori, buatRepoKatalog } from "@nekat/db";
+import {
+  buatDb,
+  buatPembacaSnapshotInventori,
+  buatRepoKatalog,
+  buatRepoSaldo,
+  type RepoSaldo,
+} from "@nekat/db";
 import { KONFIGURASI_HARGA_BAWAAN } from "@nekat/domain";
 import { z } from "zod";
 import { buatApp } from "./app.js";
@@ -49,8 +55,11 @@ try {
 }
 
 let katalog: LayananKatalog | null = null;
+let repoSaldo: RepoSaldo | null = null;
 if (env.data.DATABASE_URL !== undefined) {
   const db = buatDb(env.data.DATABASE_URL);
+  // T-021: rute saldo tetap 401 untuk semua permintaan sampai autentikasi pembeli (T-016) disuntikkan.
+  repoSaldo = buatRepoSaldo(db);
   katalog = new LayananKatalog({
     repo: buatRepoKatalog(db),
     // T-019: katalog membaca snapshot lokal, tidak memanggil Gudang per request (T-009 §6). Snapshot
@@ -85,7 +94,7 @@ try {
   process.exit(1);
 }
 
-const app = buatApp({ lokasi, katalog });
+const app = buatApp({ lokasi, katalog, saldo: { repo: repoSaldo } });
 if (!lokasi) app.log.warn("config/lokasi.json belum ada: rute zona menjawab 503");
 if (!katalog) app.log.warn("DATABASE_URL belum diisi: rute katalog menjawab 503");
 try {

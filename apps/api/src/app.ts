@@ -8,6 +8,7 @@ import { z } from "zod";
 import { tentukanZona } from "@nekat/domain";
 import type { LayananKatalog } from "./katalog/layanan.js";
 import { ruteKatalog } from "./katalog/rute.js";
+import { ruteSaldo, type OpsiRuteSaldo } from "./saldo/rute.js";
 import { keZonaLayanan, type KonfigLokasi } from "./lokasi.js";
 
 /** Header yang tidak boleh pernah muncul di log (ADR-0001 §7). PII di body ditambah per rute. */
@@ -34,6 +35,11 @@ export interface OpsiApp {
   readonly lokasi?: KonfigLokasi | null;
   /** Katalog (T-025); null/undefined = DB belum dikonfigurasi (rute katalog menjawab 503). */
   readonly katalog?: LayananKatalog | null;
+  /**
+   * Saldo pengguna (T-021). Tanpa `autentikasi` (T-016 belum ada) rute selalu menjawab 401.
+   * Tanpa repo: 503 setelah lolos autentikasi.
+   */
+  readonly saldo?: OpsiRuteSaldo | null;
 }
 
 const skemaGalat = z.object({ kode: z.string(), pesan: z.string() });
@@ -137,6 +143,9 @@ export function buatApp(opsi: OpsiApp = {}) {
 
   // T-025 katalog pembeli: kategori + jumlah, daftar/pencarian, detail.
   void app.register(ruteKatalog, { layanan: opsi.katalog ?? null, lokasi });
+
+  // T-021 saldo pengguna: GET /api/saldo (saldo + riwayat). Ditolak 401 sampai login pembeli (T-016).
+  void app.register(ruteSaldo, opsi.saldo ?? { repo: null });
 
   return app;
 }
