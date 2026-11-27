@@ -2,7 +2,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StrictMode, type ReactElement } from "react";
 import { createRoot } from "react-dom/client";
 import { createBrowserRouter, RouterProvider, type RouteObject } from "react-router";
-import { Beranda } from "./halaman/Beranda";
+import { Katalog } from "./halaman/Katalog";
+import { Keranjang } from "./halaman/Keranjang";
 import { PilihZona } from "./halaman/PilihZona";
 import { Segera, TidakDitemukan } from "./halaman/Segera";
 import { AppShell } from "./layout/AppShell";
@@ -31,17 +32,27 @@ if (!akar) {
 // Halaman yang sudah dibuat; sisanya "sedang disiapkan".
 const HALAMAN_JADI: Record<string, ReactElement> = {
   "/zona": <PilihZona />,
+  "/keranjang": <Keranjang />,
 };
 
-const anak: RouteObject[] = RUTE_PEMBELI.map((r) =>
+// H-02: `/`, `/k/:kategori/:sub?`, `/cari` memakai SATU elemen Katalog di route layout tanpa path,
+// sehingga berpindah antar-ketiganya tidak me-mount ulang halaman (kolom cari tetap fokus).
+const RUTE_KATALOG = new Set(["/", "/k/:kategori/:sub?", "/cari"]);
+
+const anakKatalog: RouteObject[] = RUTE_PEMBELI.filter((r) => RUTE_KATALOG.has(r.path)).map((r) =>
   r.path === "/"
-    ? { index: true, element: <Beranda />, handle: { judul: r.judul } }
-    : {
-        path: r.path,
-        element: HALAMAN_JADI[r.path] ?? <Segera judul={r.judul} kodeHalaman={r.kodeHalaman} />,
-        handle: { judul: r.judul },
-      },
+    ? { index: true, element: null, handle: { judul: r.judul } }
+    : { path: r.path, element: null, handle: { judul: r.judul } },
 );
+
+const anak: RouteObject[] = [
+  { element: <Katalog />, children: anakKatalog },
+  ...RUTE_PEMBELI.filter((r) => !RUTE_KATALOG.has(r.path)).map((r) => ({
+    path: r.path,
+    element: HALAMAN_JADI[r.path] ?? <Segera judul={r.judul} kodeHalaman={r.kodeHalaman} />,
+    handle: { judul: r.judul },
+  })),
+];
 
 const router = createBrowserRouter([
   {

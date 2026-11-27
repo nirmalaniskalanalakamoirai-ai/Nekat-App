@@ -1,0 +1,47 @@
+/* Snackbar (T-008 §1.7). Hanya membaca token dari styles/tokens.css. */
+
+.snackbar {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--bottomnav-h) + var(--safe-bottom) + var(--space-3));
+  transform: translateX(-50%);
+  z-index: var(--z-toast);
+  width: calc(100% - 2 * var(--gutter));
+  max-width: calc(var(--container-shop) - 2 * var(--gutter));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--tap-comfort);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-text);
+  color: var(--color-bg);
+  box-shadow: var(--shadow-3);
+}
+
+.snackbar__pesan {
+  font-size: var(--text-sm);
+  min-width: 0;
+}
+
+.snackbar__aksi {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-min);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-bg);
+  font: inherit;
+  font-weight: var(--weight-bold);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.snackbar__aksi:focus-visible {
+  outline-color: var(--color-bg);
+}

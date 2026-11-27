@@ -1,0 +1,108 @@
+/* H-02 Katalog (T-007 H-02). Hanya membaca token dari styles/tokens.css. */
+
+.katalog {
+  --stack-gap: var(--space-3);
+  padding-block: var(--space-4) var(--space-8);
+}
+
+.katalog__judul {
+  margin: 0;
+  font-size: var(--text-xl);
+  line-height: var(--leading-tight);
+}
+
+.katalog__subjudul {
+  margin: 0;
+  font-size: var(--text-base);
+}
+
+.katalog__cari {
+  position: relative;
+}
+
+.katalog__cari-ikon {
+  position: absolute;
+  top: 50%;
+  left: var(--space-3);
+  transform: translateY(-50%);
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+.katalog__cari .katalog__cari-input {
+  padding-left: calc(var(--space-3) + 20px + var(--space-2));
+}
+
+.katalog__zona {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.katalog__zona p {
+  margin: 0;
+}
+
+/* Wadah gulir diposisikan agar teks .sr-only (absolute) di dalam tab ikut terpotong olehnya,
+   bukan melebarkan halaman (tanpa scroll horizontal, T-007 §7). */
+.katalog__tab .deret-tab {
+  position: relative;
+}
+
+.katalog__tab .tab {
+  position: relative;
+  color: var(--color-text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.katalog__tab .tab[aria-selected="true"] {
+  color: var(--color-text-on-primary);
+}
+
+/* Baris kedua (subkategori) lebih ringan agar hierarki jelas. */
+.katalog__tab .deret-tab + .deret-tab .tab {
+  border-color: var(--color-border);
+}
+
+.katalog__jumlah {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.katalog__jumlah:empty {
+  display: none;
+}
+
+.katalog__info {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.katalog__keadaan {
+  --stack-gap: var(--space-3);
+  padding-block: var(--space-6);
+  text-align: center;
+  align-items: center;
+}
+
+.katalog__keadaan p {
+  margin: 0;
+}
+
+.katalog__ujung {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding-block: var(--space-4);
+}
+
+.katalog__ujung:empty {
+  display: none;
+}
+
+a.chip {
+  text-decoration: none;
+}
