@@ -11,3 +11,11 @@ export { jalankanSeed, SEED_KATEGORI, SEED_ARMADA, KATA_TERLARANG } from "./seed
 export { buatRepoInventoriLokal } from "./repo/inventori-lokal.js";
 export { buatPenyimpanIdempotensiPg } from "./repo/idempotensi-inventori.js";
 export { buatRepoKatalog } from "./repo/katalog.js";
+// T-019: snapshot lokal inventori (pemetaan sumber, pembaca katalog, penulis job sinkron), outbox picking.
+export {
+  buatPemetaanSumberPg,
+  buatPembacaSnapshotInventori,
+  buatRepoSinkronInventori,
+  uuidDariTeks,
+} from "./repo/snapshot-inventori.js";
+export { buatRepoOutboxPicking } from "./repo/outbox-picking.js";

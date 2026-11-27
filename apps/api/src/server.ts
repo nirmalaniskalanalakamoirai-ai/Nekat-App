@@ -1,12 +1,7 @@
 // Entry proses API. Tidak diimpor oleh tes (tes memakai `buatApp` + `inject`).
-import {
-  bacaKonfigInventory,
-  buatInventorySource,
-  pastikanSumberInventoryTersedia,
-  type KonfigInventory,
-} from "@nekat/adapters";
-import { buatDb, buatRepoInventoriLokal, buatRepoKatalog } from "@nekat/db";
-import { KONFIGURASI_HARGA_BAWAAN, type PenyimpanIdempotensi } from "@nekat/domain";
+import { bacaKonfigInventory, type KonfigInventory } from "@nekat/adapters";
+import { buatDb, buatPembacaSnapshotInventori, buatRepoKatalog } from "@nekat/db";
+import { KONFIGURASI_HARGA_BAWAAN } from "@nekat/domain";
 import { z } from "zod";
 import { buatApp } from "./app.js";
 import { LayananKatalog } from "./katalog/layanan.js";
@@ -44,32 +39,29 @@ if (!env.success) {
   process.exit(1);
 }
 
-// Toggle InventorySource (T-018): dibaca & divalidasi saat start; nilai salah → gagal start.
+// Toggle InventorySource (T-018/T-019): dibaca & divalidasi saat start; nilai salah → gagal start.
 let konfigInventory: KonfigInventory;
 try {
   konfigInventory = bacaKonfigInventory(process.env);
-  pastikanSumberInventoryTersedia(konfigInventory);
 } catch (err) {
   console.error((err as Error).message);
   process.exit(1);
 }
-
-// API katalog hanya membaca stok & modal; konfirmasi stok/picking milik worker (T-022/T-040).
-const idempotensiHanyaBaca: PenyimpanIdempotensi = {
-  simpanBilaBelumAda: () =>
-    Promise.reject(new Error("API tidak menulis idempotensi inventori (hanya baca)")),
-};
 
 let katalog: LayananKatalog | null = null;
 if (env.data.DATABASE_URL !== undefined) {
   const db = buatDb(env.data.DATABASE_URL);
   katalog = new LayananKatalog({
     repo: buatRepoKatalog(db),
-    inventory: buatInventorySource(konfigInventory, {
-      repo: buatRepoInventoriLokal(db),
-      idempotensi: idempotensiHanyaBaca,
-    }),
+    // T-019: katalog membaca snapshot lokal, tidak memanggil Gudang per request (T-009 §6). Snapshot
+    // diisi job sinkron worker (mode gudang) atau panel admin/CSV (mode local).
+    snapshot: buatPembacaSnapshotInventori(db),
+    sumber: konfigInventory.sumber,
     // Konfigurasi harga dari panel admin menyusul (T-037); bawaan: PPN belum dikonfigurasi.
+    // Batas usia modal SENGAJA tidak dipakai untuk tampilan katalog: saat Gudang terganggu katalog
+    // tetap tampil dari snapshot (T-009 §6), stok basi = "sedang dicek" & tombol beli nonaktif.
+    // TODO(invoice/checkout, K-15/P-10): penerbitan tagihan WAJIB menolak modal yang lebih tua dari
+    // INVENTORY_MAKS_UMUR_DATA_MENIT. Belum ada use case invoice, jadi belum ada penjualan.
     konfigurasiHarga: KONFIGURASI_HARGA_BAWAAN,
     maksUmurDataMenit: konfigInventory.maksUmurDataMenit,
     cacheMs: env.data.KATALOG_CACHE_DETIK * 1000,

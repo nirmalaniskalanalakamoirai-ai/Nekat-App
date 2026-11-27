@@ -2,6 +2,7 @@
 // Dibaca SEKALI saat start; nilai tidak valid → aplikasi gagal start. Pesan error hanya menyebut
 // NAMA variabel, tidak pernah nilainya (ADR-0001 §6).
 import { NAMA_SUMBER_INVENTORY, type NamaSumberInventory } from "@nekat/shared";
+import { urlDasarGudang } from "./http-gudang.js";
 
 export const MODE_SAAT_GANGGUAN = ["tahan_checkout", "jual_snapshot"] as const;
 export type ModeSaatGangguan = (typeof MODE_SAAT_GANGGUAN)[number];
@@ -13,6 +14,11 @@ export interface KonfigInventory {
   /** H14: perilaku saat sumber tak terjangkau. Bawaan `tahan_checkout`. */
   readonly saatGangguan: ModeSaatGangguan;
   readonly intervalSinkronMenit: number;
+  /**
+   * Ambang anomali penonaktifan SKU saat sinkron penuh (DEFAULT SEMENTARA IG-08): lebih dari
+   * `jumlah` SKU ATAU lebih dari `persen` % SKU terpetakan → penonaktifan ditahan + log audit.
+   */
+  readonly batasNonaktif: { readonly jumlah: number; readonly persen: number };
   /** Hanya bila `sumber = gudang` (dipakai T-019). */
   readonly gudang: {
     readonly apiUrl: string;
@@ -70,11 +76,13 @@ function pilihan<T extends string>(
   return bawaan;
 }
 
-/** `https://` tanpa kredensial di URL (token hanya lewat header, T-009 §5.1). */
+/**
+ * `https://` tanpa kredensial, query, atau fragmen (token hanya lewat header, T-009 §5.1).
+ * Memakai validator yang SAMA dengan klien HTTP (`urlDasarGudang`) agar start & runtime seragam.
+ */
 function urlGudangValid(v: string): boolean {
   try {
-    const u = new URL(v);
-    return u.protocol === "https:" && u.username === "" && u.password === "" && u.hostname !== "";
+    return urlDasarGudang(v).hostname !== "";
   } catch {
     return false;
   }
@@ -107,6 +115,11 @@ export function bacaKonfigInventory(env: Env): KonfigInventory {
     salah,
   );
 
+  const batasNonaktif = {
+    jumlah: bilanganBulat(env, "INVENTORY_BATAS_NONAKTIF_SKU", 50, 0, 1_000_000, salah),
+    persen: bilanganBulat(env, "INVENTORY_BATAS_NONAKTIF_PERSEN", 20, 0, 100, salah),
+  };
+
   let gudang: KonfigInventory["gudang"] = null;
   if (sumber === "gudang") {
     const apiUrl = ambil(env, "GUDANG_API_URL");
@@ -119,5 +132,12 @@ export function bacaKonfigInventory(env: Env): KonfigInventory {
   }
 
   if (salah.length > 0) throw new KonfigInventoryTidakValidError(salah);
-  return { sumber, maksUmurDataMenit, saatGangguan, intervalSinkronMenit, gudang };
+  return {
+    sumber,
+    maksUmurDataMenit,
+    saatGangguan,
+    intervalSinkronMenit,
+    batasNonaktif,
+    gudang,
+  };
 }

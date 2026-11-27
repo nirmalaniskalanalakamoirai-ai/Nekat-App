@@ -3,11 +3,8 @@ import { describe, expect, it } from "vitest";
 import { PenyimpanIdempotensiMemori } from "./idempotensi-memori.js";
 import { bacaKonfigInventory, KonfigInventoryTidakValidError } from "./konfigurasi.js";
 import { LocalInventory } from "./local-inventory.js";
-import {
-  buatInventorySource,
-  pastikanSumberInventoryTersedia,
-  SumberInventoryBelumDiimplementasiError,
-} from "./pabrik.js";
+import { GudangApiInventory } from "./gudang-api-inventory.js";
+import { buatInventorySource, DependensiInventoryKurangError } from "./pabrik.js";
 
 const TOKEN = "token-uji-jangan-bocor";
 
@@ -28,6 +25,7 @@ describe("bacaKonfigInventory (toggle INVENTORY_SOURCE)", () => {
       maksUmurDataMenit: 15,
       saatGangguan: "tahan_checkout",
       intervalSinkronMenit: 5,
+      batasNonaktif: { jumlah: 50, persen: 20 },
       gudang: null,
     });
     // String kosong = tidak diisi.
@@ -40,8 +38,11 @@ describe("bacaKonfigInventory (toggle INVENTORY_SOURCE)", () => {
       INVENTORY_MAKS_UMUR_DATA_MENIT: "30",
       INVENTORY_SAAT_GANGGUAN: "jual_snapshot",
       INVENTORY_INTERVAL_SINKRON_MENIT: "10",
+      INVENTORY_BATAS_NONAKTIF_SKU: "0",
+      INVENTORY_BATAS_NONAKTIF_PERSEN: "100",
     });
     expect(k).toMatchObject({
+      batasNonaktif: { jumlah: 0, persen: 100 },
       maksUmurDataMenit: 30,
       saatGangguan: "jual_snapshot",
       intervalSinkronMenit: 10,
@@ -54,12 +55,14 @@ describe("bacaKonfigInventory (toggle INVENTORY_SOURCE)", () => {
       INVENTORY_MAKS_UMUR_DATA_MENIT: "0",
       INVENTORY_SAAT_GANGGUAN: "abaikan",
       INVENTORY_INTERVAL_SINKRON_MENIT: "5.5",
+      INVENTORY_BATAS_NONAKTIF_PERSEN: "101",
     });
     expect(e.variabel).toEqual([
       "INVENTORY_SOURCE",
       "INVENTORY_MAKS_UMUR_DATA_MENIT",
       "INVENTORY_SAAT_GANGGUAN",
       "INVENTORY_INTERVAL_SINKRON_MENIT",
+      "INVENTORY_BATAS_NONAKTIF_PERSEN",
     ]);
     expect(e.message).not.toContain("rahasia");
   });
@@ -72,6 +75,9 @@ describe("bacaKonfigInventory (toggle INVENTORY_SOURCE)", () => {
     for (const url of [
       "http://gudang.contoh.id/api",
       "https://user:pass@gudang.contoh.id/api",
+      // Seragam dengan klien HTTP (urlDasarGudang): query/fragmen ditolak saat start.
+      "https://gudang.contoh.id/api?token=x",
+      "https://gudang.contoh.id/api#x",
       "bukan url",
     ]) {
       const e = galatKonfig({
@@ -110,27 +116,30 @@ describe("buatInventorySource", () => {
     expect(inv.nama).toBe("local");
   });
 
-  it("gudang → belum diimplementasi (T-019)", () => {
-    const k = bacaKonfigInventory({
+  const pemetaan = {
+    skuKeSumber: () => Promise.resolve(new Map<string, string>()),
+    skuDariSumber: () => Promise.resolve(new Map<string, string>()),
+    lokasiKeSumber: () => Promise.resolve(null),
+  };
+  const konfigGudang = () =>
+    bacaKonfigInventory({
       INVENTORY_SOURCE: "gudang",
       GUDANG_API_URL: "https://gudang.contoh.id/api",
       GUDANG_API_TOKEN: TOKEN,
     });
-    expect(() => buatInventorySource(k, dep)).toThrow(SumberInventoryBelumDiimplementasiError);
-    expect(() => buatInventorySource(k, dep)).toThrow(/belum diimplementasi/);
+
+  it("gudang → GudangApiInventory (T-019)", () => {
+    const inv = buatInventorySource(konfigGudang(), { ...dep, pemetaan });
+    expect(inv).toBeInstanceOf(GudangApiInventory);
+    expect(inv.nama).toBe("gudang");
+    // Token tidak ikut ter-serialisasi dari instans adapter.
+    expect(JSON.stringify(inv)).not.toContain(TOKEN);
   });
 
-  it("penjaga start: gudang ditolak sampai T-019, local lolos", () => {
-    const k = bacaKonfigInventory({
-      INVENTORY_SOURCE: "gudang",
-      GUDANG_API_URL: "https://gudang.contoh.id/api",
-      GUDANG_API_TOKEN: TOKEN,
-    });
-    expect(() => {
-      pastikanSumberInventoryTersedia(k);
-    }).toThrow(SumberInventoryBelumDiimplementasiError);
-    expect(() => {
-      pastikanSumberInventoryTersedia(bacaKonfigInventory({}));
-    }).not.toThrow();
+  it("dependensi yang kurang ditolak saat start (bukan saat request)", () => {
+    expect(() => buatInventorySource(konfigGudang(), dep)).toThrow(DependensiInventoryKurangError);
+    expect(() =>
+      buatInventorySource(bacaKonfigInventory({}), { idempotensi: dep.idempotensi }),
+    ).toThrow(DependensiInventoryKurangError);
   });
 });
