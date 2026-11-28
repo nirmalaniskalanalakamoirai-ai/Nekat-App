@@ -1,6 +1,6 @@
 // @nekat/adapters — InventorySource, PaymentGateway (Xendit), WhatsAppGateway, Clock (ADR-0001 §3.1, §4).
 // T-018: InventorySource (LocalInventory + toggle). T-019: GudangApiInventory.
-// Menyusul: T-016 (WhatsApp), T-029 (Xendit).
+// T-016: WhatsAppGateway (mode log / sandbox / meta) + penjaga start. Menyusul: T-029 (Xendit).
 
 export const NAMA_PAKET = "@nekat/adapters";
 
@@ -40,3 +40,20 @@ export {
   type DependensiInventory,
 } from "./inventori/pabrik.js";
 export { hashKanonik, jsonKanonik } from "./inventori/kanonik.js";
+export {
+  bacaKonfigWhatsApp,
+  KonfigWhatsAppTidakValidError,
+  MODE_WHATSAPP,
+  type IzinSandbox,
+  type KonfigMetaCloud,
+  type KonfigWhatsApp,
+  type OpsiBacaKonfigWhatsApp,
+} from "./whatsapp/konfigurasi.js";
+export { LogGateway, type CatatanLogWa, type OpsiLogGateway } from "./whatsapp/log-gateway.js";
+export {
+  KELAS_GALAT_META,
+  kelasDariKodeMeta,
+  MetaCloudGateway,
+  type OpsiMetaCloudGateway,
+} from "./whatsapp/meta-gateway.js";
+export { buatWhatsAppGateway, type DependensiWhatsApp } from "./whatsapp/pabrik.js";

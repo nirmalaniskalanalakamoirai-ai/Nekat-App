@@ -10,6 +10,7 @@ import { ruteAdmin, type OpsiRuteAdmin } from "./admin/rute.js";
 import type { LayananKatalog } from "./katalog/layanan.js";
 import { ruteKatalog } from "./katalog/rute.js";
 import { keZonaLayanan, type KonfigLokasi } from "./lokasi.js";
+import { ruteMasuk, type OpsiRuteMasuk } from "./masuk/rute.js";
 
 /** Header yang tidak boleh pernah muncul di log (ADR-0001 §7). PII di body ditambah per rute. */
 export const REDAKSI_LOG = [
@@ -22,6 +23,11 @@ export const REDAKSI_LOG = [
   "headers.cookie",
   "headers['x-callback-token']",
   'headers["set-cookie"]',
+  // T-016: nomor HP & kode OTP bila suatu saat body/query ikut tercatat.
+  "req.body.nomorHp",
+  "req.body.kode",
+  "body.nomorHp",
+  "body.kode",
 ];
 
 const skemaHealth = z.object({ status: z.literal("ok") });
@@ -42,6 +48,8 @@ export interface OpsiApp {
    * koneksi datang dari alamat ini. Kosong = XFF diabaikan (req.ip = alamat koneksi).
    */
   readonly trustProxy?: readonly string[];
+  /** Login OTP WhatsApp pembeli (T-016); null/undefined = belum dikonfigurasi (rute masuk 503). */
+  readonly masuk?: OpsiRuteMasuk | null;
 }
 
 const skemaGalat = z.object({ kode: z.string(), pesan: z.string() });
@@ -159,6 +167,9 @@ export function buatApp(opsi: OpsiApp = {}) {
       originDiizinkan: [],
     }),
   });
+
+  // T-016 login OTP WhatsApp pembeli: /api/masuk/otp, /api/masuk/verifikasi, /api/keluar, /api/saya.
+  void app.register(ruteMasuk, opsi.masuk ?? { layanan: null, originDiizinkan: [] });
 
   return app;
 }

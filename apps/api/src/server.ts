@@ -1,5 +1,12 @@
 // Entry proses API. Tidak diimpor oleh tes (tes memakai `buatApp` + `inject`).
-import { bacaKonfigInventory, type KonfigInventory } from "@nekat/adapters";
+import {
+  bacaKonfigInventory,
+  bacaKonfigWhatsApp,
+  buatWhatsAppGateway,
+  LogGateway,
+  type KonfigInventory,
+  type KonfigWhatsApp,
+} from "@nekat/adapters";
 import {
   bacaStatusLokasiDb,
   buatDb,
@@ -7,6 +14,7 @@ import {
   buatRepoAdminKatalog,
   buatRepoAuthAdmin,
   buatRepoKatalog,
+  buatRepoMasukPembeli,
   rencanakanSinkronLokasi,
   teksPerubahanLokasi,
   type Db,
@@ -19,6 +27,10 @@ import type { OpsiRuteAdmin } from "./admin/rute.js";
 import { buatApp } from "./app.js";
 import { LayananKatalog } from "./katalog/layanan.js";
 import { muatKonfigLokasi } from "./lokasi.js";
+import { bacaKonfigMasuk, type KonfigMasuk } from "./masuk/konfig.js";
+import { hmacHp } from "./masuk/kripto.js";
+import { LayananMasukPembeli, type PeristiwaMasuk } from "./masuk/layanan.js";
+import type { OpsiRuteMasuk } from "./masuk/rute.js";
 
 const skemaEnv = z.object({
   HOST: z.string().min(1).default("0.0.0.0"),
@@ -82,6 +94,33 @@ try {
   process.exit(1);
 }
 
+// Login OTP pembeli (T-016): aktif bila DATABASE_URL + HP_HMAC_KUNCI + OTP_KODE_KUNCI + SESI_PEMBELI_KUNCI.
+let konfigMasuk: KonfigMasuk | null;
+// Gateway WhatsApp (T-016, T-010 §3.2): penjaga start — NODE_ENV wajib dikenal, production wajib
+// WA_MODE=meta, log/sandbox ditolak di production, meta ditolak di luar production.
+let konfigWa: KonfigWhatsApp;
+try {
+  konfigMasuk = bacaKonfigMasuk(process.env);
+  konfigWa = bacaKonfigWhatsApp(process.env, {
+    versiKunciHp: konfigMasuk ? [...konfigMasuk.kunciHp.keys()] : [],
+  });
+} catch (err) {
+  console.error((err as Error).message);
+  process.exit(1);
+}
+const kunciHpMasuk = konfigMasuk?.kunciHp;
+const gatewayWa = buatWhatsAppGateway(konfigWa, {
+  hmacHp: (versi, nomor) => {
+    const k = kunciHpMasuk?.get(versi);
+    return k ? hmacHp(k, nomor) : null;
+  },
+  ttlKodeMs: (konfigMasuk?.kebijakan.kedaluwarsaMenit ?? 5) * 60_000,
+  // Tanpa nomor/kode: hanya jenis, template, kunci idempotensi.
+  catatLog: (c) => {
+    app.log.info({ wa: c }, "wa(log): pesan tidak dikirim keluar");
+  },
+});
+
 let katalog: LayananKatalog | null = null;
 let admin: OpsiRuteAdmin | null = null;
 let db: Db | null = null;
@@ -123,6 +162,32 @@ if (db && konfigAdmin) {
   };
 }
 
+let masuk: OpsiRuteMasuk | null = null;
+if (db && konfigMasuk) {
+  const lapor = (p: PeristiwaMasuk) => {
+    if (p.jenis === "OTP_TERKIRIM") app.log.info({ otp: p }, "otp: terkirim");
+    else if (p.jenis === "OTP_ANGGARAN_HABIS")
+      app.log.error({ otp: p, alert: "OTP_ANGGARAN" }, "otp: anggaran habis");
+    else if (p.kritis) app.log.error({ otp: p, alert: "WA_GATEWAY" }, "otp: gagal kirim (kritis)");
+    else app.log.warn({ otp: p }, "otp: gagal kirim");
+  };
+  const layanan = new LayananMasukPembeli({
+    repo: buatRepoMasukPembeli(db),
+    gateway: gatewayWa,
+    konfig: konfigMasuk,
+    lapor,
+  });
+  // Endpoint kode OTP dev: hanya mode log + NODE_ENV development/test (bukan staging/production).
+  const dev =
+    gatewayWa instanceof LogGateway &&
+    (konfigWa.nodeEnv === "development" || konfigWa.nodeEnv === "test");
+  masuk = {
+    layanan,
+    originDiizinkan: konfigMasuk.originDiizinkan,
+    kodeDev: dev ? (nomor) => gatewayWa.ambilKodeTerakhir(nomor) : null,
+  };
+}
+
 let lokasi;
 try {
   lokasi = await muatKonfigLokasi(env.data.LOKASI_CONFIG);
@@ -131,7 +196,13 @@ try {
   process.exit(1);
 }
 
-const app = buatApp({ lokasi, katalog, admin, trustProxy: env.data.TRUST_PROXY });
+const app = buatApp({ lokasi, katalog, admin, masuk, trustProxy: env.data.TRUST_PROXY });
+app.log.info({ waMode: konfigWa.mode, nodeEnv: konfigWa.nodeEnv }, "gateway WhatsApp");
+if (!masuk) {
+  app.log.warn(
+    "Login pembeli belum dikonfigurasi (DATABASE_URL/HP_HMAC_KUNCI/OTP_KODE_KUNCI/SESI_PEMBELI_KUNCI): /api/masuk 503",
+  );
+}
 if (!lokasi) app.log.warn("config/lokasi.json belum ada: rute zona menjawab 503");
 if (!katalog) app.log.warn("DATABASE_URL belum diisi: rute katalog menjawab 503");
 if (!admin) app.log.warn("Panel admin belum dikonfigurasi (DATABASE_URL/ADMIN_*): /api/admin 503");
