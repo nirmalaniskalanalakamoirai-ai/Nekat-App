@@ -305,10 +305,10 @@ export const ruteMasuk: FastifyPluginCallbackZod<OpsiRuteMasuk> = (r, opsi, sele
           response: { 200: z.object({ kode: z.string().nullable() }), 400: skemaGalat },
         },
       },
-      (req, reply) => {
+      async (req, reply) => {
         const nomor = normalisasiNomorHp(req.body.nomorHp);
         if (!nomor) return reply.code(400).send(GALAT_MASUK.INPUT_HP);
-        return { kode: kodeDev(nomor) };
+        return Promise.resolve({ kode: kodeDev(nomor) });
       },
     );
   }

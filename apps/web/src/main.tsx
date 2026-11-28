@@ -6,6 +6,7 @@ import { Beranda } from "./halaman/Beranda";
 import { PilihZona } from "./halaman/PilihZona";
 import { Segera, TidakDitemukan } from "./halaman/Segera";
 import { AppShell } from "./layout/AppShell";
+import { HalamanMasuk } from "./masuk/HalamanMasuk";
 import { RUTE_PEMBELI, atributTema, type PilihanTema } from "./rute";
 import "./styles/tokens.css";
 
@@ -31,6 +32,7 @@ if (!akar) {
 // Halaman yang sudah dibuat; sisanya "sedang disiapkan".
 const HALAMAN_JADI: Record<string, ReactElement> = {
   "/zona": <PilihZona />,
+  "/masuk": <HalamanMasuk />,
 };
 
 const anak: RouteObject[] = RUTE_PEMBELI.map((r) =>
